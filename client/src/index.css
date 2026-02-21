@@ -1,0 +1,147 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&family=JetBrains+Mono:wght@400;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: var(--font-mono), monospace;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: dark;
+  color: #E5E5E5;
+  background-color: #0D0D0D;
+
+  --secondary: #EA580C;
+  --font-sans: "Space Grotesk";
+  --font-mono: "JetBrains Mono";
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+[data-secondary='white'] {
+  --secondary: #FFFFFF;
+}
+
+[data-font='inter'] {
+  --font-sans: "Inter", sans-serif;
+  --font-mono: "Inter", sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: #0D0D0D;
+  background-image: 
+    linear-gradient(to right, #1A1A1A 1px, transparent 1px),
+    linear-gradient(to bottom, #1A1A1A 1px, transparent 1px);
+  background-size: 32px 32px;
+  color: #E5E5E5;
+}
+
+h1, h2, h3, .brutalist-heading {
+  font-family: var(--font-sans), sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.06em;
+}
+
+code {
+  font-family: var(--font-mono), monospace;
+}
+
+/* White text selection: Black text on White background */
+::selection {
+  color: #000000;
+  background: #FFFFFF;
+}
+
+/* Keep scrollbar subtle in dark UI */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #262626 #0D0D0D;
+}
+
+.markdown-preview h1 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.04em;
+  margin: 0.8rem 0;
+}
+
+.markdown-preview h2 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.04em;
+  margin: 0.7rem 0;
+}
+
+.markdown-preview h3 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.04em;
+  margin: 0.6rem 0;
+}
+
+.markdown-preview p,
+.markdown-preview ul,
+.markdown-preview ol {
+  margin: 0.45rem 0;
+}
+
+.markdown-preview code {
+  background: #111111;
+  border: 1px solid #262626;
+  border-radius: 0;
+  padding: 0.1rem 0.35rem;
+}
+
+.loading-indicator {
+  background-color: #EA580C;
+  animation: loading-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes loading-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
+
+.brutalist-border {
+  border: 1px solid #262626;
+}
+
+.brutalist-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  border-left: 1px solid #262626;
+  border-right: 1px solid #262626;
+  min-height: 100vh;
+  background-color: #0D0D0D;
+}
+
+.pulse-accent {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}

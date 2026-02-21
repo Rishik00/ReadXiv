@@ -1,0 +1,89 @@
+import initSqlJs from 'sql.js';
+import path from 'path';
+import os from 'os';
+import fs from 'fs-extra';
+
+// Papyrus data directory: ~/.papyrus/
+const PAPYRUS_DIR = path.join(os.homedir(), '.papyrus');
+const DB_PATH = path.join(PAPYRUS_DIR, 'papyrus.db');
+
+let db = null;
+let SQL = null;
+
+export async function getDB() {
+  if (!db) {
+    throw new Error('Database not initialized. Call initDB() first.');
+  }
+  return db;
+}
+
+export async function initDB() {
+  // Ensure .papyrus directory exists
+  fs.ensureDirSync(PAPYRUS_DIR);
+  fs.ensureDirSync(path.join(PAPYRUS_DIR, 'pdfs'));
+  fs.ensureDirSync(path.join(PAPYRUS_DIR, 'notes'));
+  fs.ensureDirSync(path.join(PAPYRUS_DIR, 'canvas'));
+
+  // Initialize sql.js
+  if (!SQL) {
+    SQL = await initSqlJs();
+  }
+
+  // Load existing database or create new one
+  let dbData = null;
+  if (fs.existsSync(DB_PATH)) {
+    dbData = fs.readFileSync(DB_PATH);
+  }
+
+  db = new SQL.Database(dbData);
+
+  // Create tables
+  db.run(`
+    CREATE TABLE IF NOT EXISTS papers (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      authors TEXT,
+      abstract TEXT,
+      url TEXT,
+      pdf_path TEXT,
+      pdf_url TEXT,
+      source TEXT DEFAULT 'arxiv',
+      status TEXT DEFAULT 'queued',
+      tags TEXT DEFAULT '[]',
+      year INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS highlights (
+      id TEXT PRIMARY KEY,
+      paper_id TEXT REFERENCES papers(id),
+      page INTEGER,
+      text TEXT,
+      color TEXT DEFAULT 'yellow',
+      rect_json TEXT,
+      note TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_papers_status ON papers(status);
+    CREATE INDEX IF NOT EXISTS idx_papers_created ON papers(created_at);
+    CREATE INDEX IF NOT EXISTS idx_highlights_paper ON highlights(paper_id);
+  `);
+
+  // Save database
+  saveDB();
+
+  console.log(`📦 Database initialized at ${DB_PATH}`);
+  return db;
+}
+
+export function saveDB() {
+  if (db) {
+    const data = db.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(DB_PATH, buffer);
+  }
+}
+
+export { PAPYRUS_DIR, DB_PATH };

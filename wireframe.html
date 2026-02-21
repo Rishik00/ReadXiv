@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Papyrus - Wireframe</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: hsl(224,71%,4%);
+            color: hsl(213,31%,91%);
+            min-height: 100vh;
+            display: flex;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+    <script>
+        const t = {
+            bg: "hsl(224,71%,4%)", fg: "hsl(213,31%,91%)", muted: "hsl(223,47%,11%)", mutedFg: "hsl(215,16%,57%)",
+            accent: "hsl(216,34%,17%)", accentFg: "hsl(213,31%,91%)", border: "hsl(216,34%,17%)",
+            primary: "hsl(210,40%,98%)", primaryFg: "hsl(222,47%,11%)", secondary: "hsl(223,47%,11%)",
+            secondaryFg: "hsl(215,20%,65%)", sidebarMuted: "hsl(215,16%,47%)",
+            yellow: "hsl(48,96%,53%)", yellowBg: "hsla(48,96%,53%,0.08)",
+            blue: "hsl(217,91%,60%)", blueBg: "hsla(217,91%,60%,0.08)",
+            green: "hsl(142,71%,45%)", greenBg: "hsla(142,71%,45%,0.08)",
+        };
+        const ff = "-apple-system,'Segoe UI',Helvetica,Arial,sans-serif";
+        const mono = "'JetBrains Mono','SF Mono',ui-monospace,monospace";
+        const R = 8, S = 6;
+
+        // State management
+        let state = { page: "home", cmdOpen: false, cmdQuery: "", homeVal: "", shelfSearch: "", shelfView: "table", shelfHov: -1, readerNoteTab: "notes", readerHc: false };
+
+        function setState(updates) {
+            Object.assign(state, updates);
+            render();
+        }
+
+        function createEl(tag, props, ...children) {
+            const isSVG = tag === 'svg' || tag === 'line';
+            const el = isSVG ? document.createElementNS('http://www.w3.org/2000/svg', tag) : document.createElement(tag);
+            if (props) {
+                if (props.style) Object.assign(el.style, props.style);
+                Object.keys(props).forEach(k => {
+                    if (k === 'style') return;
+                    if (k.startsWith('on')) {
+                        el.addEventListener(k.slice(2).toLowerCase(), props[k]);
+                    } else if (isSVG) {
+                        el.setAttribute(k, props[k]);
+                    } else {
+                        el[k] = props[k];
+                    }
+                });
+            }
+            children.forEach(c => {
+                if (typeof c === 'string' || typeof c === 'number') {
+                    el.appendChild(document.createTextNode(c));
+                } else if (c) el.appendChild(c);
+            });
+            return el;
+        }
+
+        function Kbd(children) {
+            return createEl('kbd', {
+                style: { fontSize: 10, fontFamily: mono, color: t.mutedFg, background: t.muted, border: `1px solid ${t.border}`, borderRadius: 4, padding: "1px 5px", lineHeight: "16px" }
+            }, children);
+        }
+
+        function Badge({children, color, variant}) {
+            const base = { fontSize: 11, fontWeight: 500, padding: "2px 8px", borderRadius: 9999, lineHeight: "16px", display: "inline-flex", whiteSpace: "nowrap" };
+            const span = createEl('span', {style: base});
+            if (color) {
+                span.style.background = `${color}15`;
+                span.style.color = color;
+            } else if (variant === "outline") {
+                span.style.background = "transparent";
+                span.style.color = t.mutedFg;
+                span.style.border = `1px solid ${t.border}`;
+            } else {
+                span.style.background = t.secondary;
+                span.style.color = t.secondaryFg;
+                span.style.border = `1px solid ${t.border}`;
+            }
+            span.appendChild(document.createTextNode(children));
+            return span;
+        }
+
+        function Btn({children, v = "default", style: s, ...p}) {
+            const base = { fontFamily: ff, fontWeight: 500, cursor: "pointer", borderRadius: S, transition: "all 0.15s", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", lineHeight: 1, fontSize: 12, padding: "6px 12px" };
+            const vars = {
+                default: {background: t.primary, color: t.primaryFg, border: "none"},
+                secondary: {background: t.secondary, color: t.secondaryFg, border: `1px solid ${t.border}`},
+                outline: {background: "transparent", color: t.fg, border: `1px solid ${t.border}`},
+                ghost: {background: "transparent", color: t.mutedFg, border: "1px solid transparent"},
+            };
+            const btn = createEl('button', {style: {...base, ...vars[v], ...s}, ...p});
+            if (typeof children === 'string') {
+                btn.appendChild(document.createTextNode(children));
+            } else if (Array.isArray(children)) {
+                children.forEach(c => btn.appendChild(c));
+            } else if (children) btn.appendChild(children);
+            return btn;
+        }
+
+        function Sep({v, style: s}) {
+            return createEl('div', {style: {background: t.border, ...(v ? {width: 1, alignSelf: "stretch"} : {height: 1, width: "100%"}), ...s}});
+        }
+
+        function Sidebar() {
+            const nav = [
+                {id: "home", icon: "⌂", label: "Home"},
+                {id: "shelf", icon: "☰", label: "Paper Shelf"},
+                {id: "reader", icon: "◫", label: "Reader"},
+                {id: "canvas", icon: "◇", label: "Canvas"},
+                {id: "publish", icon: "↗", label: "Publish"},
+                {id: "ext", icon: "⬡", label: "Extension"}
+            ];
+            return createEl('div', {
+                style: {width: 220, background: t.bg, borderRight: `1px solid ${t.border}`, display: "flex", flexDirection: "column", flexShrink: 0, height: "100vh", position: "sticky", top: 0}
+            },
+                createEl('div', {style: {padding: "16px 16px 12px"}},
+                    createEl('div', {style: {display: "flex", alignItems: "center", gap: 8, marginBottom: 14}},
+                        createEl('div', {style: {width: 20, height: 20, borderRadius: 5, background: t.primary, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: t.primaryFg, fontWeight: 800}}, 'P'),
+                        createEl('span', {style: {fontSize: 13, fontWeight: 600, letterSpacing: "-0.02em"}}, 'Papyrus'),
+                        createEl('span', {style: {marginLeft: "auto", fontSize: 10, color: t.sidebarMuted, fontFamily: mono}}, 'v0.1')
+                    ),
+                    createEl('button', {
+                        onClick: () => setState({cmdOpen: true}),
+                        style: {width: "100%", display: "flex", alignItems: "center", gap: 8, background: t.muted, border: `1px solid ${t.border}`, borderRadius: S, padding: "6px 10px", cursor: "pointer"}
+                    },
+                        createEl('span', {style: {fontSize: 12, color: t.sidebarMuted}}, '⌕'),
+                        createEl('span', {style: {fontSize: 12, color: t.sidebarMuted, fontFamily: ff, flex: 1, textAlign: "left"}}, 'Search...'),
+                        Kbd('⌘K')
+                    )
+                ),
+                Sep(),
+                createEl('div', {style: {padding: 8, flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 1}},
+                    createEl('div', {style: {padding: "4px 8px", marginBottom: 4, fontSize: 10, fontWeight: 600, color: t.sidebarMuted, textTransform: "uppercase", letterSpacing: "0.06em"}}, 'Navigation'),
+                    ...nav.map(n => createEl('button', {
+                        onClick: () => setState({page: n.id}),
+                        style: {display: "flex", alignItems: "center", gap: 8, width: "100%", background: state.page === n.id ? t.accent : "transparent", color: state.page === n.id ? t.accentFg : t.sidebarMuted, border: "none", borderRadius: S, padding: "7px 10px", fontSize: 13, fontFamily: ff, fontWeight: state.page === n.id ? 500 : 400, cursor: "pointer", textAlign: "left", transition: "all 0.1s"}
+                    },
+                        createEl('span', {style: {fontSize: 14, width: 18, textAlign: "center", opacity: state.page === n.id ? 1 : 0.6}}, n.icon),
+                        n.label
+                    )),
+                    createEl('div', {style: {padding: "12px 8px 4px", fontSize: 10, fontWeight: 600, color: t.sidebarMuted, textTransform: "uppercase", letterSpacing: "0.06em"}}, 'Recent'),
+                    ...["Attention Is All You Need", "Flash Attention", "Scaling Laws"].map((p, i) => createEl('button', {
+                        onClick: () => setState({page: "reader"}),
+                        style: {display: "flex", alignItems: "center", gap: 8, width: "100%", background: "transparent", color: t.sidebarMuted, border: "none", borderRadius: S, padding: "5px 10px", fontSize: 12, fontFamily: ff, cursor: "pointer", textAlign: "left"}
+                    },
+                        createEl('span', {style: {fontSize: 12, opacity: 0.4}}, '◫'),
+                        createEl('span', {style: {overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"}}, p)
+                    ))
+                ),
+                Sep(),
+                createEl('div', {style: {padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between"}},
+                    createEl('div', {style: {display: "flex", alignItems: "center", gap: 6}},
+                        createEl('div', {style: {width: 22, height: 22, borderRadius: 9999, background: t.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600}}, 'R'),
+                        createEl('span', {style: {fontSize: 12, color: t.mutedFg}}, 'Rishi')
+                    ),
+                    createEl('span', {style: {fontSize: 14, color: t.sidebarMuted, cursor: "pointer"}}, '⚙')
+                )
+            );
+        }
+
+        function CmdPalette() {
+            if (!state.cmdOpen) return null;
+            const items = [
+                {g: "Papers", items: [
+                    {icon: "◫", label: "Attention Is All You Need", sub: "Vaswani et al. · 2017"},
+                    {icon: "◫", label: "Scaling Laws for Neural LMs", sub: "Kaplan et al. · 2020"},
+                    {icon: "◫", label: "Flash Attention", sub: "Dao et al. · 2022"}
+                ]},
+                {g: "Actions", items: [
+                    {icon: "+", label: "Add paper from URL", kbd: "⌘N"},
+                    {icon: "☰", label: "Open Paper Shelf", kbd: "⌘1", page: "shelf"},
+                    {icon: "◇", label: "Open Canvas", kbd: "⌘3", page: "canvas"},
+                    {icon: "↗", label: "Publish notes", kbd: "⌘⇧P", page: "publish"}
+                ]},
+            ];
+            const q = state.cmdQuery || "";
+            return createEl('div', {
+                onClick: () => setState({cmdOpen: false}),
+                style: {position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "18vh"}
+            },
+                createEl('div', {
+                    onClick: e => e.stopPropagation(),
+                    style: {width: 480, background: t.bg, border: `1px solid ${t.border}`, borderRadius: 10, overflow: "hidden", boxShadow: "0 16px 48px rgba(0,0,0,0.4)"}
+                },
+                    createEl('div', {style: {display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${t.border}`}},
+                        createEl('span', {style: {fontSize: 14, color: t.mutedFg}}, '⌕'),
+                        createEl('input', {
+                            autofocus: true,
+                            value: q,
+                            onInput: e => setState({cmdQuery: e.target.value}),
+                            placeholder: "Type a command or search papers...",
+                            style: {flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 14, color: t.fg, fontFamily: ff}
+                        }),
+                        Kbd('esc')
+                    ),
+                    createEl('div', {style: {maxHeight: 320, overflow: "auto", padding: "4px 0"}},
+                        ...items.map((g, gi) => createEl('div', {key: gi},
+                            createEl('div', {style: {padding: "8px 14px 4px", fontSize: 11, fontWeight: 500, color: t.mutedFg}}, g.g),
+                            ...g.items.filter(i => !q || i.label.toLowerCase().includes(q.toLowerCase())).map((item, ii) => createEl('div', {
+                                onClick: () => { if (item.page) setState({page: item.page, cmdOpen: false}); else setState({cmdOpen: false}); },
+                                onmouseenter: e => e.currentTarget.style.background = t.accent,
+                                onmouseleave: e => e.currentTarget.style.background = "transparent",
+                                style: {display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", cursor: "pointer", transition: "background 0.1s"}
+                            },
+                                createEl('span', {style: {fontSize: 13, color: t.mutedFg, width: 18, textAlign: "center"}}, item.icon),
+                                createEl('div', {style: {flex: 1}},
+                                    createEl('div', {style: {fontSize: 13, color: t.fg}}, item.label),
+                                    item.sub && createEl('div', {style: {fontSize: 11, color: t.mutedFg}}, item.sub)
+                                ),
+                                item.kbd && Kbd(item.kbd)
+                            ))
+                        )),
+                        q && createEl('div', {style: {padding: "12px 14px", fontSize: 13, color: t.mutedFg, textAlign: "center"}}, `Search arxiv for "${q}" ↵`)
+                    )
+                )
+            );
+        }
+
+        function Home() {
+            const val = state.homeVal || "";
+            const det = val.includes("arxiv.org") ? "arxiv URL" : val.match(/^\d{4}\.\d+/) ? "arxiv ID" : val.startsWith(":") ? "command" : val.length > 2 ? "searching..." : null;
+            return createEl('div', {style: {display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "78vh"}},
+                createEl('h1', {style: {fontSize: 28, fontWeight: 600, letterSpacing: "-0.03em", marginBottom: 6}}, 'What are you reading?'),
+                createEl('p', {style: {fontSize: 14, color: t.mutedFg, marginBottom: 32, maxWidth: 380, textAlign: "center", lineHeight: 1.6}}, 'Paste an arxiv link, drop a paper ID, or search.'),
+                createEl('div', {style: {width: "100%", maxWidth: 520, marginBottom: 20}},
+                    createEl('div', {style: {background: t.bg, border: `1px solid ${det ? `hsla(210,40%,98%,0.2)` : t.border}`, borderRadius: R, padding: "12px 16px", transition: "border-color 0.2s"}},
+                        createEl('input', {
+                            value: val,
+                            onInput: e => setState({homeVal: e.target.value}),
+                            placeholder: 'paste arxiv link, paper ID, or :arxiv <query>',
+                            style: {width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 14, color: t.fg, fontFamily: ff}
+                        }),
+                        createEl('div', {style: {display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10}},
+                            createEl('div', {}, det && Badge({color: det.includes("arxiv") ? "hsl(217,91%,60%)" : "hsl(48,96%,53%)", children: det})),
+                            createEl('div', {style: {display: "flex", gap: 6, alignItems: "center"}},
+                                Kbd('⌘ ↵'),
+                                Btn({v: val.trim() ? "default" : "secondary", children: 'Add →'})
+                            )
+                        )
+                    )
+                ),
+                createEl('div', {style: {display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center"}},
+                    ...["2401.12345", "https://arxiv.org/abs/1706.03762", ":arxiv transformer survey"].map((ex, i) => createEl('button', {
+                        onClick: () => setState({homeVal: ex}),
+                        style: {background: t.muted, border: `1px solid ${t.border}`, borderRadius: S, padding: "4px 10px", fontSize: 11, color: t.mutedFg, fontFamily: mono, cursor: "pointer"}
+                    }, ex))
+                ),
+                createEl('div', {style: {marginTop: 48, width: "100%", maxWidth: 480}},
+                    createEl('p', {style: {fontSize: 11, fontWeight: 500, color: t.mutedFg, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10}}, 'Supported inputs'),
+                    ...[["https://arxiv.org/abs/...", "Full arxiv URL"], ["2401.12345", "Bare arxiv ID"], [":arxiv <query>", "Search arxiv"], [":openreview <query>", "Search OpenReview"], ["any text", "Fuzzy search your shelf"]].map(([cmd, desc], i) => createEl('div', {key: i, style: {display: "flex", alignItems: "center", gap: 12, padding: "5px 0"}},
+                        createEl('code', {style: {fontSize: 11, color: t.fg, fontFamily: mono, background: t.muted, padding: "2px 6px", borderRadius: 4, border: `1px solid ${t.border}`, minWidth: 200}}, cmd),
+                        createEl('span', {style: {fontSize: 12, color: t.mutedFg}}, desc)
+                    ))
+                )
+            );
+        }
+
+        function Shelf() {
+            const search = state.shelfSearch || "";
+            const view = state.shelfView || "table";
+            const hov = state.shelfHov || -1;
+            const papers = [
+                {title: "Attention Is All You Need", authors: "Vaswani et al.", year: 2017, status: "Done", tags: ["Transformers", "NLP"], id: "1706.03762", added: "Feb 18"},
+                {title: "Scaling Laws for Neural Language Models", authors: "Kaplan et al.", year: 2020, status: "Reading", tags: ["Scaling"], id: "2001.08361", added: "Feb 15"},
+                {title: "The Free-Energy Principle", authors: "Friston, K.", year: 2010, status: "Queued", tags: ["Neuroscience"], id: "friston2010", added: "Feb 12"},
+                {title: "Constitutional AI", authors: "Bai et al.", year: 2022, status: "Reading", tags: ["Alignment"], id: "2212.08073", added: "Feb 10"},
+                {title: "Flash Attention", authors: "Dao et al.", year: 2022, status: "Done", tags: ["Efficiency"], id: "2205.14135", added: "Feb 8"},
+                {title: "Predictive Processing and Experience", authors: "Clark, A.", year: 2013, status: "Queued", tags: ["CogSci"], id: "clark2013", added: "Feb 5"},
+            ];
+            const sc = s => s === "Done" ? t.green : s === "Reading" ? t.blue : t.mutedFg;
+            const f = papers.filter(p => !search || p.title.toLowerCase().includes(search.toLowerCase()) || p.tags.some(tg => tg.toLowerCase().includes(search.toLowerCase())));
+            return createEl('div', {},
+                createEl('div', {style: {display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 13}},
+                    createEl('span', {style: {color: t.mutedFg, cursor: "pointer"}, onClick: () => setState({page: "home"})}, '⌂'),
+                    createEl('span', {style: {color: t.mutedFg, fontSize: 10}}, '/'),
+                    createEl('span', {style: {fontWeight: 500}}, 'Paper Shelf'),
+                    createEl('span', {style: {marginLeft: "auto", fontSize: 12, color: t.mutedFg}}, `${papers.length} papers`)
+                ),
+                createEl('div', {style: {display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap"}},
+                    createEl('div', {style: {position: "relative", flex: 1, maxWidth: 280}},
+                        createEl('span', {style: {position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: t.mutedFg, pointerEvents: "none"}}, '⌕'),
+                        createEl('input', {
+                            value: search,
+                            onInput: e => setState({shelfSearch: e.target.value}),
+                            placeholder: "Fuzzy search... (⌘F)",
+                            style: {width: "100%", background: t.bg, border: `1px solid ${t.border}`, borderRadius: S, padding: "7px 12px 7px 32px", fontSize: 13, color: t.fg, fontFamily: ff, outline: "none"}
+                        })
+                    ),
+                    Btn({v: "outline", children: 'Status ▾'}),
+                    Btn({v: "outline", children: 'Tags ▾'}),
+                    Sep({v: true, style: {height: 20}}),
+                    createEl('div', {style: {display: "flex", gap: 2, background: t.muted, borderRadius: S, padding: 2, border: `1px solid ${t.border}`}},
+                        ...[["table", "☰"], ["canvas", "◇"]].map(([v, ic]) => createEl('button', {
+                            onClick: () => setState({shelfView: v}),
+                            style: {background: view === v ? t.accent : "transparent", color: view === v ? t.fg : t.mutedFg, border: "none", borderRadius: 4, padding: "4px 8px", fontSize: 12, cursor: "pointer", fontFamily: ff}
+                        }, ic))
+                    ),
+                    Sep({v: true, style: {height: 20}}),
+                    Btn({children: '+ Add paper'}),
+                    Kbd('⌘N')
+                ),
+                view === "table" ? createEl('div', {style: {border: `1px solid ${t.border}`, borderRadius: R, overflow: "hidden"}},
+                    createEl('div', {style: {display: "grid", gridTemplateColumns: "2.2fr 1fr 0.5fr 0.6fr 0.8fr 0.5fr", padding: "8px 16px", background: t.muted, borderBottom: `1px solid ${t.border}`}},
+                        ...["Paper", "Authors", "Year", "Status", "Tags", "Added"].map((h, i) => createEl('div', {key: i, style: {fontSize: 11, fontWeight: 500, color: t.mutedFg}}, h))
+                    ),
+                    ...f.map((p, i) => createEl('div', {
+                        onmouseenter: () => setState({shelfHov: i}),
+                        onmouseleave: () => setState({shelfHov: -1}),
+                        onClick: () => setState({page: "reader"}),
+                        style: {display: "grid", gridTemplateColumns: "2.2fr 1fr 0.5fr 0.6fr 0.8fr 0.5fr", padding: "10px 16px", borderBottom: i < f.length - 1 ? `1px solid ${t.border}` : "none", background: hov === i ? t.accent : "transparent", cursor: "pointer", transition: "background 0.1s", alignItems: "center"}
+                    },
+                        createEl('div', {},
+                            createEl('div', {style: {fontSize: 13, fontWeight: 500, lineHeight: 1.4}}, p.title),
+                            createEl('div', {style: {fontSize: 11, fontFamily: mono, color: t.mutedFg, marginTop: 1}}, p.id)
+                        ),
+                        createEl('div', {style: {fontSize: 12, color: t.mutedFg}}, p.authors),
+                        createEl('div', {style: {fontSize: 12, color: t.mutedFg, fontFamily: mono}}, p.year),
+                        createEl('div', {}, Badge({color: sc(p.status), children: p.status})),
+                        createEl('div', {style: {display: "flex", gap: 4, flexWrap: "wrap"}}, ...p.tags.map((tg, j) => Badge({key: j, variant: "outline", children: tg}))),
+                        createEl('div', {style: {fontSize: 11, color: t.mutedFg}}, p.added)
+                    ))
+                ) : createEl('div', {style: {display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12}},
+                    ...f.map((p, i) => createEl('div', {
+                        onClick: () => setState({page: "reader"}),
+                        onmouseenter: e => { e.currentTarget.style.borderColor = "hsl(215,20%,30%)"; e.currentTarget.style.transform = "translateY(-1px)"; },
+                        onmouseleave: e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.transform = "none"; },
+                        style: {background: t.bg, border: `1px solid ${t.border}`, borderRadius: R, padding: 14, cursor: "pointer", transition: "all 0.15s"}
+                    },
+                        createEl('div', {style: {background: t.muted, borderRadius: S, height: 100, marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${t.border}`, fontSize: 10, fontFamily: mono, color: t.mutedFg}}, p.id),
+                        createEl('div', {style: {fontSize: 13, fontWeight: 500, marginBottom: 4, lineHeight: 1.4}}, p.title),
+                        createEl('div', {style: {display: "flex", justifyContent: "space-between", alignItems: "center"}},
+                            createEl('span', {style: {fontSize: 11, color: t.mutedFg}}, p.authors),
+                            Badge({color: sc(p.status), children: p.status})
+                        )
+                    ))
+                ),
+                createEl('div', {style: {display: "flex", justifyContent: "center", alignItems: "center", gap: 4, marginTop: 16}},
+                    Btn({v: "ghost", children: '← Prev'}),
+                    ...[1, 2, 3].map(n => createEl('button', {
+                        style: {width: 28, height: 28, borderRadius: S, border: n === 1 ? `1px solid ${t.border}` : "1px solid transparent", background: n === 1 ? t.accent : "transparent", color: n === 1 ? t.fg : t.mutedFg, fontSize: 12, fontFamily: ff, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center"}
+                    }, n)),
+                    Btn({v: "ghost", children: 'Next →'})
+                )
+            );
+        }
+
+        function Reader() {
+            const noteTab = state.readerNoteTab || "notes";
+            const hc = state.readerHc || false;
+            return createEl('div', {},
+                createEl('div', {style: {display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 13}},
+                    createEl('span', {style: {color: t.mutedFg, cursor: "pointer"}, onClick: () => setState({page: "shelf"})}, 'Paper Shelf'),
+                    createEl('span', {style: {color: t.mutedFg, fontSize: 10}}, '/'),
+                    createEl('span', {style: {fontWeight: 500}}, 'Attention Is All You Need'),
+                    createEl('div', {style: {marginLeft: "auto", display: "flex", gap: 8, alignItems: "center"}},
+                        createEl('span', {style: {display: "flex", gap: 4, alignItems: "center"}}, Kbd('⌘H'), createEl('span', {style: {fontSize: 11, color: t.mutedFg}}, 'highlight')),
+                        createEl('span', {style: {display: "flex", gap: 4, alignItems: "center"}}, Kbd('⌘D'), createEl('span', {style: {fontSize: 11, color: t.mutedFg}}, 'dictate'))
+                    )
+                ),
+                createEl('div', {style: {display: "grid", gridTemplateColumns: "1.35fr 1fr", gap: 14, minHeight: 520}},
+                    createEl('div', {style: {border: `1px solid ${t.border}`, borderRadius: R, display: "flex", flexDirection: "column", overflow: "hidden"}},
+                        createEl('div', {style: {padding: "6px 12px", borderBottom: `1px solid ${t.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: t.muted}},
+                            createEl('div', {style: {display: "flex", gap: 6, alignItems: "center"}},
+                                Btn({v: "ghost", children: '◀'}),
+                                createEl('span', {style: {fontSize: 12, color: t.mutedFg, fontFamily: mono}}, '1 / 15'),
+                                Btn({v: "ghost", children: '▶'})
+                            ),
+                            createEl('div', {style: {display: "flex", gap: 4, alignItems: "center"}},
+                                Btn({v: "ghost", children: '−'}),
+                                createEl('span', {style: {fontSize: 11, color: t.mutedFg, fontFamily: mono}}, '100%'),
+                                Btn({v: "ghost", children: '+'}),
+                                Sep({v: true, style: {height: 16}}),
+                                Btn({v: "ghost", children: '⋯'})
+                            )
+                        ),
+                        createEl('div', {style: {flex: 1, padding: 20, overflow: "auto"}},
+                            createEl('div', {style: {maxWidth: 520, margin: "0 auto"}},
+                                createEl('h1', {style: {fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 6, lineHeight: 1.3}}, 'Attention Is All You Need'),
+                                createEl('p', {style: {fontSize: 12, color: t.mutedFg, marginBottom: 4}}, 'Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin'),
+                                createEl('p', {style: {fontSize: 11, color: t.mutedFg, fontFamily: mono, marginBottom: 20}}, 'arXiv:1706.03762 · June 2017'),
+                                createEl('h2', {style: {fontSize: 14, fontWeight: 600, marginBottom: 8}}, 'Abstract'),
+                                createEl('p', {style: {fontSize: 13, color: t.mutedFg, lineHeight: 1.85, marginBottom: 14}}, 'The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder.'),
+                                createEl('div', {
+                                    onmouseenter: () => setState({readerHc: true}),
+                                    onmouseleave: () => setState({readerHc: false}),
+                                    style: {background: t.yellowBg, borderLeft: `2px solid ${t.yellow}`, padding: "8px 12px", borderRadius: `0 ${S}px ${S}px 0`, marginBottom: 14, position: "relative"}
+                                },
+                                    createEl('p', {style: {fontSize: 13, color: t.fg, lineHeight: 1.85, margin: 0}}, 'We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.'),
+                                    createEl('div', {style: {fontSize: 10, color: t.yellow, marginTop: 6, fontWeight: 500}}, '⊙ annotation linked'),
+                                    hc && createEl('div', {style: {position: "absolute", top: -60, right: -210, width: 200, background: t.bg, border: `1px solid ${t.border}`, borderRadius: R, padding: 10, boxShadow: "0 4px 16px rgba(0,0,0,0.3)", zIndex: 10}},
+                                        createEl('div', {style: {fontSize: 11, fontWeight: 500, marginBottom: 4}}, 'Linked note'),
+                                        createEl('div', {style: {fontSize: 11, color: t.mutedFg, lineHeight: 1.5}}, 'Key innovation: removing recurrence entirely. Pure attention + FF layers.')
+                                    )
+                                ),
+                                createEl('p', {style: {fontSize: 13, color: t.mutedFg, lineHeight: 1.85, marginBottom: 14}}, 'Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable.'),
+                                createEl('div', {style: {background: t.blueBg, borderLeft: `2px solid ${t.blue}`, padding: "8px 12px", borderRadius: `0 ${S}px ${S}px 0`, marginBottom: 14}},
+                                    createEl('p', {style: {fontSize: 13, color: t.fg, lineHeight: 1.85, margin: 0}}, 'Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results by over 2 BLEU.'),
+                                    createEl('div', {style: {fontSize: 10, color: t.blue, marginTop: 6, fontWeight: 500}}, '⊙ annotation linked')
+                                )
+                            )
+                        )
+                    ),
+                    createEl('div', {style: {display: "flex", flexDirection: "column", gap: 10}},
+                        createEl('div', {style: {display: "flex", gap: 2, background: t.muted, borderRadius: S, padding: 2, border: `1px solid ${t.border}`}},
+                            ...[["notes", "Notes"], ["annotations", "Annotations"], ["sketch", "Sketch"]].map(([id, label]) => createEl('button', {
+                                onClick: () => setState({readerNoteTab: id}),
+                                style: {flex: 1, background: noteTab === id ? t.bg : "transparent", color: noteTab === id ? t.fg : t.mutedFg, border: noteTab === id ? `1px solid ${t.border}` : "1px solid transparent", borderRadius: 4, padding: "6px 0", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: ff}
+                            }, label))
+                        ),
+                        noteTab === "notes" ? createEl('div', {style: {border: `1px solid ${t.border}`, borderRadius: R, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden"}},
+                            createEl('div', {style: {padding: "8px 14px", borderBottom: `1px solid ${t.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: t.muted}},
+                                createEl('span', {style: {fontSize: 12, fontWeight: 500, fontFamily: mono}}, 'notes.md'),
+                                createEl('span', {style: {fontSize: 10, color: t.mutedFg}}, 'auto-saved')
+                            ),
+                            createEl('div', {style: {flex: 1, padding: 16, fontFamily: mono, fontSize: 12, color: t.mutedFg, lineHeight: 1.9}},
+                                createEl('div', {style: {fontSize: 16, fontWeight: 600, color: t.fg, marginBottom: 8, fontFamily: ff}}, 'Key Takeaways'),
+                                createEl('p', {style: {marginBottom: 12}}, 'The core innovation is removing recurrence entirely. The whole architecture is self-attention + feed-forward layers. This enabled massive parallelization.'),
+                                createEl('div', {style: {fontSize: 16, fontWeight: 600, color: t.fg, marginBottom: 8, fontFamily: ff}}, 'Questions'),
+                                createEl('p', {style: {marginBottom: 8}}, '— How does sinusoidal positional encoding compare to learned embeddings?'),
+                                createEl('p', {style: {marginBottom: 8}}, '— Cross-reference with Kaplan et al. on scaling behavior'),
+                                createEl('p', {style: {opacity: 0.4}}, '|')
+                            ),
+                            createEl('div', {style: {padding: "8px 14px", borderTop: `1px solid ${t.border}`, display: "flex", gap: 6, alignItems: "center"}},
+                                Kbd('⌘D'),
+                                createEl('span', {style: {fontSize: 11, color: t.mutedFg}}, 'dictate'),
+                                Sep({v: true, style: {height: 14}}),
+                                createEl('span', {style: {fontSize: 11, color: t.mutedFg}}, 'markdown')
+                            )
+                        ) : noteTab === "annotations" ? createEl('div', {style: {flex: 1, display: "flex", flexDirection: "column", gap: 8}},
+                            ...[{text: "...the Transformer, based solely on attention mechanisms...", color: t.yellow, note: "Key innovation: removing recurrence entirely.", pg: 1}, {text: "...achieves 28.4 BLEU on the WMT 2014...", color: t.blue, note: "SOTA at time — compare Table 3", pg: 7}].map((a, i) => createEl('div', {key: i, style: {border: `1px solid ${t.border}`, borderRadius: R, padding: 12, borderLeft: `2px solid ${a.color}`}},
+                                createEl('p', {style: {fontSize: 12, color: t.fg, lineHeight: 1.6, fontStyle: "italic", marginBottom: 6}}, `"${a.text}"`),
+                                createEl('p', {style: {fontSize: 12, color: t.mutedFg, lineHeight: 1.5, marginBottom: 6}}, a.note),
+                                createEl('span', {style: {fontSize: 10, fontFamily: mono, color: t.mutedFg}}, `p. ${a.pg}`)
+                            )),
+                            Btn({v: "outline", style: {alignSelf: "flex-start"}, children: '+ Add annotation'})
+                        ) : createEl('div', {style: {border: `1px solid ${t.border}`, borderRadius: R, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden"}},
+                            createEl('div', {style: {padding: "6px 12px", borderBottom: `1px solid ${t.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: t.muted}},
+                                createEl('div', {style: {display: "flex", gap: 4}}, ...["Select", "Draw", "Arrow", "Text", "Sticky"].map((tool, i) => createEl('button', {key: i, style: {fontSize: 11, color: i === 0 ? t.fg : t.mutedFg, background: i === 0 ? t.accent : "transparent", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontFamily: ff}}, tool))),
+                                createEl('span', {style: {fontSize: 11, color: t.mutedFg, cursor: "pointer"}}, 'Open full ↗')
+                            ),
+                            createEl('div', {style: {flex: 1, display: "flex", alignItems: "center", justifyContent: "center"}},
+                                createEl('div', {style: {textAlign: "center"}},
+                                    createEl('div', {style: {fontSize: 32, opacity: 0.15, marginBottom: 8}}, '✎'),
+                                    createEl('p', {style: {fontSize: 13, color: t.mutedFg}}, 'tldraw canvas'),
+                                    createEl('p', {style: {fontSize: 11, color: t.mutedFg, opacity: 0.6, marginTop: 4}}, 'Draw diagrams, map concepts')
+                                )
+                            )
+                        )
+                    )
+                )
+            );
+        }
+
+        function Canvas() {
+            return createEl('div', {},
+                createEl('div', {style: {display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 13}},
+                    createEl('span', {style: {color: t.mutedFg, cursor: "pointer"}, onClick: () => setState({page: "home"})}, '⌂'),
+                    createEl('span', {style: {color: t.mutedFg, fontSize: 10}}, '/'),
+                    createEl('span', {style: {fontWeight: 500}}, 'Canvas')
+                ),
+                createEl('div', {style: {border: `1px solid ${t.border}`, borderRadius: R, overflow: "hidden", minHeight: 460, display: "flex", flexDirection: "column"}},
+                    createEl('div', {style: {padding: "6px 12px", borderBottom: `1px solid ${t.border}`, display: "flex", gap: 4, background: t.muted}},
+                        ...["Select", "Draw", "Arrow", "Text", "Sticky", "Paper Node"].map((tool, i) => createEl('button', {key: i, style: {fontSize: 11, color: i === 0 ? t.fg : t.mutedFg, background: i === 0 ? t.accent : "transparent", border: "none", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontFamily: ff}}, tool)),
+                        createEl('div', {style: {marginLeft: "auto"}}, Kbd('⌘Z'))
+                    ),
+                    createEl('div', {style: {flex: 1, position: "relative", height: 420}},
+                        createEl('svg', {style: {position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none"}},
+                            createEl('line', {x1: 180, y1: 70, x2: 340, y2: 170, stroke: t.border, strokeWidth: 1, strokeDasharray: "4"}),
+                            createEl('line', {x1: 540, y1: 70, x2: 400, y2: 170, stroke: t.border, strokeWidth: 1, strokeDasharray: "4"}),
+                            createEl('line', {x1: 370, y1: 210, x2: 280, y2: 300, stroke: t.border, strokeWidth: 1, strokeDasharray: "4"})
+                        ),
+                        ...[{x: 50, y: 30, title: "Attention Is All You Need", sub: "Vaswani et al. 2017", w: 200}, {x: 420, y: 30, title: "Scaling Laws", sub: "Kaplan et al. 2020", w: 170}, {x: 150, y: 280, title: "Flash Attention", sub: "Dao et al. 2022", w: 170}].map((n, i) => createEl('div', {key: i,
+                            onmouseenter: e => e.currentTarget.style.borderColor = "hsl(215,20%,30%)",
+                            onmouseleave: e => e.currentTarget.style.borderColor = t.border,
+                            style: {position: "absolute", left: n.x, top: n.y, width: n.w, background: t.bg, border: `1px solid ${t.border}`, borderRadius: R, padding: 10, cursor: "grab"}
+                        },
+                            createEl('div', {style: {fontSize: 12, fontWeight: 500, lineHeight: 1.4}}, n.title),
+                            createEl('div', {style: {fontSize: 10, color: t.mutedFg, marginTop: 2, fontFamily: mono}}, n.sub)
+                        )),
+                        createEl('div', {style: {position: "absolute", left: 280, top: 150, width: 200, background: t.yellowBg, border: `1px solid hsla(48,96%,53%,0.19)`, borderRadius: R, padding: 10, fontSize: 11, color: t.yellow, lineHeight: 1.5}}, 'How do these relate to Flash Attention efficiency gains?')
+                    )
+                )
+            );
+        }
+
+        function Publish() {
+            return createEl('div', {},
+                createEl('div', {style: {display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 13}},
+                    createEl('span', {style: {color: t.mutedFg, cursor: "pointer"}, onClick: () => setState({page: "home"})}, '⌂'),
+                    createEl('span', {style: {color: t.mutedFg, fontSize: 10}}, '/'),
+                    createEl('span', {style: {fontWeight: 500}}, 'Publish')
+                ),
+                createEl('p', {style: {fontSize: 13, color: t.mutedFg, marginBottom: 20}}, 'Export notes as styled HTML → push to GitHub → Vercel auto-deploys.'),
+                ...[{title: "Pipeline", content: createEl('div', {style: {display: "flex"}},
+                    ...[{n: "1", t: "Write", d: "Markdown notes"}, {n: "2", t: "Style", d: "Pick template"}, {n: "3", t: "Build", d: "md → HTML"}, {n: "4", t: "Push", d: "Git commit"}, {n: "5", t: "Live", d: "Vercel deploys"}].map((s, i) => createEl('div', {key: i, style: {flex: 1, padding: 14, borderRight: i < 4 ? `1px solid ${t.border}` : "none"}},
+                        createEl('div', {style: {fontSize: 10, fontWeight: 600, color: t.mutedFg, fontFamily: mono, marginBottom: 4}}, s.n),
+                        createEl('div', {style: {fontSize: 13, fontWeight: 500, marginBottom: 2}}, s.t),
+                        createEl('div', {style: {fontSize: 11, color: t.mutedFg}}, s.d)
+                    ))
+                )}, {title: "Setup", content: createEl('div', {style: {padding: 14, fontFamily: mono, fontSize: 11, color: t.mutedFg, lineHeight: 2}},
+                    createEl('div', {}, createEl('span', {style: {color: t.fg}}, '$'), ' papyrus publish init'),
+                    createEl('div', {style: {color: "hsl(215,16%,37%)"}}, '# Creates github.com/you/papyrus-notes'),
+                    createEl('div', {}, createEl('span', {style: {color: t.fg}}, '$'), ' vercel link'),
+                    createEl('div', {style: {color: "hsl(215,16%,37%)"}}, '# One-time Vercel connection'),
+                    createEl('div', {}, createEl('span', {style: {color: t.fg}}, '$'), ' papyrus publish push')
+                )}, {title: "Preview", header_extra: createEl('div', {style: {display: "flex", gap: 6, alignItems: "center"}},
+                    Badge({color: t.green, children: '● Live'}),
+                    Btn({children: 'Copy link'})
+                ), content: createEl('div', {style: {padding: 24, background: "#fafafa", borderRadius: "0 0 8px 8px"}},
+                    createEl('div', {style: {maxWidth: 480, margin: "0 auto"}},
+                        createEl('div', {style: {fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#888", marginBottom: 6}}, "Rishi's Reading Notes"),
+                        createEl('div', {style: {fontSize: 22, fontWeight: 700, color: "#111", fontFamily: "Georgia,serif", marginBottom: 4, letterSpacing: "-0.02em"}}, 'Attention Is All You Need'),
+                        createEl('div', {style: {fontSize: 12, color: "#666", marginBottom: 16}}, 'Vaswani et al. · 2017 · annotated Feb 18, 2026'),
+                        createEl('div', {style: {fontSize: 13, color: "#333", lineHeight: 1.85}}, 'The core innovation is removing recurrence entirely. The whole architecture is self-attention + feed-forward layers...')
+                    )
+                )}].map((card, i) => createEl('div', {key: i, style: {border: `1px solid ${t.border}`, borderRadius: R, overflow: "hidden", marginBottom: 12}},
+                    createEl('div', {style: {padding: "8px 14px", background: t.muted, borderBottom: `1px solid ${t.border}`, display: "flex", justifyContent: "space-between", alignItems: "center"}},
+                        createEl('span', {style: {fontSize: 12, fontWeight: 500}}, card.title),
+                        card.header_extra
+                    ),
+                    card.content
+                ))
+            );
+        }
+
+        function Ext() {
+            return createEl('div', {},
+                createEl('div', {style: {display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 13}},
+                    createEl('span', {style: {color: t.mutedFg, cursor: "pointer"}, onClick: () => setState({page: "home"})}, '⌂'),
+                    createEl('span', {style: {color: t.mutedFg, fontSize: 10}}, '/'),
+                    createEl('span', {style: {fontWeight: 500}}, 'Chrome Extension')
+                ),
+                createEl('p', {style: {fontSize: 13, color: t.mutedFg, marginBottom: 20}}, Kbd('⌘⇧P'), ' on any paper page. Instant capture.'),
+                createEl('div', {style: {display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14}},
+                    createEl('div', {},
+                        createEl('p', {style: {fontSize: 11, fontWeight: 500, color: t.mutedFg, marginBottom: 8}}, 'Extension Popup'),
+                        createEl('div', {style: {width: 280, border: `1px solid ${t.border}`, borderRadius: R, overflow: "hidden"}},
+                            createEl('div', {style: {padding: "8px 12px", borderBottom: `1px solid ${t.border}`, display: "flex", justifyContent: "space-between", alignItems: "center"}},
+                                createEl('div', {style: {display: "flex", alignItems: "center", gap: 6}},
+                                    createEl('div', {style: {width: 16, height: 16, borderRadius: 4, background: t.primary, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: t.primaryFg, fontWeight: 800}}, 'P'),
+                                    createEl('span', {style: {fontSize: 12, fontWeight: 600}}, 'Papyrus')
+                                ),
+                                Badge({color: t.green, children: '● local'})
+                            ),
+                            createEl('div', {style: {padding: 12, display: "flex", flexDirection: "column", gap: 10}},
+                                createEl('div', {},
+                                    createEl('div', {style: {fontSize: 13, fontWeight: 500}}, 'Attention Is All You Need'),
+                                    createEl('div', {style: {fontSize: 11, color: t.mutedFg, marginTop: 2}}, 'Vaswani et al. · arxiv.org')
+                                ),
+                                createEl('div', {style: {fontFamily: mono, fontSize: 10, color: t.blue, background: t.blueBg, padding: "6px 8px", borderRadius: S, wordBreak: "break-all"}}, 'arxiv.org/abs/1706.03762'),
+                                createEl('div', {style: {display: "flex", gap: 4}},
+                                    Badge({variant: "outline", children: 'Transformers'}),
+                                    Badge({variant: "outline", children: 'NLP'}),
+                                    createEl('button', {style: {fontSize: 10, color: t.mutedFg, background: "transparent", border: `1px dashed ${t.border}`, borderRadius: S, padding: "2px 8px", cursor: "pointer", fontFamily: ff}}, '+ tag')
+                                ),
+                                createEl('div', {style: {display: "flex", gap: 4}},
+                                    ...["Queued", "Reading"].map((s, i) => createEl('button', {key: i, style: {flex: 1, fontSize: 11, fontWeight: 500, fontFamily: ff, color: i === 0 ? t.fg : t.mutedFg, background: i === 0 ? t.accent : "transparent", border: `1px solid ${t.border}`, borderRadius: S, padding: "5px 0", cursor: "pointer", textAlign: "center"}}, s))
+                                ),
+                                Btn({style: {width: "100%", justifyContent: "center"}, children: 'Add to Shelf →'})
+                            )
+                        )
+                    ),
+                    createEl('div', {},
+                        createEl('p', {style: {fontSize: 11, fontWeight: 500, color: t.mutedFg, marginBottom: 8}}, 'Capture flow'),
+                        createEl('div', {style: {display: "grid", gap: 8}},
+                            ...[["⌨", "Browse any paper page — arxiv, OpenReview, Semantic Scholar"], ["⌘", "Hit ⌘⇧P. Extension reads page metadata and finds PDF link."], ["→", "POST to localhost:7474. Papyrus downloads PDF, creates notes.md."], ["✓", "Toast confirmation. Paper appears in shelf. Start reading."]].map(([icon, text], i) => createEl('div', {key: i, style: {display: "flex", gap: 10, alignItems: "flex-start", padding: 10, border: `1px solid ${t.border}`, borderRadius: S}},
+                                createEl('span', {style: {fontSize: 14, width: 20, textAlign: "center", flexShrink: 0}}, icon),
+                                createEl('span', {style: {fontSize: 12, color: t.mutedFg, lineHeight: 1.5}}, text)
+                            ))
+                        )
+                    )
+                )
+            );
+        }
+
+        function render() {
+            const app = document.getElementById('app');
+            app.innerHTML = '';
+            app.style.background = t.bg;
+            app.style.minHeight = '100vh';
+            app.style.fontFamily = ff;
+            app.style.color = t.fg;
+            app.style.display = 'flex';
+
+            app.appendChild(Sidebar());
+            const cmdPalette = CmdPalette();
+            if (cmdPalette) app.appendChild(cmdPalette);
+
+            const main = createEl('div', {style: {flex: 1, overflow: "auto", maxHeight: "100vh"}});
+            const content = createEl('div', {style: {padding: "28px 36px", maxWidth: 880, margin: "0 auto"}});
+
+            if (state.page === "home") content.appendChild(Home());
+            else if (state.page === "shelf") content.appendChild(Shelf());
+            else if (state.page === "reader") content.appendChild(Reader());
+            else if (state.page === "canvas") content.appendChild(Canvas());
+            else if (state.page === "publish") content.appendChild(Publish());
+            else if (state.page === "ext") content.appendChild(Ext());
+
+            main.appendChild(content);
+            app.appendChild(main);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setState({cmdOpen: !state.cmdOpen});
+            }
+            if (e.key === 'Escape') {
+                setState({cmdOpen: false});
+            }
+        });
+
+        render();
+    </script>
+</body>
+</html>
