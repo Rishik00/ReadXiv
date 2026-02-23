@@ -78,42 +78,44 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
   }
 
   return (
-    <div className="p-7 max-w-[1100px] mx-auto font-mono">
-      <div className="flex items-center gap-2 mb-8 text-[11px] uppercase tracking-[0.2em] font-bold">
-        <span className="text-muted cursor-pointer hover:text-secondary" onClick={() => setPage('home')}>
-          SYSTEM
-        </span>
-        <span className="text-muted text-[10px]">/</span>
-        <span className="text-foreground">PAPER_SHELF</span>
-        <span className="ml-auto text-secondary">
-          [{displayPapers.length} RECORDS FOUND] · PAGE {currentPage}/{totalPages}
-        </span>
+    <div className="p-8 max-w-[1200px] mx-auto font-sans">
+      <div className="flex items-center justify-between mb-10">
+        <div className="flex items-center gap-3 text-sm font-medium">
+          <span className="text-muted cursor-pointer hover:text-foreground transition-colors" onClick={() => setPage('home')}>
+            Home
+          </span>
+          <span className="text-muted/50">/</span>
+          <span className="text-foreground">Paper Shelf</span>
+        </div>
+        <div className="text-secondary text-sm font-medium">
+          {displayPapers.length} papers found
+        </div>
       </div>
 
-      <div className="flex gap-4 items-center mb-8 flex-wrap">
-        <div className="relative flex-1 max-w-[400px]">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[14px] text-muted pointer-events-none font-bold">
-            ⌕
+      <div className="flex gap-4 items-center mb-10">
+        <div className="relative flex-1 max-w-[460px]">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted pointer-events-none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
           </span>
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="QUERY DATABASE..."
-            className="w-full bg-surface border-2 border-border rounded-none px-4 py-2.5 pl-10 text-[12px] text-foreground outline-none focus:border-secondary uppercase tracking-widest transition-all"
+            placeholder="Search your library..."
+            className="w-full bg-surface border border-border rounded-xl px-4 py-3 pl-12 text-sm text-foreground outline-none focus:border-secondary/50 transition-all"
           />
         </div>
       </div>
 
       {displayPapers.length === 0 ? (
-        <div className="border-2 border-border bg-surface p-16 text-center text-muted uppercase tracking-widest font-bold">
-          {search ? 'NO MATCHING RECORDS' : 'DATABASE EMPTY // ADD PAPERS VIA HOME'}
+        <div className="claude-card p-20 text-center text-muted">
+          {search ? 'No matching papers found' : 'Your library is empty. Add papers from the home screen.'}
         </div>
       ) : (
-        <div className="border-2 border-border rounded-none overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-          <div className="grid grid-cols-[2.1fr_0.7fr_0.8fr_0.9fr_0.9fr] gap-4 p-4 px-6 bg-surface border-b-2 border-border">
-            {['PAPER_TITLE', 'STATUS', 'YEAR', 'SOURCE', 'NOTES'].map((h, i) => (
-              <div key={i} className="text-[10px] font-bold text-muted uppercase tracking-[0.2em]">
+        <div className="claude-card overflow-hidden">
+          <div className="grid grid-cols-[2fr_0.8fr_0.6fr_0.8fr_0.8fr] gap-4 p-4 px-6 bg-background/50 border-b border-border">
+            {['Title', 'Status', 'Year', 'Source', 'Actions'].map((h, i) => (
+              <div key={i} className="text-xs font-semibold text-muted/60">
                 {h}
               </div>
             ))}
@@ -125,22 +127,22 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
                 setSelectedPaper(paper)
                 setPage('reader')
               }}
-              className="grid grid-cols-[2.1fr_0.7fr_0.8fr_0.9fr_0.9fr] gap-4 p-5 px-6 border-b border-border last:border-0 cursor-pointer hover:bg-surface/50 transition-colors items-center group"
+              className="grid grid-cols-[2fr_0.8fr_0.6fr_0.8fr_0.8fr] gap-4 p-5 px-6 border-b border-border last:border-0 cursor-pointer hover:bg-foreground/[0.02] transition-colors items-center group"
             >
               <div>
-                <div className="text-[13px] font-bold leading-tight uppercase tracking-wide group-hover:text-secondary transition-colors">{paper.title}</div>
-                <div className="text-[10px] font-mono text-muted mt-1.5 opacity-60">ID: {paper.id}</div>
+                <div className="text-sm font-medium leading-snug group-hover:text-secondary transition-colors line-clamp-2">{paper.title}</div>
+                <div className="text-[11px] text-muted mt-1.5 font-mono opacity-50">{paper.id}</div>
               </div>
               <div>
                 <span
-                  className={`inline-flex items-center px-2 py-1 rounded-none text-[9px] font-bold uppercase tracking-widest border ${getStatusColor(
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${getStatusColor(
                     paper.status
                   )}`}
                 >
                   {paper.status || 'queued'}
                 </span>
               </div>
-              <div className="text-[11px] text-muted font-bold tracking-widest">{paper.year || '----'}</div>
+              <div className="text-sm text-muted/80">{paper.year || '----'}</div>
               <div>
                 {paper.url ? (
                   <a
@@ -148,12 +150,12 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
                     target="_blank"
                     rel="noreferrer"
                     onClick={(event) => event.stopPropagation()}
-                    className="text-[10px] text-secondary hover:underline font-bold uppercase tracking-widest"
+                    className="text-xs text-secondary hover:underline font-medium inline-flex items-center gap-1"
                   >
-                    SRC_LINK ↗
+                    arXiv <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
                   </a>
                 ) : (
-                  <span className="text-[10px] text-muted opacity-40">----</span>
+                  <span className="text-xs text-muted/40">Local PDF</span>
                 )}
               </div>
               <div>
@@ -163,9 +165,9 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
                     event.stopPropagation()
                     if (onOpenNotes) onOpenNotes(paper)
                   }}
-                  className="text-[10px] text-foreground font-bold uppercase tracking-widest border-b border-border hover:border-foreground transition-all"
+                  className="text-xs text-foreground font-medium hover:text-secondary transition-colors"
                 >
-                  OPEN_NOTES
+                  Open Notes
                 </button>
               </div>
             </div>
@@ -174,25 +176,25 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
       )}
 
       {displayPapers.length > ITEMS_PER_PAGE && (
-        <div className="mt-8 flex items-center justify-end gap-3">
+        <div className="mt-8 flex items-center justify-center gap-6">
           <button
             type="button"
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1}
-            className="border-2 border-border bg-surface px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-background disabled:opacity-30 transition-all active:translate-y-0.5"
+            className="p-2 rounded-lg border border-border bg-surface text-muted hover:text-foreground hover:border-secondary/50 disabled:opacity-30 transition-all"
           >
-            ← PREV
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           </button>
-          <span className="text-[11px] font-bold text-muted tracking-[0.2em]">
-            {currentPage} / {totalPages}
+          <span className="text-sm font-medium text-muted">
+            {currentPage} of {totalPages}
           </span>
           <button
             type="button"
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage >= totalPages}
-            className="border-2 border-border bg-surface px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-background disabled:opacity-30 transition-all active:translate-y-0.5"
+            className="p-2 rounded-lg border border-border bg-surface text-muted hover:text-foreground hover:border-secondary/50 disabled:opacity-30 transition-all"
           >
-            NEXT →
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
         </div>
       )}

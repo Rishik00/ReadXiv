@@ -1,0 +1,59 @@
+## Things that we can add to this to make it nicer: 
+
+# Projects/Literature survey (both manual and auto) (Medium, Not Immediate)
+A project would be structured as a folder and as a web of papers in  excalidraw. For these web of papers we can have one note that would unify everything relevant for them. 
+
+There can be 2 modes:
+1. Manual - I add a list of arxiv links, give the project a title and it can add a note and bring them together as aa graph. 
+2. Auto - I give a prompt to an agent and it can go search for upto N (cannot be larger than 10) papers and organize them for me. I have to think about what the harness and what type of agent will this be. 
+
+Why? - Because i can often find myself in survey mode, where I go for a paper and do like a whole deepdie into teat particular area. 
+
+Ways to start a project: 
+1. With multiple arxiv links
+2. From a base paper itself - for ex I can go pick a paper from the papershelf and that can bee a project where i look through the references and it makes relevant paper notes for all of them and store them in a folder. 
+
+Projects will not appear in the papershelf, they'll be stored separately. 
+
+# Recents/Recommendations from email (Big, Not immediate)
+I can link my scholar inbox API to this app and it can fetch all the recommendations for me (it won't be a papernote, just an item). And every weekend or every N days the app can help me pick out and put papers of my choice as notes. We can mark these as recommendations and train my own recommeder system to go out there and fetch me papers hubba. 
+
+Or we can scrap the every N days part, I want to see the recommendations in the search page, near the nav bar with a dedicated recommendations section in the nav bar. 
+
+Why? - I want to have recommendations come from outside this and I want to try training my own recommender engine :)
+
+# Fast and accessible search (Small, Immediate)
+Just like obsidian, I want to have a fast search interface to search for keywords, titles, authors. This should be similar to neovim's interface and should be immediately available for me at any place. You can take inspiration from neovim's file browser for this feature. 
+
+# Recents (Small, Immediate)
+Right now the recent's is filled with placeholders. I want to have it filled with the 3 most recent papernote objects I have used/created. Should be easy. 
+
+# A proper neovim like interface (Medium, Immediate)
+I really love vim bindings, and I want to have them whereever possible! The following feature will involve 2 things: 
+
+1. Expand the current set of keybindings to make the whole experience more navigable using the keyboard. This involves going to different sections of the app and performing different actions. I will note the keybindings that would be ideal, though I think it should be normal keybindings you use in neovim for navigating and editing the file. 
+
+Do note that I don't want to over complicate this, just want to have a similar experience with the whole navigation. 
+
+2. Enable keybindings in the markdown editor that would make it neovim-like. This involves different editor modes, copy pasting content and vim keybindings for different actions. 
+
+Note: this feature should be enabled via a `enable-vim-navigation` for the first one and `enable-vim-keybindings` for the second one. Both of them will be settings when enabled will aid in the above behaviours. 
+
+# Better structuring for the PDF reader and notes editor (Small, Immediate)
+For the PDF reader: 
+1. Allow annotation/marking highlighted text for me to quote inside the markdown editor. 
+2. Allow more colors for highlighting, though I guess the following would do - yellow, green, red. They should not be too obstructive, just enough transparent and dull to highlight over the text. 
+
+For the notes editor: 
+1. Allow latex compilation for equations and mathematical notation. 
+2. The notes should have the following hierarchy to start, treat this as a template to ue everytime: 
+    1. First - Quotes from the paper that I have highlighted in the PDF. 
+    2. Second - My own opinions and questions. Also questions can be framed as a quote in markdown with the white bar behind them and everything.  
+
+# Different views for viewing PDF/markdown notes (Small, Not immediate)
+Right now they are side by side, but I have the following ideas: 
+
+1. toggle with a key binding between each one. 
+2. Add comments at the highlighted place. 
+
+You can recommend other views/ways to move between these 2 views. 

@@ -7,14 +7,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#0D0D0D',
-        surface: '#111111',
-        border: '#262626',
-        grid: '#1A1A1A',
-        foreground: '#E5E5E5',
-        muted: '#666666',
-        accent: '#EA580C',
+        background: 'var(--background)',
+        surface: 'var(--surface)',
+        border: 'var(--border)',
+        grid: 'var(--surface)',
+        foreground: 'var(--foreground)',
+        muted: 'var(--muted)',
+        accent: 'var(--secondary)',
         secondary: 'var(--secondary)',
+        primary: 'var(--primary)',
       },
       fontFamily: {
         sans: ['var(--font-sans)', 'sans-serif'],

@@ -35,6 +35,27 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get recent papers by last access
+router.get('/recents', async (req, res) => {
+  try {
+    const db = await getDB();
+    const limitRaw = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(limitRaw, 20)) : 3;
+    const result = db.exec(
+      'SELECT * FROM papers ORDER BY COALESCE(last_accessed_at, created_at) DESC LIMIT ?',
+      [limit]
+    );
+    if (result.length === 0) {
+      return res.json([]);
+    }
+    const columns = result[0].columns;
+    const papers = result[0].values.map((row) => rowToObject(row, columns));
+    return res.json(papers);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // Get single paper
 router.get('/:id', async (req, res) => {
   try {
@@ -51,6 +72,27 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// Mark a paper as accessed (for recents)
+router.post('/:id/access', async (req, res) => {
+  try {
+    const db = await getDB();
+    db.run("UPDATE papers SET last_accessed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?", [
+      req.params.id,
+    ]);
+    saveDB();
+
+    const result = db.exec('SELECT * FROM papers WHERE id = ?', [req.params.id]);
+    if (result.length === 0 || result[0].values.length === 0) {
+      return res.status(404).json({ error: 'Paper not found' });
+    }
+    const columns = result[0].columns;
+    const paper = rowToObject(result[0].values[0], columns);
+    return res.json(paper);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // Create paper
 router.post('/', async (req, res) => {
   try {
@@ -62,8 +104,8 @@ router.post('/', async (req, res) => {
     const now = new Date().toISOString();
     
     db.run(`
-      INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, tags, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, tags, created_at, updated_at, last_accessed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       paperId,
       title,
@@ -75,6 +117,7 @@ router.post('/', async (req, res) => {
       source || 'arxiv',
       year ?? null,
       tagsJson,
+      now,
       now,
       now,
     ]);
@@ -168,8 +211,8 @@ router.post('/upload', upload.single('pdf'), async (req, res) => {
     await fs.writeFile(notesPath, `# ${title}\n\n## Notes\n\n`, 'utf8');
 
     db.run(
-      `INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, tags, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, tags, created_at, updated_at, last_accessed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         paperId,
         title,
@@ -181,6 +224,7 @@ router.post('/upload', upload.single('pdf'), async (req, res) => {
         'manual',
         null,
         '[]',
+        now,
         now,
         now,
       ]

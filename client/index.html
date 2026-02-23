@@ -2,9 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/readxiv-logo-r-monogram.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Papyrus</title>
+    <title>ReadXiv</title>
+    <script>
+      (function() {
+        try {
+          var s = localStorage.getItem('papyrus-settings');
+          if (s) {
+            var p = JSON.parse(s);
+            if (p && p.theme) document.documentElement.setAttribute('data-theme', p.theme);
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

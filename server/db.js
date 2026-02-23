@@ -52,7 +52,8 @@ export async function initDB() {
       tags TEXT DEFAULT '[]',
       year INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      updated_at TEXT DEFAULT (datetime('now')),
+      last_accessed_at TEXT DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS highlights (
@@ -70,6 +71,19 @@ export async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_papers_created ON papers(created_at);
     CREATE INDEX IF NOT EXISTS idx_highlights_paper ON highlights(paper_id);
   `);
+
+  // Lightweight migration for existing DBs that were created before
+  // `last_accessed_at` existed.
+  const tableInfo = db.exec("PRAGMA table_info(papers)");
+  const hasLastAccessed =
+    tableInfo.length > 0 && tableInfo[0].values.some((row) => row[1] === 'last_accessed_at');
+
+  if (!hasLastAccessed) {
+    db.run('ALTER TABLE papers ADD COLUMN last_accessed_at TEXT');
+    db.run("UPDATE papers SET last_accessed_at = COALESCE(last_accessed_at, created_at, datetime('now'))");
+  }
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_papers_last_accessed ON papers(last_accessed_at)');
 
   // Save database
   saveDB();

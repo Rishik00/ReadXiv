@@ -22,6 +22,15 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
     inputRef.current?.focus()
   }, [focusNonce])
 
+  const [greeting, setGreeting] = useState('What do you wanna search today?')
+
+  useEffect(() => {
+    const hour = new Date().getHours()
+    if (hour < 12) setGreeting('Good morning, what do you wanna search today?')
+    else if (hour < 18) setGreeting('Good afternoon, what do you wanna search today?')
+    else setGreeting('Good evening, what do you wanna search today?')
+  }, [])
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!input.trim()) return
@@ -91,55 +100,79 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
     input.trim().toLowerCase() === '/bindings' || input.trim().toLowerCase() === '/keyboardbindings'
 
   return (
-    <div className="mx-auto flex min-h-[82vh] w-full max-w-[980px] flex-col items-center justify-center px-6 py-12 font-mono">
-      <h1 className="mb-10 mt-10 text-center text-[56px] font-bold tracking-brutalist-tight leading-none uppercase text-foreground">
-        readxiv
-      </h1>
+    <div className="mx-auto flex min-h-[82vh] w-full max-w-[800px] flex-col items-center justify-center px-6 py-12">
+      <div className="mb-12 flex flex-col items-center justify-center gap-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-foreground/5 flex items-center justify-center border border-foreground/10 shadow-xl backdrop-blur-sm">
+          <img 
+            src="/readxiv-logo-icon.png" 
+            alt="ReadXiv" 
+            className="w-10 h-10 object-contain opacity-90"
+          />
+        </div>
+        <h1 className="text-4xl md:text-5xl font-serif text-foreground tracking-tight">
+          {greeting}
+        </h1>
+      </div>
 
-      <form onSubmit={handleSubmit} className="w-full max-w-[760px] mb-7">
+      <form onSubmit={handleSubmit} className="w-full max-w-[720px] mb-8">
         <div
-          className={`bg-surface border-2 p-7 px-7 transition-all shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] ${
-            isFocused ? 'border-secondary shadow-[12px_12px_0px_0px_rgba(234,88,12,0.2)]' : 'border-border'
+          className={`claude-input-container p-4 transition-all duration-300 relative ${
+            isFocused 
+              ? 'border-secondary/60' 
+              : 'border-border shadow-lg hover:border-border/80'
           }`}
+          style={isFocused ? {
+            boxShadow: '0 0 0 1px color-mix(in srgb, var(--secondary) 60%, transparent), 0 0 20px 4px color-mix(in srgb, var(--secondary) 15%, transparent), 0 0 40px 8px color-mix(in srgb, var(--secondary) 5%, transparent)'
+          } : {}}
         >
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
+            rows={1}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value)
+              e.target.style.height = 'auto'
+              e.target.style.height = e.target.scrollHeight + 'px'
+            }}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            placeholder="PASTE ARXIV URL / ID, OR SEARCH..."
-            className="w-full bg-transparent border-none outline-none text-xl text-foreground font-mono placeholder:text-muted uppercase tracking-wider"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSubmit(e)
+              }
+            }}
+            placeholder="Paste arXiv URL, ID, or search..."
+            className="w-full bg-transparent border-none outline-none text-lg text-foreground font-sans placeholder:text-muted/50 resize-none py-2 px-2"
             disabled={loading}
           />
-          <div className="flex justify-between items-center mt-6">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-secondary pulse-accent" />
-              <span className="text-[10px] uppercase tracking-widest text-muted">System Ready</span>
-            </div>
-            <div className="flex gap-3 items-center">
-              <kbd className="text-[10px] font-mono text-muted bg-background border border-border px-1.5 py-0.5">
-                CTRL + ENTER
-              </kbd>
-              <button
-                type="submit"
-                disabled={loading || !input.trim()}
-                className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-all border-2 ${
-                  input.trim() && !loading
-                    ? 'bg-secondary border-secondary text-white hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[0px] active:translate-y-[0px] active:shadow-none'
-                    : 'bg-surface text-muted border-border cursor-not-allowed'
-                }`}
-              >
-                {loading ? 'PROCESSING...' : 'EXECUTE →'}
-              </button>
+          <div className="flex justify-between items-center mt-4 px-2">
+            <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-4 py-2 text-xs font-bold uppercase tracking-widest border-2 border-border bg-background text-foreground hover:bg-surface hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[0px] active:translate-y-[0px] active:shadow-none transition-all"
+                className="p-2 rounded-full hover:bg-foreground/5 text-muted hover:text-foreground transition-colors"
+                title="Upload PDF"
                 disabled={loading}
               >
-                UPLOAD PDF
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+              </button>
+            </div>
+            <div className="flex gap-3 items-center">
+              <button
+                type="submit"
+                disabled={loading || !input.trim()}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                  input.trim() && !loading
+                    ? 'bg-secondary text-[var(--button-on-secondary)] hover:opacity-90'
+                    : 'bg-foreground/5 text-muted cursor-not-allowed'
+                }`}
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin" />
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                )}
               </button>
             </div>
           </div>

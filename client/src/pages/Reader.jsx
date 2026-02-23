@@ -76,6 +76,13 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
   }, [paperId]);
 
   useEffect(() => {
+    if (!paperId) return;
+    axios.post(`/api/papers/${paperId}/access`).catch(() => {
+      // Best-effort analytics update for recents; ignore failures.
+    });
+  }, [paperId]);
+
+  useEffect(() => {
     const timer = setTimeout(async () => {
       if (!readerSearch.trim()) {
         setReaderSearchResults([]);
@@ -208,109 +215,112 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
   }
 
   return (
-    <div className="p-7 max-w-[1200px] mx-auto font-mono">
-      <div className="flex items-center gap-2 mb-6 text-[11px] uppercase tracking-[0.2em] font-bold">
-        <span className="text-muted cursor-pointer hover:text-secondary" onClick={() => setPage('shelf')}>
-          SHELF
+    <div className="p-6 w-full max-w-[1800px] mx-auto font-sans h-screen flex flex-col overflow-hidden">
+      <div className="flex items-center gap-4 mb-4 text-sm font-medium flex-shrink-0">
+        <span className="text-muted cursor-pointer hover:text-foreground transition-colors" onClick={() => setPage('shelf')}>
+          Shelf
         </span>
-        <span className="text-muted text-[10px]">/</span>
+        <span className="text-muted/50">/</span>
         <span className="text-foreground truncate max-w-[600px]">{readerPaper?.title}</span>
-        <select
-          className="ml-auto rounded-none border-2 border-border bg-surface px-3 py-1 text-[10px] font-bold uppercase tracking-widest focus:border-secondary outline-none"
-          value={readerPaper?.status || 'queued'}
-          onChange={async (e) => {
-            const status = e.target.value;
-            setReaderPaper((prev) => ({ ...prev, status }));
-            try {
-              await axios.patch(`/api/papers/${paperId}`, { status });
-            } catch {
-              // no-op
-            }
-          }}
-        >
-          <option value="queued">QUEUED</option>
-          <option value="reading">READING</option>
-          <option value="done">DONE</option>
-        </select>
+        <div className="ml-auto flex items-center gap-3">
+          <select
+            className="rounded-2xl border border-border bg-surface px-4 py-2 text-xs font-medium focus:border-secondary/50 outline-none transition-all hover:brightness-110 cursor-pointer appearance-none pr-8 relative"
+            style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23737373%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.7rem top 50%', backgroundSize: '0.65rem auto' }}
+            value={readerPaper?.status || 'queued'}
+            onChange={async (e) => {
+              const status = e.target.value;
+              setReaderPaper((prev) => ({ ...prev, status }));
+              try {
+                await axios.patch(`/api/papers/${paperId}`, { status });
+              } catch {
+                // no-op
+              }
+            }}
+          >
+            <option value="queued">Queued</option>
+            <option value="reading">Reading</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
       </div>
 
       {backgroundPdfLoading && (
-        <div className="mb-6 border-2 border-border bg-surface p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-          <div className="mb-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.2em]">
-            <span className="text-secondary">INITIALIZING PDF STREAM...</span>
-            <span className="text-muted">STATUS: CHUNKING</span>
+        <div className="mb-4 claude-card p-4 flex-shrink-0">
+          <div className="mb-3 flex items-center justify-between text-xs font-medium">
+            <span className="text-secondary">Initializing PDF stream...</span>
+            <span className="text-muted/60">Status: Chunking</span>
           </div>
-          <div className="h-2 w-full overflow-hidden bg-background border border-border">
-            <div className="loading-indicator h-full w-1/3 bg-secondary" />
+          <div className="h-1.5 w-full overflow-hidden bg-foreground/20 rounded-full">
+            <div className="loading-indicator h-full w-1/3 bg-secondary rounded-full" />
           </div>
         </div>
       )}
 
-      <div ref={splitRootRef} className="flex gap-0 min-h-[720px] border-2 border-border bg-background shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
-        <div style={{ width: `${leftWidth}%` }} className="border-r-2 border-border overflow-hidden">
+      <div ref={splitRootRef} className="flex gap-0 flex-1 min-h-[calc(100vh-140px)] relative select-none">
+        <div style={{ width: `${leftWidth}%` }} className="claude-card overflow-hidden relative border-r-0 rounded-r-none h-full">
           <PdfViewer paperId={paperId} continuousScroll={settings?.continuousScroll !== false} />
         </div>
 
-        <button
-          type="button"
-          className="w-1 cursor-col-resize bg-border hover:bg-secondary transition-colors"
-          aria-label="Resize panels"
+        <div
+          className="w-4 cursor-col-resize hover:bg-secondary/20 active:bg-secondary/40 transition-colors flex items-center justify-center z-10 -ml-2 -mr-2 relative"
           onMouseDown={startResize}
-        />
+        >
+          <div className="w-1 h-8 rounded-full bg-border/50" />
+        </div>
 
-        <div style={{ width: `${100 - leftWidth}%` }} className="flex flex-col bg-surface">
-          <div className="flex items-center justify-between p-4 border-b-2 border-border bg-background">
-            <div className="flex items-center gap-4">
-              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted">NOTES.MD</span>
+        <div style={{ width: `${100 - leftWidth}%` }} className="flex flex-col claude-card overflow-hidden border-l-0 rounded-l-none h-full">
+          <div className="flex items-center justify-between p-3 border-b border-border bg-background/50">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-semibold text-muted/80 px-2">Notes</span>
               {settings?.liveMarkdownPreview && (
-                <div className="flex border border-border bg-surface p-0.5">
+                <div className="flex bg-foreground/10 p-1 rounded-lg">
                   <button
                     type="button"
                     onClick={() => setNoteTab('edit')}
-                    className={`px-3 py-1 text-[9px] font-bold uppercase tracking-widest transition-all ${
-                      noteTab === 'edit' ? 'bg-secondary text-white' : 'text-muted hover:text-foreground'
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                      noteTab === 'edit' ? 'bg-border text-foreground shadow-sm' : 'text-muted hover:text-foreground'
                     }`}
                   >
-                    EDIT
+                    Edit
                   </button>
                   <button
                     type="button"
                     onClick={() => setNoteTab('preview')}
-                    className={`px-3 py-1 text-[9px] font-bold uppercase tracking-widest transition-all ${
-                      noteTab === 'preview' ? 'bg-secondary text-white' : 'text-muted hover:text-foreground'
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                      noteTab === 'preview' ? 'bg-border text-foreground shadow-sm' : 'text-muted hover:text-foreground'
                     }`}
                   >
-                    PREVIEW
+                    Preview
                   </button>
                 </div>
               )}
             </div>
-            <div className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 border ${
+            <div className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
                 notesStatus === 'error'
-                  ? 'text-red-400 border-red-900/50 bg-red-500/10'
+                  ? 'text-red-400 border-red-500/20 bg-red-500/5'
                   : notesStatus === 'saving'
-                    ? 'text-secondary border-secondary/50 bg-secondary/10'
-                    : 'text-green-400 border-green-900/50 bg-green-500/10'
+                    ? 'text-secondary border-secondary/20 bg-secondary/5'
+                    : 'text-green-400 border-green-500/20 bg-green-500/5'
               }`}>
-              {notesStatus === 'saving' ? 'SYNCING...' : notesStatus === 'error' ? 'SYNC_ERROR' : 'SYNCED'}
+              {notesStatus === 'saving' ? 'Syncing...' : notesStatus === 'error' ? 'Sync Error' : 'Synced'}
             </div>
           </div>
           
-          <div className="flex-1 p-0 overflow-hidden flex flex-col">
+          <div className="flex-1 p-0 overflow-hidden flex flex-col bg-surface">
             {!settings?.liveMarkdownPreview || noteTab === 'edit' ? (
               <div className="flex-1 flex flex-col">
-                <div className="flex items-center gap-1 p-2 bg-background border-b border-border">
+                <div className="flex items-center gap-1 p-2 bg-background/30 border-b border-border/50">
                   {[
                     ['H1', () => insertAtCursor('\n# ')],
                     ['H2', () => insertAtCursor('\n## ')],
-                    ['BOLD', () => wrapSelection('**', '**')],
-                    ['LIST', () => insertAtCursor('\n- ')],
-                    ['CODE', () => wrapSelection('`', '`')],
+                    ['Bold', () => wrapSelection('**', '**')],
+                    ['List', () => insertAtCursor('\n- ')],
+                    ['Code', () => wrapSelection('`', '`')],
                   ].map(([label, action]) => (
                     <button
                       key={label}
                       type="button"
-                      className="px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-muted hover:text-foreground hover:bg-surface border border-transparent hover:border-border transition-all"
+                      className="px-2.5 py-1 text-xs font-medium text-muted hover:text-foreground hover:bg-foreground/5 rounded-md transition-all"
                       onClick={action}
                     >
                       {label}
@@ -318,7 +328,7 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
                   ))}
                 </div>
                 <textarea
-                  className="flex-1 w-full bg-transparent p-6 resize-none outline-none leading-relaxed font-mono text-[13px] text-foreground placeholder:text-muted/30"
+                  className="flex-1 w-full bg-transparent p-8 resize-none outline-none leading-relaxed font-sans text-base text-foreground/90 placeholder:text-muted/20"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   onKeyDown={(e) => {
@@ -327,11 +337,11 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
                       wrapSelection('**', '**');
                     }
                   }}
-                  placeholder="START TRANSCRIBING..."
+                  placeholder="Start writing your thoughts..."
                 />
               </div>
             ) : (
-              <div className="flex-1 markdown-preview overflow-auto p-8 bg-background text-foreground selection:bg-white selection:text-black">
+              <div className="flex-1 markdown-preview overflow-auto p-10 bg-surface text-foreground/90">
                 <div dangerouslySetInnerHTML={{ __html: compiledMarkdown }} />
               </div>
             )}

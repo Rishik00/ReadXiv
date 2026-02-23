@@ -1,0 +1,10 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Stacked papers icon -->
+  <rect x="8" y="12" width="40" height="48" fill="#1A1A1A" stroke="#EA580C" stroke-width="2"/>
+  <rect x="12" y="8" width="40" height="48" fill="#1A1A1A" stroke="#EA580C" stroke-width="2"/>
+  <rect x="16" y="4" width="40" height="48" fill="#0D0D0D" stroke="#EA580C" stroke-width="2"/>
+  <!-- Lines representing text -->
+  <line x1="24" y1="16" x2="48" y2="16" stroke="#EA580C" stroke-width="1.5"/>
+  <line x1="24" y1="22" x2="48" y2="22" stroke="#EA580C" stroke-width="1.5"/>
+  <line x1="24" y1="28" x2="40" y2="28" stroke="#EA580C" stroke-width="1.5"/>
+</svg>

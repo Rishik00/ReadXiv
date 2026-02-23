@@ -119,8 +119,8 @@ router.post('/add', async (req, res) => {
     const plannedPdfUrl = `https://arxiv.org/pdf/${arxivId}.pdf`;
     
     database.run(`
-      INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'arxiv', ?, 'loading', ?, ?)
+      INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, status, created_at, updated_at, last_accessed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'arxiv', ?, 'loading', ?, ?, ?)
     `, [
       arxivId,
       metadata.title,
@@ -130,6 +130,7 @@ router.post('/add', async (req, res) => {
       plannedPdfPath,
       plannedPdfUrl,
       metadata.year,
+      now,
       now,
       now
     ]);
