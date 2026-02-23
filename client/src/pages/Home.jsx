@@ -22,14 +22,25 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
     inputRef.current?.focus()
   }, [focusNonce])
 
-  const [greeting, setGreeting] = useState('What do you wanna search today?')
+  const GREETINGS = [
+    'What papers are we conquering today?',
+    'Ready to fall down a citation rabbit hole?',
+    'Your brain is a sponge. Feed it papers.',
+    'What knowledge shall we acquire today?',
+    'Paste, search, or upload—let\'s go.',
+    'Another day, another paper to add to the pile.',
+    'Scientific curiosity: activate.',
+    'What\'s on the arXiv menu today?',
+    'Papers: long tweets with footnotes.',
+    'Your future self will thank you for reading this.',
+  ]
 
-  useEffect(() => {
-    const hour = new Date().getHours()
-    if (hour < 12) setGreeting('Good morning, what do you wanna search today?')
-    else if (hour < 18) setGreeting('Good afternoon, what do you wanna search today?')
-    else setGreeting('Good evening, what do you wanna search today?')
-  }, [])
+  const [greeting, setGreeting] = useState(() => {
+    const d = new Date()
+    const dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5)
+    const seed = dayOfYear * 24 + d.getHours()
+    return GREETINGS[seed % GREETINGS.length]
+  })
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -37,7 +48,7 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
 
     const inputType = detectInputType(input)
     const normalizedInput = input.trim().toLowerCase()
-    if (normalizedInput === '/help' || normalizedInput === '/bindings' || normalizedInput === '/keyboardbindings') return
+    if (normalizedInput === '/howto' || normalizedInput === '/bindings') return
     
     // If it's an arxiv URL or ID, fetch and add paper
     if (inputType === 'arxiv URL' || inputType === 'arxiv ID') {
@@ -95,20 +106,12 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
   }
 
   const inputType = detectInputType(input)
-  const showHelp = input.trim().toLowerCase() === '/help'
-  const showBindings =
-    input.trim().toLowerCase() === '/bindings' || input.trim().toLowerCase() === '/keyboardbindings'
+  const showHowto = input.trim().toLowerCase() === '/howto'
+  const showBindings = input.trim().toLowerCase() === '/bindings'
 
   return (
     <div className="mx-auto flex min-h-[82vh] w-full max-w-[800px] flex-col items-center justify-center px-6 py-12">
       <div className="mb-12 flex flex-col items-center justify-center gap-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-foreground/5 flex items-center justify-center border border-foreground/10 shadow-xl backdrop-blur-sm">
-          <img 
-            src="/readxiv-logo-icon.png" 
-            alt="ReadXiv" 
-            className="w-10 h-10 object-contain opacity-90"
-          />
-        </div>
         <h1 className="text-4xl md:text-5xl font-serif text-foreground tracking-tight">
           {greeting}
         </h1>
@@ -193,7 +196,7 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
       )}
 
       <div className="flex gap-1.5 flex-wrap justify-center mb-10">
-        {['/help', '/bindings', '/keyboardbindings'].map(
+        {['/howto', '/bindings'].map(
           (ex, i) => (
             <button
               key={i}
@@ -206,7 +209,7 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
         )}
       </div>
 
-      {showHelp && (
+      {showHowto && (
         <div className="mt-3 w-full max-w-[760px] border-2 border-border bg-surface/80 p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
           <p className="text-[12px] font-bold text-secondary uppercase tracking-[0.2em] mb-4 border-b border-border pb-2">
             Supported Inputs
@@ -214,7 +217,7 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
           {[
             ['https://arxiv.org/abs/...', 'Full arxiv URL'],
             ['2401.12345', 'Bare arxiv ID'],
-            ['/help', 'Show this help panel'],
+            ['/howto', 'Show this help panel'],
             ['any text', 'Fuzzy search your shelf'],
           ].map(([cmd, desc], i) => (
             <div key={i} className="flex items-center gap-4 py-2 border-b border-border/50 last:border-0">
@@ -226,7 +229,7 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
           ))}
         </div>
       )}
-      {showHelp && (
+      {showHowto && (
         <div className="mt-4 text-[10px] text-muted uppercase tracking-[0.15em]">Status: Local-only command execution.</div>
       )}
       {showBindings && (
@@ -235,10 +238,11 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
             Keyboard Bindings
           </p>
           {[
-            ['Ctrl+Shift+K', 'Focus search'],
+            ['Ctrl+P', 'Command palette (search papers & navigate)'],
+            ['Ctrl+K', 'Focus this search bar'],
             ['Ctrl+B', 'Toggle sidebar'],
             ['Ctrl+B (in notes)', 'Bold selected text'],
-            ['Ctrl+Enter', 'Submit search/add paper'],
+            ['Ctrl+Enter', 'Submit search / add paper'],
           ].map(([cmd, desc], i) => (
             <div key={i} className="flex items-center gap-4 py-2 border-b border-border/50 last:border-0">
               <code className="text-[11px] text-foreground font-mono bg-background px-2 py-1 border border-border min-w-[220px]">
@@ -247,6 +251,9 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
               <span className="text-xs text-muted uppercase tracking-wider">{desc}</span>
             </div>
           ))}
+          <div className="mt-4 pt-3 border-t border-border/50 text-[11px] text-muted">
+            In command palette: <span className="text-secondary font-mono">↑↓jk</span> navigate · <span className="text-secondary font-mono">Enter</span> open · <span className="text-secondary font-mono">Tab</span> commands · type <span className="text-secondary font-mono">&gt;</span> for app commands
+          </div>
         </div>
       )}
     </div>

@@ -22,10 +22,10 @@ Or we can scrap the every N days part, I want to see the recommendations in the 
 
 Why? - I want to have recommendations come from outside this and I want to try training my own recommender engine :)
 
-# Fast and accessible search (Small, Immediate)
+# Fast and accessible search (Small, Immediate) - Implemented
 Just like obsidian, I want to have a fast search interface to search for keywords, titles, authors. This should be similar to neovim's interface and should be immediately available for me at any place. You can take inspiration from neovim's file browser for this feature. 
 
-# Recents (Small, Immediate)
+# Recents (Small, Immediate) - Implemented
 Right now the recent's is filled with placeholders. I want to have it filled with the 3 most recent papernote objects I have used/created. Should be easy. 
 
 # A proper neovim like interface (Medium, Immediate)

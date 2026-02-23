@@ -151,10 +151,24 @@ function App() {
       <GlobalSearchPalette
         open={quickSearchOpen}
         onClose={() => setQuickSearchOpen(false)}
+        currentPage={page}
         onSelectPaper={(paper) => {
           setSelectedPaper(paper)
           setReaderInitialTab('edit')
           setPage('reader')
+          setQuickSearchOpen(false)
+        }}
+        onCommand={(cmd) => {
+          if (cmd.id === 'home') {
+            setPage('home')
+            setHomeFocusNonce((n) => n + 1)
+          } else if (cmd.id === 'shelf') {
+            setPage('shelf')
+          } else if (cmd.id === 'settings') {
+            setPage('settings')
+          } else if (cmd.id === 'toggle-sidebar') {
+            setSidebarCollapsed((v) => !v)
+          }
           setQuickSearchOpen(false)
         }}
       />

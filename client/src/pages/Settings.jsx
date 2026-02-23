@@ -79,10 +79,13 @@ export default function Settings({ settings, setSettings }) {
           <div className="bg-surface rounded-xl px-6 py-5 border border-border text-xs text-muted leading-relaxed">
             <div className="font-semibold mb-2 text-foreground uppercase tracking-wider">Keyboard shortcuts</div>
             <div className="grid grid-cols-2 gap-2">
-              <div><span className="text-secondary font-mono font-bold">Ctrl+K</span> focus search</div>
+              <div><span className="text-secondary font-mono font-bold">Ctrl+P</span> command palette (search & navigate)</div>
+              <div><span className="text-secondary font-mono font-bold">Ctrl+K</span> focus home search</div>
               <div><span className="text-secondary font-mono font-bold">Ctrl+B</span> toggle sidebar</div>
-              <div><span className="text-secondary font-mono font-bold">Ctrl+P</span> quick search</div>
               <div><span className="text-secondary font-mono font-bold">Ctrl+B</span> bold (in notes)</div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-border/50 text-muted/80">
+              In command palette: <span className="text-secondary font-mono">↑↓jk</span> navigate · <span className="text-secondary font-mono">Enter</span> open · <span className="text-secondary font-mono">Tab</span> switch to commands · type <span className="text-secondary font-mono">&gt;</span> for app commands
             </div>
           </div>
         </div>

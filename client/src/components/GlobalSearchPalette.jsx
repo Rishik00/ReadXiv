@@ -1,18 +1,50 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 
-export default function GlobalSearchPalette({ open, onClose, onSelectPaper }) {
+const COMMAND_PREFIXES = ['>', ':', '/']
+const APP_COMMANDS = [
+  { id: 'home', label: 'Go to Search', shortcut: 'g h', keywords: ['home', 'search', 'h'] },
+  { id: 'shelf', label: 'Go to Paper Shelf', shortcut: 'g s', keywords: ['shelf', 'papers', 'library', 's'] },
+  { id: 'settings', label: 'Go to Settings', shortcut: 'g c', keywords: ['settings', 'config', 'preferences', 'c'] },
+  { id: 'toggle-sidebar', label: 'Toggle sidebar', shortcut: 'Ctrl+B', keywords: ['sidebar', 'toggle', 'collapse', 'b'] },
+]
+
+function filterCommands(query) {
+  const q = query.toLowerCase().trim()
+  if (!q) return APP_COMMANDS
+  return APP_COMMANDS.filter(
+    (c) =>
+      c.label.toLowerCase().includes(q) ||
+      c.keywords.some((k) => k.startsWith(q) || q.startsWith(k))
+  )
+}
+
+export default function GlobalSearchPalette({
+  open,
+  onClose,
+  onSelectPaper,
+  onCommand,
+  currentPage,
+}) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef(null)
+  const listRef = useRef(null)
 
   const hasQuery = query.trim().length > 0
-  const title = useMemo(() => (hasQuery ? 'Global Search' : 'Recent Papers'), [hasQuery])
+  const isCommandMode = COMMAND_PREFIXES.some((p) => query.startsWith(p))
+  const commandQuery = isCommandMode ? query.slice(1).trim() : ''
+  const commandResults = useMemo(() => filterCommands(commandQuery), [commandQuery])
+
+  const isSearchMode = !isCommandMode
+  const displayItems = isCommandMode ? commandResults : results
+  const hasItems = displayItems.length > 0
 
   useEffect(() => {
     if (!open) return
+    setQuery('')
     setActiveIndex(0)
     const timer = setTimeout(() => inputRef.current?.focus(), 0)
     return () => clearTimeout(timer)
@@ -20,10 +52,12 @@ export default function GlobalSearchPalette({ open, onClose, onSelectPaper }) {
 
   useEffect(() => {
     if (!open) return
+    if (!isSearchMode) return
+
     if (!query.trim()) {
       setLoading(true)
       axios
-        .get('/api/papers/recents', { params: { limit: 8 } })
+        .get('/api/papers/recents', { params: { limit: 10 } })
         .then(({ data }) => {
           setResults(Array.isArray(data) ? data : [])
           setActiveIndex(0)
@@ -44,94 +78,196 @@ export default function GlobalSearchPalette({ open, onClose, onSelectPaper }) {
       } finally {
         setLoading(false)
       }
-    }, 160)
+    }, 120)
 
     return () => clearTimeout(timer)
-  }, [open, query])
+  }, [open, query, isSearchMode])
+
+  useEffect(() => {
+    setActiveIndex(0)
+  }, [isCommandMode])
+
+  useEffect(() => {
+    if (!open) return
+    const maxIdx = displayItems.length - 1
+    setActiveIndex((idx) => (maxIdx < 0 ? 0 : Math.min(maxIdx, idx)))
+  }, [displayItems.length, open])
+
+  const moveSelection = (delta) => {
+    if (displayItems.length === 0) return
+    setActiveIndex((idx) => {
+      const next = idx + delta
+      return Math.max(0, Math.min(displayItems.length - 1, next))
+    })
+  }
 
   useEffect(() => {
     if (!open) return
     function onKeyDown(event) {
       if (event.key === 'Escape') {
         event.preventDefault()
-        onClose()
+        onClose?.()
         return
       }
-      if (event.key === 'ArrowDown') {
+      if ((event.key === 'ArrowDown' || event.key === 'j') && displayItems.length > 0) {
         event.preventDefault()
-        setActiveIndex((idx) => (results.length === 0 ? 0 : Math.min(results.length - 1, idx + 1)))
+        moveSelection(1)
         return
       }
-      if (event.key === 'ArrowUp') {
+      if ((event.key === 'ArrowUp' || event.key === 'k') && displayItems.length > 0) {
         event.preventDefault()
-        setActiveIndex((idx) => Math.max(0, idx - 1))
+        moveSelection(-1)
         return
       }
-      if (event.key === 'Enter' && results[activeIndex]) {
+      if (event.key === 'Enter') {
         event.preventDefault()
-        onSelectPaper(results[activeIndex])
+        if (!hasItems) return
+        if (isCommandMode) {
+          const c = commandResults[activeIndex]
+          if (c && onCommand) {
+            onCommand(c)
+            onClose?.()
+          }
+        } else {
+          const paper = results[activeIndex]
+          if (paper && onSelectPaper) {
+            onSelectPaper(paper)
+            onClose?.()
+          }
+        }
+        return
+      }
+      if (event.key === 'Tab') {
+        event.preventDefault()
+        if (hasQuery && !isCommandMode) {
+          setQuery((q) => (COMMAND_PREFIXES.includes(q[0]) ? q : '>' + q))
+        } else if (isCommandMode && commandQuery) {
+          setQuery(commandQuery)
+        }
+        return
       }
     }
-
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose, onSelectPaper, results, activeIndex])
+  }, [open, onClose, onSelectPaper, onCommand, activeIndex, commandResults, results, hasItems, isCommandMode, commandQuery, hasQuery, displayItems.length])
+
+  useEffect(() => {
+    if (!open || !listRef.current) return
+    const el = listRef.current.querySelector(`[data-index="${activeIndex}"]`)
+    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [activeIndex, open])
 
   if (!open) return null
 
+  const placeholder = isCommandMode
+    ? 'Search commands... (e.g. shelf, settings)'
+    : 'Search papers by title, author, abstract... (type > for commands)'
+
   return (
-    <div className="fixed inset-0 z-[80] bg-foreground/80 backdrop-blur-sm px-4 py-20" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[80] bg-foreground/80 backdrop-blur-sm flex items-start justify-center pt-[12vh] px-4"
+      onClick={onClose}
+    >
       <div
-        className="mx-auto w-full max-w-[720px] border border-border bg-surface rounded-2xl shadow-2xl overflow-hidden"
-        onClick={(event) => event.stopPropagation()}
+        className="w-full max-w-[640px] border border-border bg-surface rounded-xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="border-b border-border bg-background p-4">
-          <div className="mb-3 flex items-center justify-between text-xs font-medium">
-            <span className="text-secondary">{title}</span>
-            <span className="text-muted/60">⌘P • Esc to close</span>
-          </div>
-          <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            </span>
-            <input
-              ref={inputRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search title, author, abstract..."
-              className="w-full border border-border bg-foreground/5 rounded-xl px-4 py-3 pl-12 text-sm text-foreground outline-none focus:border-secondary/50 transition-all"
-            />
-          </div>
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+          <span className="text-muted shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </span>
+          <input
+            ref={inputRef}
+            autoComplete="off"
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={placeholder}
+            className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
+          />
+          <span className="text-[10px] text-muted/70 shrink-0">Esc</span>
         </div>
-        <div className="max-h-[520px] overflow-auto p-2">
-          {loading && (
-            <div className="px-4 py-4 text-sm text-muted animate-pulse">Searching library…</div>
-          )}
-          {!loading && results.length === 0 && (
-            <div className="px-4 py-10 text-center text-sm text-muted">
-              {hasQuery ? 'No matching papers found' : 'No recent papers yet'}
-            </div>
-          )}
-          {!loading &&
-            results.map((paper, index) => (
-              <button
-                key={paper.id}
-                type="button"
-                onClick={() => onSelectPaper(paper)}
-                className={`mb-1 w-full rounded-xl px-4 py-3 text-left transition-all ${
-                  index === activeIndex
-                    ? 'bg-secondary/10 border border-secondary/30'
-                    : 'border border-transparent hover:bg-foreground/5'
-                }`}
-              >
-                <div className="text-sm font-medium text-foreground line-clamp-1">{paper.title}</div>
-                <div className="mt-1 flex items-center gap-2 text-xs text-muted/60">
-                  <span>{paper.year || '----'}</span>
-                  <span>•</span>
-                  <span className="truncate">{paper.authors || paper.id}</span>
+
+        <div ref={listRef} className="max-h-[400px] overflow-auto py-2">
+          {isCommandMode ? (
+            <>
+              {commandResults.length === 0 ? (
+                <div className="px-4 py-8 text-center text-xs text-muted">
+                  No matches. Try: home, shelf, settings
                 </div>
-              </button>
-            ))}
+              ) : (
+                commandResults.map((cmd, idx) => (
+                  <button
+                    key={cmd.id}
+                    type="button"
+                    data-index={idx}
+                    onClick={() => {
+                      onCommand?.(cmd)
+                      onClose?.()
+                    }}
+                    className={`w-full flex items-center justify-between px-4 py-2.5 text-left text-sm transition-colors ${
+                      idx === activeIndex
+                        ? 'bg-secondary/15 text-secondary'
+                        : 'text-foreground hover:bg-foreground/5'
+                    }`}
+                  >
+                    <span>{cmd.label}</span>
+                    <kbd className="text-[10px] text-muted font-mono">{cmd.shortcut}</kbd>
+                  </button>
+                ))
+              )}
+            </>
+          ) : (
+            <>
+              {loading && (
+                <div className="px-4 py-4 text-xs text-muted animate-pulse">Searching…</div>
+              )}
+              {!loading && results.length === 0 && (
+                <div className="px-4 py-8 text-center text-xs text-muted">
+                  {hasQuery ? 'No papers found' : 'No recent papers. Type to search.'}
+                </div>
+              )}
+              {!loading &&
+                results.map((paper, idx) => (
+                  <button
+                    key={paper.id}
+                    type="button"
+                    data-index={idx}
+                    onClick={() => {
+                      onSelectPaper?.(paper)
+                      onClose?.()
+                    }}
+                    className={`w-full flex flex-col gap-0.5 px-4 py-2.5 text-left transition-colors ${
+                      idx === activeIndex
+                        ? 'bg-secondary/15 text-secondary'
+                        : 'text-foreground hover:bg-foreground/5'
+                    }`}
+                  >
+                    <span className="text-sm font-medium line-clamp-1">{paper.title}</span>
+                    <span className="text-[11px] text-muted truncate">
+                      {[paper.year, paper.authors].filter(Boolean).join(' · ') || paper.id}
+                    </span>
+                  </button>
+                ))}
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-background/50 text-[10px] text-muted">
+          <span>
+            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono">↑</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">↓</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">j</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">k</kbd>
+            <span className="ml-2">navigate</span>
+          </span>
+          <span>
+            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono">Enter</kbd>
+            <span className="ml-1">open</span>
+            <span className="mx-2">·</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono">Tab</kbd>
+            <span className="ml-1">commands</span>
+          </span>
         </div>
       </div>
     </div>
