@@ -7,7 +7,12 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
   const [error, setError] = useState(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
+  const pollingRef = useRef(null)
   const [isFocused, setIsFocused] = useState(false)
+
+  useEffect(() => () => {
+    if (pollingRef.current) clearInterval(pollingRef.current)
+  }, [])
 
   const detectInputType = (val) => {
     if (val.includes('arxiv.org')) return 'arxiv URL'
@@ -62,6 +67,32 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
 
         setSelectedPaper(response.data)
         addToast?.('Paper added', 'success')
+        window.electron?.showNotification?.('ReadXiv', 'Paper added')
+        if (response.data?.loadingInBackground && response.data?.id) {
+          const paperId = response.data.id
+          let attempts = 0
+          const maxAttempts = 120 // ~5 min at 2.5s
+          const pollInterval = setInterval(async () => {
+            attempts++
+            if (attempts > maxAttempts) {
+              clearInterval(pollInterval)
+              pollingRef.current = null
+              return
+            }
+            try {
+              const res = await axios.get(`/api/papers/${paperId}`)
+              if (res.data?.status === 'queued') {
+                window.electron?.showNotification?.('ReadXiv', 'PDF ready')
+                clearInterval(pollInterval)
+                pollingRef.current = null
+              } else if (res.data?.status === 'error') {
+                clearInterval(pollInterval)
+                pollingRef.current = null
+              }
+            } catch { /* ignore */ }
+          }, 2500)
+          pollingRef.current = pollInterval
+        }
         setInput('')
       } catch (err) {
         setError(err.response?.data?.error || 'Failed to add paper')

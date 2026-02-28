@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 
@@ -47,6 +47,8 @@ function waitForServer(maxAttempts = 30) {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
+    show: false,
+    backgroundColor: '#0A0A0A',
     width: 1280,
     height: 800,
     minWidth: 800,
@@ -60,6 +62,9 @@ function createWindow() {
     },
   });
 
+  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.setMenuBarVisibility(false);
+
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
@@ -69,6 +74,12 @@ function createWindow() {
 
   mainWindow.on('closed', () => { mainWindow = null; });
 }
+
+ipcMain.on('notification-show', (_, { title, body }) => {
+  if (Notification.isSupported()) {
+    new Notification({ title, body }).show();
+  }
+});
 
 app.whenReady().then(async () => {
   startServer();
