@@ -1,16 +1,37 @@
 {
-  "name": "papyrus",
+  "name": "readxiv",
   "version": "0.1.0",
   "description": "A personal research companion for reading papers",
+  "main": "electron/main.js",
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
     "build": "cd client && npm run build",
-    "install:all": "npm install && cd client && npm install && cd ../server && npm install"
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install",
+    "electron": "electron .",
+    "electron:dev": "concurrently \"npm run dev:client\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "npm run build && electron-builder"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "electron": "^36.0.0",
+    "electron-builder": "^25.1.8",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.readxiv.app",
+    "productName": "ReadXiv",
+    "directories": { "output": "release" },
+    "files": [
+      "electron/**",
+      "client/dist/**",
+      "server/**"
+    ],
+    "asarUnpack": ["server/**"],
+    "win": { "target": "nsis" },
+    "mac": { "target": "dmg", "category": "public.app-category.productivity" },
+    "linux": { "target": "AppImage" }
   }
 }

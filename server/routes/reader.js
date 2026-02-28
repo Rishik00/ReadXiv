@@ -25,6 +25,10 @@ function getNotesPath(paperId) {
   return path.join(PAPYRUS_DIR, 'notes', `${paperId}.md`);
 }
 
+function buildDefaultNotesTemplate(paper) {
+  return `# ${paper.title}\n\n${paper.authors || ''}\n\n## Quotes from the paper\n\n> Add highlighted quotes here.\n\n## Opinions and Questions\n\n- Add your thoughts, critiques, and open questions.\n`;
+}
+
 router.get('/:id', async (req, res) => {
   try {
     const paper = await getPaperById(req.params.id);
@@ -33,7 +37,7 @@ router.get('/:id', async (req, res) => {
     const notesPath = getNotesPath(paper.id);
     const notes = (await fs.pathExists(notesPath))
       ? await fs.readFile(notesPath, 'utf8')
-      : `# ${paper.title}\n\n${paper.authors || ''}\n\n## Notes\n\n`;
+      : buildDefaultNotesTemplate(paper);
 
     return res.json({
       ...paper,
@@ -82,7 +86,7 @@ router.get('/:id/notes', async (req, res) => {
 
     const notesPath = getNotesPath(req.params.id);
     if (!(await fs.pathExists(notesPath))) {
-      const initial = `# ${paper.title}\n\n${paper.authors || ''}\n\n## Notes\n\n`;
+      const initial = buildDefaultNotesTemplate(paper);
       await fs.writeFile(notesPath, initial, 'utf8');
       return res.json({ content: initial, updatedAt: new Date().toISOString() });
     }

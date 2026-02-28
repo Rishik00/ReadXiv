@@ -109,7 +109,7 @@ function App() {
         }}
       />
       <main className="app-main flex-1 overflow-auto relative">
-        <div className="brutalist-container relative z-10">
+        <div className={`${page === 'reader' ? '' : 'brutalist-container'} relative z-10`}>
           {page === 'home' && (
             <Home
               setPage={setPage}

@@ -61,12 +61,7 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, onSearchQu
         })
 
         setSelectedPaper(response.data)
-        if (response.data?.alreadyExists) {
-          addToast?.('Paper already found, moving to the reader', 'success')
-        } else {
-          addToast?.('Paper added, moving to the reader', 'success')
-        }
-        setPage('reader')
+        addToast?.('Paper added', 'success')
         setInput('')
       } catch (err) {
         setError(err.response?.data?.error || 'Failed to add paper')

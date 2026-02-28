@@ -19,15 +19,17 @@ function extractArxivId(input) {
   return null;
 }
 
-// Fetch paper metadata from arxiv API
-async function fetchArxivMetadata(arxivId) {
-  try {
-    const response = await axios.get(`http://export.arxiv.org/api/query?id_list=${arxivId}`, {
-      headers: { 'Accept': 'application/atom+xml' }
-    });
-    
-    // Parse XML response (simplified - in production use proper XML parser)
-    const xml = response.data;
+// Fetch paper metadata from arxiv API with retry on rate limit
+async function fetchArxivMetadata(arxivId, retries = 3) {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const response = await axios.get(`http://export.arxiv.org/api/query?id_list=${arxivId}`, {
+        headers: { 'Accept': 'application/atom+xml' },
+        timeout: 15000,
+      });
+      
+      // Parse XML response (simplified - in production use proper XML parser)
+      const xml = response.data;
     
     // Extract title (skip the feed title, get the entry title)
     const entryMatch = xml.match(/<entry>([\s\S]*?)<\/entry>/);
@@ -56,22 +58,45 @@ async function fetchArxivMetadata(arxivId) {
     const published = publishedMatch ? publishedMatch[1] : '';
     const year = published ? new Date(published).getFullYear() : null;
     
-    return { title, authors, abstract, year, arxivId };
-  } catch (error) {
-    console.error('Error fetching arxiv metadata:', error);
-    throw new Error(`Failed to fetch arxiv metadata: ${error.message}`);
+      return { title, authors, abstract, year, arxivId };
+    } catch (error) {
+      if (error.response?.status === 429 && attempt < retries - 1) {
+        const delayMs = Math.min(1000 * Math.pow(2, attempt), 8000);
+        console.warn(`arXiv rate limit hit, retrying in ${delayMs}ms (attempt ${attempt + 1}/${retries})`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
+      console.error('Error fetching arxiv metadata:', error);
+      throw new Error(`Failed to fetch arxiv metadata: ${error.message}`);
+    }
   }
+  throw new Error('Failed to fetch arxiv metadata after retries');
 }
 
-// Download PDF from arxiv
-async function downloadPDF(arxivId) {
+// Download PDF from arxiv with retry on rate limit
+async function downloadPDF(arxivId, retries = 3) {
   const pdfUrl = `https://arxiv.org/pdf/${arxivId}.pdf`;
   const pdfPath = path.join(PAPYRUS_DIR, 'pdfs', `${arxivId}.pdf`);
   
-  const response = await axios.get(pdfUrl, { responseType: 'arraybuffer' });
-  await fs.writeFile(pdfPath, response.data);
-  
-  return { pdfPath, pdfUrl };
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const response = await axios.get(pdfUrl, {
+        responseType: 'arraybuffer',
+        timeout: 60000,
+      });
+      await fs.writeFile(pdfPath, response.data);
+      return { pdfPath, pdfUrl };
+    } catch (error) {
+      if (error.response?.status === 429 && attempt < retries - 1) {
+        const delayMs = Math.min(2000 * Math.pow(2, attempt), 16000);
+        console.warn(`arXiv PDF download rate limit, retrying in ${delayMs}ms (attempt ${attempt + 1}/${retries})`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error('Failed to download PDF after retries');
 }
 
 function rowToObject(row, columns) {

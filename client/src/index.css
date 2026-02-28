@@ -171,6 +171,21 @@ code {
   font-size: 0.9em;
 }
 
+.markdown-preview blockquote {
+  margin: 0.9rem 0;
+  padding: 0.5rem 0.9rem;
+  border-left: 3px solid var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 12%, transparent);
+  border-radius: 6px;
+}
+
+.markdown-preview .MathJax,
+.markdown-preview mjx-container {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
 .loading-indicator {
   background-color: var(--secondary);
   animation: loading-slide 1.1s ease-in-out infinite;

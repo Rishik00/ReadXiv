@@ -50,10 +50,8 @@ For the notes editor:
     1. First - Quotes from the paper that I have highlighted in the PDF. 
     2. Second - My own opinions and questions. Also questions can be framed as a quote in markdown with the white bar behind them and everything.  
 
-# Different views for viewing PDF/markdown notes (Small, Not immediate)
-Right now they are side by side, but I have the following ideas: 
+# Bugs/Things that need fixing (small/medium, immediate)
 
-1. toggle with a key binding between each one. 
-2. Add comments at the highlighted place. 
-
-You can recommend other views/ways to move between these 2 views. 
+1. The PDF reader is wayy too small and low dimensional in terms of resolution. 
+2. The markdown preview thing doesn't work. And I don't know whether auto save is enabled or do I have to save it manually? 
+3. I cannot do anything to the PDF, no pinch zoom, no highlighting

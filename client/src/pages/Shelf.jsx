@@ -9,6 +9,7 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState(initialQuery)
   const [currentPage, setCurrentPage] = useState(1)
+  const [deletingPaperId, setDeletingPaperId] = useState(null)
 
   useEffect(() => {
     fetchPapers()
@@ -51,6 +52,24 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
       console.error('Error fetching papers:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDeletePaper = async (paper, event) => {
+    event.stopPropagation()
+    if (deletingPaperId) return
+    const confirmed = window.confirm(`Delete "${paper.title}" from your shelf?`)
+    if (!confirmed) return
+
+    setDeletingPaperId(paper.id)
+    try {
+      await axios.delete(`/api/papers/${paper.id}`)
+      setPapers((prev) => prev.filter((p) => p.id !== paper.id))
+      setDisplayPapers((prev) => prev.filter((p) => p.id !== paper.id))
+    } catch (error) {
+      console.error('Error deleting paper:', error)
+    } finally {
+      setDeletingPaperId(null)
     }
   }
 
@@ -158,7 +177,7 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
                   <span className="text-xs text-muted/40">Local PDF</span>
                 )}
               </div>
-              <div>
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={(event) => {
@@ -168,6 +187,14 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
                   className="text-xs text-foreground font-medium hover:text-secondary transition-colors"
                 >
                   Open Notes
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => handleDeletePaper(paper, event)}
+                  disabled={deletingPaperId === paper.id}
+                  className="text-xs text-red-400 font-medium hover:text-red-300 transition-colors disabled:opacity-60"
+                >
+                  {deletingPaperId === paper.id ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </div>

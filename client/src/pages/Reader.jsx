@@ -6,7 +6,7 @@ import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Textarea } from '../components/ui/textarea';
 
-const DEFAULT_SPLIT = 64;
+const DEFAULT_SPLIT = 68;
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true });
 
 export default function Reader({ paper, setSelectedPaper, setPage, settings, initialTab = 'edit' }) {
@@ -25,7 +25,13 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
   const saveTimerRef = useRef(null);
 
   const paperId = useMemo(() => readerPaper?.id || paper?.id, [readerPaper?.id, paper?.id]);
-  const compiledMarkdown = useMemo(() => md.render(notes || ''), [notes]);
+  const compiledMarkdown = useMemo(() => {
+    try {
+      return md.render(notes || '');
+    } catch {
+      return '<p>Unable to render markdown preview.</p>';
+    }
+  }, [notes]);
 
   useEffect(() => {
     setReaderPaper(paper);
@@ -116,6 +122,13 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
     };
   }, [notes, serverNotes, paperId]);
 
+  useEffect(() => {
+    if (noteTab !== 'preview') return;
+    const mathJax = window.MathJax;
+    if (!mathJax?.typesetPromise) return;
+    mathJax.typesetPromise();
+  }, [noteTab, compiledMarkdown]);
+
   function startResize(event) {
     event.preventDefault();
     const rootRect = splitRootRef.current?.getBoundingClientRect();
@@ -155,6 +168,31 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
     const start = textarea.selectionStart;
     const next = `${notes.slice(0, start)}${text}${notes.slice(start)}`;
     setNotes(next);
+  }
+
+  function ensureReaderSections(content) {
+    let next = content || '';
+    if (!/##\s+Quotes from the paper/i.test(next)) {
+      next = `${next.trimEnd()}\n\n## Quotes from the paper\n`;
+    }
+    if (!/##\s+Opinions and Questions/i.test(next)) {
+      next = `${next.trimEnd()}\n\n## Opinions and Questions\n`;
+    }
+    return next;
+  }
+
+  function insertQuoteFromHighlight({ text, page: quotePage }) {
+    const quoteText = (text || '').trim();
+    if (!quoteText) return;
+    setNotes((prev) => {
+      const withSections = ensureReaderSections(prev);
+      const opinionsHeaderRegex = /\n##\s+Opinions and Questions/i;
+      const opinionsMatch = withSections.match(opinionsHeaderRegex);
+      const insertAt = opinionsMatch ? opinionsMatch.index : withSections.length;
+      const quoteBlock = `\n> ${quoteText}\n>\n> _Page ${quotePage}_\n`;
+      return `${withSections.slice(0, insertAt).trimEnd()}\n${quoteBlock}\n${withSections.slice(insertAt).trimStart()}`;
+    });
+    setNoteTab('edit');
   }
 
   if (!paperId) {
@@ -258,7 +296,11 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
 
       <div ref={splitRootRef} className="flex gap-0 flex-1 min-h-[calc(100vh-140px)] relative select-none">
         <div style={{ width: `${leftWidth}%` }} className="claude-card overflow-hidden relative border-r-0 rounded-r-none h-full">
-          <PdfViewer paperId={paperId} continuousScroll={settings?.continuousScroll !== false} />
+          <PdfViewer
+            paperId={paperId}
+            continuousScroll={settings?.continuousScroll !== false}
+            onInsertQuote={insertQuoteFromHighlight}
+          />
         </div>
 
         <div
@@ -302,7 +344,7 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
                     ? 'text-secondary border-secondary/20 bg-secondary/5'
                     : 'text-green-400 border-green-500/20 bg-green-500/5'
               }`}>
-              {notesStatus === 'saving' ? 'Syncing...' : notesStatus === 'error' ? 'Sync Error' : 'Synced'}
+              {notesStatus === 'saving' ? 'Syncing...' : notesStatus === 'error' ? 'Sync Error' : 'Autosave on'}
             </div>
           </div>
           
