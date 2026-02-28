@@ -57,6 +57,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      webviewTag: true,
     },
   });
 
@@ -66,6 +67,11 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', 'client', 'dist', 'index.html'));
   }
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    mainWindow.webContents.send('open-external-tab', url);
+    return { action: 'deny' };
+  });
 
   mainWindow.on('closed', () => { mainWindow = null; });
 }

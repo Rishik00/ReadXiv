@@ -6,6 +6,16 @@ import Shelf from './pages/Shelf'
 import Settings from './pages/Settings'
 const Reader = lazy(() => import('./pages/Reader'))
 
+function getTabTitle(url) {
+  try {
+    const u = new URL(url)
+    if (u.hostname.includes('arxiv.org')) return 'arXiv'
+    return u.hostname.replace(/^www\./, '')
+  } catch {
+    return 'External'
+  }
+}
+
 function App() {
   const [page, setPage] = useState('home')
   const [selectedPaper, setSelectedPaper] = useState(null)
@@ -14,6 +24,8 @@ function App() {
   const [readerInitialTab, setReaderInitialTab] = useState('edit')
   const [toasts, setToasts] = useState([])
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
+  const [externalTabs, setExternalTabs] = useState([])
+  const [activeExternalTabId, setActiveExternalTabId] = useState(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     const raw = localStorage.getItem('papyrus-sidebar-collapsed')
     return raw === 'true'
@@ -44,6 +56,20 @@ function App() {
   useEffect(() => {
     localStorage.setItem('papyrus-sidebar-collapsed', String(sidebarCollapsed))
   }, [sidebarCollapsed])
+
+  useEffect(() => {
+    if (!window.electron?.onOpenExternalTab) return
+    window.electron.onOpenExternalTab((url) => {
+      const id = crypto.randomUUID()
+      setExternalTabs((prev) => [...prev, { id, url, title: getTabTitle(url) }])
+      setActiveExternalTabId(id)
+    })
+  }, [])
+
+  const closeExternalTab = (id) => {
+    setExternalTabs((prev) => prev.filter((t) => t.id !== id))
+    setActiveExternalTabId((current) => (current === id ? null : current))
+  }
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -108,8 +134,43 @@ function App() {
           setPage('reader')
         }}
       />
-      <main className="app-main flex-1 overflow-auto relative">
-        <div className={`${page === 'reader' ? '' : 'brutalist-container'} relative z-10`}>
+      <main className="app-main flex-1 overflow-auto relative flex flex-col">
+        {externalTabs.length > 0 && (
+          <div className="flex-shrink-0 flex items-center gap-1 px-4 py-2 border-b border-border bg-surface/80">
+            <button
+              type="button"
+              onClick={() => setActiveExternalTabId(null)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeExternalTabId === null ? 'bg-border text-foreground' : 'text-muted hover:text-foreground hover:bg-foreground/5'
+              }`}
+            >
+              ReadXiv
+            </button>
+            {externalTabs.map((tab) => (
+              <div key={tab.id} className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveExternalTabId(tab.id)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                    activeExternalTabId === tab.id ? 'bg-border text-foreground' : 'text-muted hover:text-foreground hover:bg-foreground/5'
+                  }`}
+                >
+                  {tab.title}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => closeExternalTab(tab.id)}
+                  className="p-1 rounded text-muted hover:text-foreground hover:bg-foreground/10"
+                  aria-label="Close tab"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className={`flex-1 overflow-auto ${activeExternalTabId ? 'hidden' : ''}`}>
+          <div className={`${page === 'reader' ? '' : 'brutalist-container'} relative z-10`}>
           {page === 'home' && (
             <Home
               setPage={setPage}
@@ -146,7 +207,21 @@ function App() {
             </Suspense>
           )}
           {page === 'settings' && <Settings settings={settings} setSettings={setSettings} />}
+          </div>
         </div>
+        {window.electron?.isElectron && activeExternalTabId && (() => {
+          const tab = externalTabs.find((t) => t.id === activeExternalTabId)
+          if (!tab) return null
+          return (
+            <div className="flex-1 flex flex-col min-h-0">
+              <webview
+                src={tab.url}
+                className="flex-1 w-full min-h-0"
+                style={{ minHeight: 400 }}
+              />
+            </div>
+          )
+        })()}
       </main>
       <GlobalSearchPalette
         open={quickSearchOpen}
