@@ -1,15 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import MarkdownIt from 'markdown-it';
 import PdfViewer from '../components/PdfViewer';
-import { Badge } from '../components/ui/badge';
-import { Card, CardContent, CardHeader } from '../components/ui/card';
-import { Textarea } from '../components/ui/textarea';
+import { Card, CardContent } from '../components/ui/card';
 
 const DEFAULT_SPLIT = 68;
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true });
 
-export default function Reader({ paper, setSelectedPaper, setPage, settings, initialTab = 'edit' }) {
+const Reader = forwardRef(function Reader({ paper, setSelectedPaper, setPage, settings, initialTab = 'edit', addToast }, ref) {
   const [readerPaper, setReaderPaper] = useState(paper);
   const [notes, setNotes] = useState('');
   const [serverNotes, setServerNotes] = useState('');
@@ -18,11 +16,18 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [leftWidth, setLeftWidth] = useState(DEFAULT_SPLIT);
-  const [readerSearch, setReaderSearch] = useState('');
-  const [readerSearchResults, setReaderSearchResults] = useState([]);
   const [backgroundPdfLoading, setBackgroundPdfLoading] = useState(false);
+  const [focusedPanel, setFocusedPanel] = useState('pdf');
   const splitRootRef = useRef(null);
   const saveTimerRef = useRef(null);
+  const pdfPanelRef = useRef(null);
+  const notesTextareaRef = useRef(null);
+  const notesPreviewRef = useRef(null);
+  const pdfViewerRef = useRef(null);
+
+  useImperativeHandle(ref, () => ({
+    togglePdfDarkMode: () => pdfViewerRef.current?.togglePdfDarkMode?.(),
+  }));
 
   const paperId = useMemo(() => readerPaper?.id || paper?.id, [readerPaper?.id, paper?.id]);
   const compiledMarkdown = useMemo(() => {
@@ -40,6 +45,10 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
   useEffect(() => {
     setNoteTab(initialTab);
   }, [initialTab, paperId]);
+
+  useEffect(() => {
+    if (paperId) pdfPanelRef.current?.focus();
+  }, [paperId]);
 
   useEffect(() => {
     let mounted = true;
@@ -89,22 +98,6 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
   }, [paperId]);
 
   useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (!readerSearch.trim()) {
-        setReaderSearchResults([]);
-        return;
-      }
-      try {
-        const { data } = await axios.get('/api/search', { params: { q: readerSearch.trim() } });
-        setReaderSearchResults(data.slice(0, 8));
-      } catch {
-        setReaderSearchResults([]);
-      }
-    }, 220);
-    return () => clearTimeout(timer);
-  }, [readerSearch]);
-
-  useEffect(() => {
     if (!paperId || notes === serverNotes) return undefined;
     setNotesStatus('saving');
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -128,6 +121,64 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
     if (!mathJax?.typesetPromise) return;
     mathJax.typesetPromise();
   }, [noteTab, compiledMarkdown]);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        setFocusedPanel((prev) => {
+          const next = prev === 'pdf' ? 'notes' : 'pdf';
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (next === 'pdf') {
+                pdfPanelRef.current?.focus();
+              } else {
+                setNoteTab('edit');
+                setTimeout(() => {
+                  const el = notesTextareaRef.current ?? notesPreviewRef.current;
+                  el?.focus();
+                }, 80);
+              }
+            });
+          });
+          return next;
+        });
+        return;
+      }
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        const link = readerPaper?.url || (readerPaper?.id ? `https://arxiv.org/abs/${readerPaper.id}` : null);
+        if (link) {
+          navigator.clipboard.writeText(link).then(() => {
+            addToast?.('Paper link copied!', 'success');
+          }).catch(() => {});
+        }
+        return;
+      }
+      if (e.ctrlKey && e.shiftKey && e.key === '1') {
+        e.preventDefault();
+        insertAtCursor('\n# ');
+        return;
+      }
+      if (e.ctrlKey && e.shiftKey && e.key === '2') {
+        e.preventDefault();
+        insertAtCursor('\n## ');
+        return;
+      }
+      if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+        e.preventDefault();
+        insertAtCursor('\n- ');
+        return;
+      }
+      if (e.ctrlKey && e.shiftKey && e.key === 'K') {
+        e.preventDefault();
+        wrapSelection('`', '`');
+        return;
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [readerPaper?.id, readerPaper?.url]);
 
   function startResize(event) {
     event.preventDefault();
@@ -154,9 +205,7 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
     if (!textarea || textarea.tagName !== 'TEXTAREA') return;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const selected = notes.slice(start, end);
-    const next = `${notes.slice(0, start)}${prefix}${selected}${suffix}${notes.slice(end)}`;
-    setNotes(next);
+    setNotes((prev) => `${prev.slice(0, start)}${prefix}${prev.slice(start, end)}${suffix}${prev.slice(end)}`);
   }
 
   function insertAtCursor(text) {
@@ -166,8 +215,7 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
       return;
     }
     const start = textarea.selectionStart;
-    const next = `${notes.slice(0, start)}${text}${notes.slice(start)}`;
-    setNotes(next);
+    setNotes((prev) => `${prev.slice(0, start)}${text}${prev.slice(start)}`);
   }
 
   function ensureReaderSections(content) {
@@ -197,44 +245,18 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
 
   if (!paperId) {
     return (
-      <div className="p-8 max-w-[980px] mx-auto">
-        <Card className="rounded-2xl">
-          <CardHeader className="text-sm font-semibold">Find a paper</CardHeader>
-          <CardContent>
-            <input
-              value={readerSearch}
-              onChange={(e) => setReaderSearch(e.target.value)}
-              placeholder="Fuzzy search papers..."
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
-            />
-            <div className="mt-3 space-y-1">
-              {readerSearchResults.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-left text-sm hover:bg-surface"
-                  onClick={() => {
-                    setSelectedPaper(p);
-                    setPage('reader');
-                  }}
-                >
-                  <div className="font-medium">{p.title}</div>
-                  <div className="text-xs text-muted">{p.id}</div>
-                </button>
-              ))}
-              {readerSearch.trim() && readerSearchResults.length === 0 && (
-                <div className="text-xs text-muted">No matching papers</div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="p-8 max-w-[980px] mx-auto flex flex-col items-center justify-center min-h-[50vh]">
+        <p className="text-muted text-sm">Select a paper from the shelf or use <kbd className="px-1.5 py-0.5 rounded bg-border text-sm font-mono">Ctrl+P</kbd> to search.</p>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="p-8 max-w-[980px] mx-auto">
+      <div className="p-8 max-w-[980px] mx-auto flex flex-col items-center gap-4 animate-fade-in">
+        <div className="h-2 w-48 rounded-full overflow-hidden bg-surface">
+          <div className="h-full w-1/3 skeleton-shimmer" />
+        </div>
         <Card>
           <CardContent className="text-muted">Loading reader…</CardContent>
         </Card>
@@ -253,38 +275,10 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
   }
 
   return (
-    <div className="p-6 w-full max-w-[1800px] mx-auto font-sans h-screen flex flex-col overflow-hidden">
-      <div className="flex items-center gap-4 mb-4 text-sm font-medium flex-shrink-0">
-        <span className="text-muted cursor-pointer hover:text-foreground transition-colors" onClick={() => setPage('shelf')}>
-          Shelf
-        </span>
-        <span className="text-muted/50">/</span>
-        <span className="text-foreground truncate max-w-[600px]">{readerPaper?.title}</span>
-        <div className="ml-auto flex items-center gap-3">
-          <select
-            className="rounded-2xl border border-border bg-surface px-4 py-2 text-xs font-medium focus:border-secondary/50 outline-none transition-all hover:brightness-110 cursor-pointer appearance-none pr-8 relative"
-            style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23737373%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.7rem top 50%', backgroundSize: '0.65rem auto' }}
-            value={readerPaper?.status || 'queued'}
-            onChange={async (e) => {
-              const status = e.target.value;
-              setReaderPaper((prev) => ({ ...prev, status }));
-              try {
-                await axios.patch(`/api/papers/${paperId}`, { status });
-              } catch {
-                // no-op
-              }
-            }}
-          >
-            <option value="queued">Queued</option>
-            <option value="reading">Reading</option>
-            <option value="done">Done</option>
-          </select>
-        </div>
-      </div>
-
+    <div className="p-6 w-full max-w-[1800px] mx-auto font-sans h-screen flex flex-col overflow-hidden animate-view-fade">
       {backgroundPdfLoading && (
         <div className="mb-4 claude-card p-4 flex-shrink-0">
-          <div className="mb-3 flex items-center justify-between text-xs font-medium">
+          <div className="mb-3 flex items-center justify-between text-sm font-medium">
             <span className="text-secondary">Initializing PDF stream...</span>
             <span className="text-muted/60">Status: Chunking</span>
           </div>
@@ -294,9 +288,25 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
         </div>
       )}
 
-      <div ref={splitRootRef} className="flex gap-0 flex-1 min-h-[calc(100vh-140px)] relative select-none">
-        <div style={{ width: `${leftWidth}%` }} className="claude-card overflow-hidden relative border-r-0 rounded-r-none h-full">
+      <div ref={splitRootRef} className="flex gap-0 flex-1 min-h-0 relative select-none">
+        <div
+          ref={pdfPanelRef}
+          tabIndex={0}
+          style={{ width: `${leftWidth}%` }}
+          className={`claude-card overflow-hidden relative border-r-0 rounded-r-none h-full transition-shadow outline-none focus:outline-none ${focusedPanel === 'pdf' ? 'focus-panel-glow' : ''}`}
+          onClick={(e) => {
+            setFocusedPanel('pdf');
+            if (e.target.closest('[data-pdf-scroll]')) {
+              pdfViewerRef.current?.focusScrollArea?.();
+            } else {
+              pdfPanelRef.current?.focus();
+            }
+          }}
+          onFocus={() => setFocusedPanel('pdf')}
+          onKeyDown={(e) => focusedPanel === 'pdf' && pdfViewerRef.current?.handleKeyDown(e)}
+        >
           <PdfViewer
+            ref={pdfViewerRef}
             paperId={paperId}
             continuousScroll={settings?.continuousScroll !== false}
             onInsertQuote={insertQuoteFromHighlight}
@@ -310,71 +320,44 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
           <div className="w-1 h-8 rounded-full bg-border/50" />
         </div>
 
-        <div style={{ width: `${100 - leftWidth}%` }} className="flex flex-col claude-card overflow-hidden border-l-0 rounded-l-none h-full">
-          <div className="flex items-center justify-between p-3 border-b border-border bg-background/50">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-semibold text-muted/80 px-2">Notes</span>
-              {settings?.liveMarkdownPreview && (
-                <div className="flex bg-foreground/10 p-1 rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => setNoteTab('edit')}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                      noteTab === 'edit' ? 'bg-border text-foreground shadow-sm' : 'text-muted hover:text-foreground'
-                    }`}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNoteTab('preview')}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                      noteTab === 'preview' ? 'bg-border text-foreground shadow-sm' : 'text-muted hover:text-foreground'
-                    }`}
-                  >
-                    Preview
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-                notesStatus === 'error'
-                  ? 'text-red-400 border-red-500/20 bg-red-500/5'
-                  : notesStatus === 'saving'
-                    ? 'text-secondary border-secondary/20 bg-secondary/5'
-                    : 'text-green-400 border-green-500/20 bg-green-500/5'
-              }`}>
-              {notesStatus === 'saving' ? 'Syncing...' : notesStatus === 'error' ? 'Sync Error' : 'Autosave on'}
-            </div>
-          </div>
-          
+        <div
+          style={{ width: `${100 - leftWidth}%` }}
+          className={`flex flex-col claude-card overflow-hidden border-l-0 rounded-l-none h-full transition-shadow ${focusedPanel === 'notes' ? 'focus-panel-glow' : ''}`}
+          onClick={() => setFocusedPanel('notes')}
+        >
           <div className="flex-1 p-0 overflow-hidden flex flex-col bg-surface">
+            {settings?.liveMarkdownPreview && (
+              <div className="flex gap-1 p-3 pb-0 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setNoteTab('edit')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    noteTab === 'edit' ? 'bg-border text-foreground' : 'text-muted hover:text-foreground'
+                  }`}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNoteTab('preview')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    noteTab === 'preview' ? 'bg-border text-foreground' : 'text-muted hover:text-foreground'
+                  }`}
+                >
+                  Preview
+                </button>
+              </div>
+            )}
             {!settings?.liveMarkdownPreview || noteTab === 'edit' ? (
               <div className="flex-1 flex flex-col">
-                <div className="flex items-center gap-1 p-2 bg-background/30 border-b border-border/50">
-                  {[
-                    ['H1', () => insertAtCursor('\n# ')],
-                    ['H2', () => insertAtCursor('\n## ')],
-                    ['Bold', () => wrapSelection('**', '**')],
-                    ['List', () => insertAtCursor('\n- ')],
-                    ['Code', () => wrapSelection('`', '`')],
-                  ].map(([label, action]) => (
-                    <button
-                      key={label}
-                      type="button"
-                      className="px-2.5 py-1 text-xs font-medium text-muted hover:text-foreground hover:bg-foreground/5 rounded-md transition-all"
-                      onClick={action}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
                 <textarea
-                  className="flex-1 w-full bg-transparent p-8 resize-none outline-none leading-relaxed font-sans text-base text-foreground/90 placeholder:text-muted/20"
+                  ref={notesTextareaRef}
+                  className="flex-1 w-full bg-transparent p-8 resize-none outline-none leading-relaxed font-sans text-sm text-foreground/90 placeholder:text-muted/20"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
+                  onFocus={() => setFocusedPanel('notes')}
                   onKeyDown={(e) => {
-                    if (e.ctrlKey && e.key.toLowerCase() === 'b') {
+                    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'b') {
                       e.preventDefault();
                       wrapSelection('**', '**');
                     }
@@ -383,13 +366,21 @@ export default function Reader({ paper, setSelectedPaper, setPage, settings, ini
                 />
               </div>
             ) : (
-              <div className="flex-1 markdown-preview overflow-auto p-10 bg-surface text-foreground/90">
+              <div
+                ref={notesPreviewRef}
+                tabIndex={0}
+                className="flex-1 markdown-preview overflow-auto p-10 bg-surface text-foreground/90 prose prose-invert prose-sm max-w-none text-sm outline-none focus:outline-none"
+                onFocus={() => setFocusedPanel('notes')}
+              >
                 <div dangerouslySetInnerHTML={{ __html: compiledMarkdown }} />
               </div>
             )}
           </div>
         </div>
       </div>
+
     </div>
   );
-}
+});
+
+export default Reader;

@@ -26,7 +26,7 @@ function getNotesPath(paperId) {
 }
 
 function buildDefaultNotesTemplate(paper) {
-  return `# ${paper.title}\n\n${paper.authors || ''}\n\n## Quotes from the paper\n\n> Add highlighted quotes here.\n\n## Opinions and Questions\n\n- Add your thoughts, critiques, and open questions.\n`;
+  return `# ${paper.title}\n\n## Quotes from the paper\n\n> Add highlighted quotes here.\n\n## Opinions and Questions\n\n- Add your thoughts, critiques, and open questions.\n`;
 }
 
 router.get('/:id', async (req, res) => {
@@ -195,6 +195,21 @@ router.delete('/:id/highlights/:highlightId', async (req, res) => {
       req.params.highlightId,
       req.params.id,
     ]);
+    saveDB();
+
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/:id/highlights', async (req, res) => {
+  try {
+    const paper = await getPaperById(req.params.id);
+    if (!paper) return res.status(404).json({ error: 'Paper not found' });
+
+    const db = await getDB();
+    db.run('DELETE FROM highlights WHERE paper_id = ?', [req.params.id]);
     saveDB();
 
     return res.json({ success: true });

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Instrument+Serif:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Fraunces:opsz,wght@9..144,400..700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -13,7 +13,7 @@
 
   --font-sans: "Inter";
   --font-mono: "JetBrains Mono";
-  --font-serif: "Instrument Serif";
+  --font-serif: "Fraunces";
 
   /* Primary = background/surface, Secondary = accent. --button-on-secondary = text on secondary bg */
   --primary: #0A0A0A;
@@ -55,53 +55,16 @@
   --foreground: #E5E5E5;
 }
 
-/* 3. Citron (#6c6a1f) and Sage (#577b21) */
-[data-theme='citron-sage'] {
-  --primary: #6c6a1f;
-  --secondary: #577b21;
-  --button-on-secondary: #ffffff;
-  --background: #1a1a14;
-  --surface: #25251a;
-  --border: #3d3d2a;
-  --muted: #8a8a5c;
-  --foreground: #e8e8c4;
-}
-
-/* 4. #a0aecd, #000000, #ffffff */
-[data-theme='slate'] {
-  --primary: #000000;
+/* 3. Black and blue (lighter slate blue) */
+[data-theme='blue'] {
+  --primary: #0A0A0A;
   --secondary: #a0aecd;
   --button-on-secondary: #000000;
-  --background: #000000;
-  --surface: #0d0d0d;
-  --border: #1a1a1a;
+  --background: #0A0A0A;
+  --surface: #141414;
+  --border: #262626;
   --muted: #7a8aa8;
-  --foreground: #ffffff;
-}
-
-/* 5. #f7f7f7 and #7da2a9 */
-[data-theme='mist'] {
-  --primary: #f7f7f7;
-  --secondary: #7da2a9;
-  --button-on-secondary: #ffffff;
-  --background: #f7f7f7;
-  --surface: #e8e8e8;
-  --border: #d0d0d0;
-  --muted: #6b7d82;
-  --foreground: #1a1a1a;
-  color-scheme: light;
-}
-
-/* 6. #052415 and white */
-[data-theme='forest'] {
-  --primary: #052415;
-  --secondary: #ffffff;
-  --button-on-secondary: #052415;
-  --background: #052415;
-  --surface: #0a3d22;
-  --border: #0f5a30;
-  --muted: #7ab892;
-  --foreground: #ffffff;
+  --foreground: #E5E5E5;
 }
 
 /* Apply theme background to entire document - no dimmer/mismatched areas */
@@ -191,9 +154,30 @@ code {
   animation: loading-slide 1.1s ease-in-out infinite;
 }
 
+@keyframes loading-slide {
+  0%, 100% { transform: translateX(-100%); }
+  50% { transform: translateX(200%); }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface) 0%,
+    color-mix(in srgb, var(--border) 60%, var(--surface)) 50%,
+    var(--surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 .claude-card {
   background-color: var(--surface);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: 12px;
   transition: all 0.2s ease;
 }
@@ -205,7 +189,7 @@ code {
 
 .claude-input-container {
   background-color: var(--surface);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
@@ -240,4 +224,14 @@ code {
   50% {
     opacity: .5;
   }
+}
+
+/* Focus glow for PDF reader / notetaker panels */
+.focus-panel-glow {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--secondary) 25%, transparent);
+}
+
+/* PDF dark mode - invert colors for dark theme viewing */
+.pdf-canvas-container {
+  filter: invert(1) hue-rotate(180deg);
 }

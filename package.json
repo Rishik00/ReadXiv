@@ -2,8 +2,40 @@
   "name": "readxiv",
   "version": "0.1.0",
   "description": "A personal research companion for reading papers",
-  "main": "electron/main.js",
-  "private": true,
+  "main": "bin/readxiv.mjs",
+  "bin": {
+    "readxiv": "./bin/readxiv.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "scripts/readxiv.js",
+    "server/index.js",
+    "server/db.js",
+    "server/routes/",
+    "server/package.json",
+    "client/index.html",
+    "client/package.json",
+    "client/postcss.config.js",
+    "client/tailwind.config.js",
+    "client/vite.config.js",
+    "client/src/",
+    "client/public/",
+    "README.md"
+  ],
+  "keywords": [
+    "arxiv",
+    "papers",
+    "research",
+    "cli"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "cd client && npm run dev",
@@ -12,7 +44,19 @@
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",
     "electron": "electron .",
     "electron:dev": "concurrently \"npm run dev:client\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "npm run build && electron-builder"
+    "electron:build": "npm run build && electron-builder",
+    "start": "npm run dev",
+    "cli": "node ./bin/readxiv.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "cli-table3": "^0.6.5",
+    "fs-extra": "^11.3.2",
+    "open": "^11.0.0",
+    "ora": "^9.0.0",
+    "sql.js": "^1.13.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

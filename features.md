@@ -1,4 +1,4 @@
-## Things that we can add to this to make it nicer: 
+## Things that we can add to this to make it nicer:
 
 # Projects/Literature survey (both manual and auto) (Medium, Not Immediate)
 A project would be structured as a folder and as a web of papers in  excalidraw. For these web of papers we can have one note that would unify everything relevant for them. 

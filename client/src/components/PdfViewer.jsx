@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react';
 import { getDocument, GlobalWorkerOptions, AnnotationMode, Util } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import axios from 'axios';
@@ -42,7 +42,7 @@ function normalizeHighlight(highlight) {
   };
 }
 
-export default function PdfViewer({ paperId, continuousScroll = true, onInsertQuote }) {
+const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = true, onInsertQuote }, ref) {
   const pageCanvasRefs = useRef([]);
   const pageWrapperRefs = useRef([]);
   const pageTextLayerRefs = useRef([]);
@@ -55,6 +55,7 @@ export default function PdfViewer({ paperId, continuousScroll = true, onInsertQu
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [highlightMode, setHighlightMode] = useState(false);
+  const [pdfDarkMode, setPdfDarkMode] = useState(false);
   const [highlights, setHighlights] = useState([]);
   const [pageTextLayers, setPageTextLayers] = useState({});
 
@@ -229,6 +230,17 @@ export default function PdfViewer({ paperId, continuousScroll = true, onInsertQu
     }
   }
 
+  async function clearAllHighlights() {
+    if (!paperId || highlights.length === 0) return;
+    if (!window.confirm('Clear all highlights from this paper?')) return;
+    try {
+      await axios.delete(`/api/reader/${paperId}/highlights`);
+      setHighlights([]);
+    } catch {
+      // no-op
+    }
+  }
+
   async function onTextLayerMouseUp(pageNumber) {
     if (!highlightMode) return;
     const selection = window.getSelection();
@@ -260,12 +272,66 @@ export default function PdfViewer({ paperId, continuousScroll = true, onInsertQu
     setScale(clamp(Number(nextScale.toFixed(2)), SCALE_MIN, SCALE_MAX));
   }
 
-  function handleWheelZoom(event) {
-    if (!event.ctrlKey && !event.metaKey) return;
-    event.preventDefault();
-    const step = event.deltaY > 0 ? -0.08 : 0.08;
-    updateScale(scale + step);
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const handler = (event) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      const step = event.deltaY > 0 ? -0.08 : 0.08;
+      updateScale(scaleRef.current + step);
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
+
+  function handleKeyDown(e) {
+    if (!doc) return;
+    const meta = e.ctrlKey || e.metaKey;
+    const shift = e.shiftKey;
+
+    if (meta && shift && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      updateScale(scaleRef.current + 0.1);
+      return;
+    }
+    if (meta && shift && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      updateScale(scaleRef.current - 0.1);
+      return;
+    }
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      goToPage(page - 1);
+      return;
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      goToPage(page + 1);
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      e.stopPropagation();
+      contentRef.current?.scrollBy({ top: -120, behavior: 'smooth' });
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      e.stopPropagation();
+      contentRef.current?.scrollBy({ top: 120, behavior: 'smooth' });
+      return;
+    }
   }
+
+  useImperativeHandle(ref, () => ({
+    handleKeyDown,
+    focusScrollArea: () => contentRef.current?.focus(),
+    togglePdfDarkMode: () => setPdfDarkMode((v) => !v),
+  }));
 
   function goToPage(nextPage) {
     const clamped = Math.max(1, Math.min(numPages, nextPage));
@@ -280,43 +346,69 @@ export default function PdfViewer({ paperId, continuousScroll = true, onInsertQu
     return COLOR_CLASSES[color] || COLOR_CLASSES.yellow;
   }
 
+  /** Merge adjacent text items into larger spans for smoother selection. */
+  function mergeTextItems(items, viewport) {
+    if (!items?.length) return [];
+    const groups = [];
+    let current = null;
+
+    for (const item of items) {
+      if (!item?.str) continue;
+      const tx = Util.transform(viewport.transform, item.transform);
+      const fontHeight = Math.hypot(tx[2], tx[3]);
+      const left = tx[4];
+      const top = tx[5] - fontHeight;
+      const width = item.width != null ? Math.abs(tx[0]) * item.width : fontHeight * item.str.length * 0.5;
+      const right = left + width;
+      const angle = Math.atan2(tx[1], tx[0]);
+
+      const sameLine = current && Math.abs(top - current.top) < fontHeight * 0.5;
+      const closeHoriz = current && left - current.right < fontHeight * 1.2;
+
+      if (current && sameLine && closeHoriz && Math.abs(angle - current.angle) < 0.01) {
+        current.str += item.str;
+        current.right = right;
+      } else {
+        current = { str: item.str, left, top, fontHeight, angle, right };
+        groups.push(current);
+      }
+    }
+    return groups;
+  }
+
   function renderTextLayer(pageNumber) {
     const layer = pageTextLayers[pageNumber];
     if (!layer || !layer.viewport) return null;
+
+    const merged = mergeTextItems(layer.items, layer.viewport);
 
     return (
       <div
         ref={(el) => {
           pageTextLayerRefs.current[pageNumber - 1] = el;
         }}
-        className={`absolute inset-0 z-20 ${highlightMode ? 'pointer-events-auto select-text' : 'pointer-events-none select-none'}`}
+        className="absolute inset-0 z-20 pointer-events-auto select-text"
         onMouseUp={() => onTextLayerMouseUp(pageNumber)}
       >
-        {layer.items.map((item, idx) => {
-          if (!item?.str) return null;
-          const tx = Util.transform(layer.viewport.transform, item.transform);
-          const fontHeight = Math.hypot(tx[2], tx[3]);
-          const angle = Math.atan2(tx[1], tx[0]);
-          return (
-            <span
-              key={`${pageNumber}-${idx}`}
-              style={{
-                position: 'absolute',
-                left: `${tx[4]}px`,
-                top: `${tx[5] - fontHeight}px`,
-                fontSize: `${fontHeight}px`,
-                transform: `rotate(${angle}rad)`,
-                transformOrigin: '0 0',
-                color: 'transparent',
-                whiteSpace: 'pre',
-                lineHeight: 1,
-                cursor: highlightMode ? 'text' : 'default',
-              }}
-            >
-              {item.str}
-            </span>
-          );
-        })}
+        {merged.map((g, idx) => (
+          <span
+            key={`${pageNumber}-${idx}`}
+            style={{
+              position: 'absolute',
+              left: `${g.left}px`,
+              top: `${g.top}px`,
+              fontSize: `${g.fontHeight}px`,
+              transform: `rotate(${g.angle}rad)`,
+              transformOrigin: '0 0',
+              color: 'transparent',
+              whiteSpace: 'pre',
+              lineHeight: 1,
+              cursor: 'text',
+            }}
+          >
+            {g.str}
+          </span>
+        ))}
       </div>
     );
   }
@@ -329,32 +421,34 @@ export default function PdfViewer({ paperId, continuousScroll = true, onInsertQu
         ref={(el) => {
           pageWrapperRefs.current[pageNumber - 1] = el;
         }}
-        className={`relative mb-4 flex justify-center ${highlightMode ? 'select-none' : ''}`}
+        className="relative mb-4 flex justify-center"
       >
-        <canvas
-          ref={(el) => {
-            pageCanvasRefs.current[pageNumber - 1] = el;
-          }}
-          className="rounded-md border border-border"
-        />
-        {renderTextLayer(pageNumber)}
-        {pageHighlights.map((h) => (
-          <div
-            key={h.id}
-            className={`absolute border-l-2 ${highlightMode ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'} ${getHighlightClasses(h.color)}`}
-            title={highlightMode ? 'Click to remove highlight' : (h.text || 'Highlighted text')}
-            onClick={() => {
-              if (!highlightMode) return;
-              deleteHighlight(h.id);
+        <div className={`relative ${pdfDarkMode ? 'pdf-canvas-container' : ''}`}>
+          <canvas
+            ref={(el) => {
+              pageCanvasRefs.current[pageNumber - 1] = el;
             }}
-            style={{
-              left: `${h.rect.x * 100}%`,
-              top: `${h.rect.y * 100}%`,
-              width: `${h.rect.w * 100}%`,
-              height: `${h.rect.h * 100}%`,
-            }}
+            className="rounded-md border border-border"
           />
-        ))}
+          {renderTextLayer(pageNumber)}
+          {pageHighlights.map((h) => (
+            <div
+              key={h.id}
+              className={`absolute z-30 border-l-2 ${highlightMode ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'} ${getHighlightClasses(h.color)}`}
+              title={highlightMode ? 'Click to remove highlight' : (h.text || 'Highlighted text')}
+              onClick={() => {
+                if (!highlightMode) return;
+                deleteHighlight(h.id);
+              }}
+              style={{
+                left: `${h.rect.x * 100}%`,
+                top: `${h.rect.y * 100}%`,
+                width: `${h.rect.w * 100}%`,
+                height: `${h.rect.h * 100}%`,
+              }}
+            />
+          ))}
+        </div>
       </div>
     );
   }
@@ -363,43 +457,60 @@ export default function PdfViewer({ paperId, continuousScroll = true, onInsertQu
 
   return (
     <Card className="h-full overflow-hidden">
-      <CardHeader className="flex items-center justify-between">
+      <CardHeader className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => goToPage(page - 1)} disabled={!doc || page <= 1}>
+          <Button
+            variant={pdfDarkMode ? 'secondary' : 'ghost'}
+            size="sm"
+            className="text-sm h-7 px-2"
+            onClick={() => setPdfDarkMode((v) => !v)}
+            disabled={!doc}
+            title="Toggle PDF dark mode"
+          >
+            Dark
+          </Button>
+          <Button
+            variant={highlightMode ? 'secondary' : 'ghost'}
+            size="sm"
+            className="text-sm h-7 px-2"
+            onClick={() => setHighlightMode((v) => !v)}
+            disabled={!doc}
+          >
+            ✦ Highlight
+          </Button>
+          {highlights.length > 0 && (
+            <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={clearAllHighlights} disabled={!doc} title="Clear all highlights">
+              Clear all
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={() => updateScale(scale - 0.1)} disabled={!doc}>
+            −
+          </Button>
+          <span className="text-sm text-muted font-mono w-12 text-center">{Math.round(scale * 100)}%</span>
+          <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={() => updateScale(scale + 0.1)} disabled={!doc}>
+            +
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={() => goToPage(page - 1)} disabled={!doc || page <= 1}>
             ◀
           </Button>
-          <span className="text-xs text-muted font-mono">
+          <span className="text-sm text-muted font-mono">
             {doc ? `${page} / ${numPages}` : '— / —'}
           </span>
           <Button
             variant="ghost"
             size="sm"
+            className="text-sm h-7 px-2"
             onClick={() => goToPage(page + 1)}
             disabled={!doc || page >= numPages}
           >
             ▶
           </Button>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={highlightMode ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setHighlightMode((v) => !v)}
-            disabled={!doc}
-          >
-            ✦ Highlight
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => updateScale(scale - 0.1)} disabled={!doc}>
-            −
-          </Button>
-          <span className="text-xs text-muted font-mono w-12 text-center">{Math.round(scale * 100)}%</span>
-          <Button variant="ghost" size="sm" onClick={() => updateScale(scale + 0.1)} disabled={!doc}>
-            +
-          </Button>
-        </div>
       </CardHeader>
       {highlightMode && (
-        <div className="px-4 py-2 text-xs border-y border-border bg-surface/70">
+        <div className="px-4 py-2 text-sm border-y border-border bg-surface/70">
           Select text to create a yellow highlight. Click an existing highlight to remove it.
         </div>
       )}
@@ -409,7 +520,7 @@ export default function PdfViewer({ paperId, continuousScroll = true, onInsertQu
             <button
               key={`quote-${highlight.id}`}
               type="button"
-              className="max-w-[320px] text-left rounded-md border border-border px-2 py-1 text-xs hover:border-secondary/40 hover:bg-surface"
+              className="max-w-[320px] text-left rounded-md border border-border px-2 py-1 text-sm hover:border-secondary/40 hover:bg-surface"
               onClick={() => onInsertQuote?.({ text: highlight.text, page: Number(highlight.page) })}
               title="Insert quote into notes"
             >
@@ -419,7 +530,16 @@ export default function PdfViewer({ paperId, continuousScroll = true, onInsertQu
           ))}
         </div>
       )}
-      <CardContent ref={contentRef} onWheel={handleWheelZoom} className="h-[calc(100%-53px)] overflow-auto bg-background">
+      <CardContent
+        ref={contentRef}
+        tabIndex={-1}
+        data-pdf-scroll
+        className="h-[calc(100%-44px)] overflow-auto bg-background outline-none focus:outline-none"
+        onKeyDown={handleKeyDown}
+        onClick={() => contentRef.current?.focus()}
+        onWheel={() => contentRef.current?.focus()}
+        onScroll={() => contentRef.current?.focus()}
+      >
         {loading && <div className="text-sm text-muted mt-8">Loading PDF…</div>}
         {error && <div className="text-sm text-red-400 mt-8">{error}</div>}
         {!loading &&
@@ -432,5 +552,7 @@ export default function PdfViewer({ paperId, continuousScroll = true, onInsertQu
       </CardContent>
     </Card>
   );
-}
+});
+
+export default PdfViewer;
 

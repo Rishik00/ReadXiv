@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReadXiv - B&W Iteration 1 (Serif Focus)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500&display=swap');
+        
+        :root {
+            --bg-base: #000000;
+            --bg-surface: #0a0a0a;
+            --bg-hover: #141414;
+            --border: #1f1f1f;
+            --border-hover: #333333;
+            --text-main: #f0f0f0;
+            --text-muted: #737373;
+            --spring: cubic-bezier(0.175, 0.885, 0.32, 1.1);
+            --ease: cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Top Left Toggle - Minimal Text Button */
+        .top-nav-toggle {
+            position: fixed;
+            top: 32px;
+            left: 40px;
+            z-index: 100;
+        }
+
+        .toggle-btn {
+            font-family: 'Instrument Serif', serif;
+            font-size: 28px;
+            font-style: italic;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: color 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+
+        .toggle-btn:hover {
+            color: var(--text-main);
+        }
+
+        .toggle-icon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            opacity: 0.5;
+            transition: transform 0.3s;
+        }
+        
+        .toggle-btn:hover .toggle-icon {
+            transform: scale(1.5);
+        }
+
+        /* Views */
+        .view-container {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.6s var(--ease);
+            overflow-y: auto;
+            padding: 100px 40px 140px 40px;
+        }
+
+        .view-container.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Home View */
+        #home-view {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .home-watermark {
+            font-family: 'Instrument Serif', serif;
+            font-size: 6vw;
+            color: #1a1a1a;
+            line-height: 1.1;
+            text-align: center;
+        }
+        
+        .home-watermark i {
+            color: #2a2a2a;
+        }
+
+        /* Shelf View */
+        .shelf-header {
+            max-width: 680px;
+            margin: 0 auto 48px auto;
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+        }
+
+        .shelf-title {
+            font-family: 'Instrument Serif', serif;
+            font-size: 42px;
+            font-weight: 400;
+        }
+
+        .paper-list {
+            max-width: 680px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .paper-row {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: border-color 0.3s;
+            position: relative;
+        }
+
+        .paper-row:hover {
+            border-bottom-color: var(--text-muted);
+        }
+
+        .paper-title {
+            font-family: 'Instrument Serif', serif;
+            font-size: 26px;
+            line-height: 1.2;
+            color: var(--text-main);
+            transition: color 0.3s;
+        }
+        
+        .paper-row:hover .paper-title {
+            color: #fff;
+        }
+
+        .paper-meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 300;
+        }
+
+        .paper-authors {
+            color: var(--text-muted);
+        }
+
+        .paper-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-muted);
+        }
+        
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .status-reading .status-dot { background: #fff; }
+        .status-queued .status-dot { background: #333; }
+        .status-done .status-dot { background: #888; }
+
+        .paper-actions {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%) translateX(20px);
+            opacity: 0;
+            display: flex;
+            gap: 12px;
+            transition: all 0.3s var(--ease);
+        }
+
+        .paper-row:hover .paper-actions {
+            opacity: 1;
+            transform: translateY(-50%) translateX(0);
+        }
+
+        .action-btn {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .action-btn:hover {
+            background: var(--text-main);
+            color: #000;
+        }
+
+        /* Bottom Search Island */
+        .bottom-island-wrapper {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%) translateY(0);
+            z-index: 200;
+            transition: transform 0.6s var(--spring);
+        }
+        .bottom-island-wrapper.command-active-wrapper {
+            transform: translateX(-50%) translateY(-30vh);
+        }
+
+        .island-container {
+            width: 720px;
+            background: rgba(10, 10, 10, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 100px; /* Fully rounded pill */
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.5s var(--spring);
+            overflow: hidden;
+            height: 64px;
+        }
+
+        .island-container.active {
+            height: 120px;
+            border-radius: 24px;
+        }
+
+        .search-input-row {
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            height: 64px;
+            flex-shrink: 0;
+        }
+
+        .search-input-row svg {
+            width: 18px;
+            height: 18px;
+            color: var(--text-muted);
+            margin-right: 16px;
+        }
+
+        .search-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-family: 'Instrument Serif', serif;
+            font-size: 24px;
+            outline: none;
+            height: 100%;
+        }
+
+        .search-input::placeholder {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .island-actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 0 24px 16px;
+            gap: 12px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .island-container.active .island-actions {
+            opacity: 1;
+        }
+
+        .island-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 13px;
+            cursor: pointer;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            border-radius: 8px;
+        }
+
+        .island-btn:hover {
+            color: var(--text-main);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .island-btn.primary {
+            background: var(--text-main);
+            color: #000;
+        }
+
+        .island-btn.primary:hover {
+            background: #fff;
+        }
+
+        .island-container.command-active {
+            height: 380px;
+            border-radius: 24px;
+        }
+        
+        .island-container.command-active .island-actions {
+            opacity: 0;
+            height: 0;
+            padding: 0;
+            overflow: hidden;
+            transition: none;
+        }
+
+        .command-menu {
+            opacity: 0;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 0 24px;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        
+        .island-container.command-active .command-menu {
+            opacity: 1;
+            pointer-events: auto;
+            padding: 16px 24px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .cmd-item {
+            padding: 12px 0;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            transition: opacity 0.2s;
+        }
+
+        .cmd-item:hover {
+            opacity: 0.7;
+        }
+
+        .cmd-item span:first-child {
+            color: var(--text-main);
+            font-family: 'Instrument Serif', serif;
+            font-size: 18px;
+        }
+
+        .cmd-item .cmd-meta {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .island-container.command-active .search-input {
+            color: #fff;
+            font-style: normal;
+        }
+    </style>
+</head>
+<body>
+    <button class="top-nav-toggle toggle-btn" id="view-toggle" data-active="home">
+        <div class="toggle-icon"></div>
+        <span>Shelf</span>
+    </button>
+
+    <div id="home-view" class="view-container active">
+        <div class="home-watermark">
+            Curiosity is the <i>engine</i><br>of achievement.
+        </div>
+    </div>
+
+    <!-- Shelf View -->
+    <div id="shelf-view" class="view-container">
+        <div class="shelf-header">
+            <h1 class="shelf-title">Index.</h1>
+            <span style="color: var(--text-muted); font-size: 14px;">4 items</span>
+        </div>
+        
+        <div class="paper-list">
+            <div class="paper-row">
+                <div class="paper-title">Semantic Tube Prediction: Beating LLM Data Efficiency with JEPA</div>
+                <div class="paper-meta-row">
+                    <span class="paper-authors">Hai Huang, Yann LeCun, Randall Balestriero</span>
+                    <span class="paper-status status-queued"><div class="status-dot"></div> Queued</span>
+                </div>
+                <div class="paper-actions">
+                    <button class="action-btn" title="Open Notes">N</button>
+                    <button class="action-btn" title="Delete">×</button>
+                </div>
+            </div>
+
+            <div class="paper-row">
+                <div class="paper-title">Duality Models: An Embarrassingly Simple One-step Generation Paradigm</div>
+                <div class="paper-meta-row">
+                    <span class="paper-authors">Peng Sun, Xinyi Shang, Tao Lin, Zhiqiang Shen</span>
+                    <span class="paper-status status-reading"><div class="status-dot"></div> Reading</span>
+                </div>
+                <div class="paper-actions">
+                    <button class="action-btn" title="Open Notes">N</button>
+                    <button class="action-btn" title="Delete">×</button>
+                </div>
+            </div>
+
+            <div class="paper-row">
+                <div class="paper-title">SymTorch: A Framework for Symbolic Distillation of Deep Neural Networks</div>
+                <div class="paper-meta-row">
+                    <span class="paper-authors">Elizabeth S. Z. Tan, Adil Soubki, Miles Cranmer</span>
+                    <span class="paper-status status-done"><div class="status-dot"></div> Done</span>
+                </div>
+                <div class="paper-actions">
+                    <button class="action-btn" title="Open Notes">N</button>
+                    <button class="action-btn" title="Delete">×</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reader View -->
+    <div id="reader-view" class="view-container">
+        <div class="shelf-header" style="justify-content: center; border-bottom: none; margin-bottom: 24px;">
+            <h1 class="shelf-title">PDF Reader</h1>
+        </div>
+        <div style="max-width: 1000px; margin: 0 auto; height: 60vh; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-family: 'Instrument Serif', serif; font-size: 24px;">
+            Select a paper from the command menu to read.
+        </div>
+    </div>
+
+    <div class="bottom-island-wrapper">
+        <div class="island-container" id="search-island">
+            <div class="search-input-row">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                </svg>
+                <input type="text" class="search-input" id="main-search" placeholder="Type an arXiv ID or search term...">
+            </div>
+            <div class="island-actions">
+                <button class="island-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    Upload Local PDF
+                </button>
+                <button class="island-btn primary">
+                    Execute
+                </button>
+            </div>
+            
+            <div class="command-menu" id="command-menu">
+                <div class="cmd-item" onclick="openReader('Semantic Tube Prediction: Beating LLM Data Efficiency with JEPA')">
+                    <span>Semantic Tube Prediction: Beating LLM Data Efficiency with JEPA</span>
+                    <span class="cmd-meta">Hai Huang, Yann LeCun, Randall Balestriero • 2026</span>
+                </div>
+                <div class="cmd-item" onclick="openReader('Duality Models: An Embarrassingly Simple One-step Generation Paradigm')">
+                    <span>Duality Models: An Embarrassingly Simple One-step Generation Paradigm</span>
+                    <span class="cmd-meta">Peng Sun, Xinyi Shang, Tao Lin, Zhiqiang Shen • 2026</span>
+                </div>
+                <div class="cmd-item" onclick="openReader('SymTorch: A Framework for Symbolic Distillation of Deep Neural Networks')">
+                    <span>SymTorch: A Framework for Symbolic Distillation of Deep Neural Networks</span>
+                    <span class="cmd-meta">Elizabeth S. Z. Tan, Adil Soubki, Miles Cranmer • 2026</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const toggle = document.getElementById('view-toggle');
+        const toggleText = toggle.querySelector('span');
+        const homeView = document.getElementById('home-view');
+        const shelfView = document.getElementById('shelf-view');
+        const readerView = document.getElementById('reader-view');
+
+        toggle.addEventListener('click', () => {
+            const current = toggle.getAttribute('data-active');
+            if (current === 'home' || current === 'reader') {
+                toggle.setAttribute('data-active', 'shelf');
+                toggleText.textContent = 'Home';
+                homeView.classList.remove('active');
+                readerView.classList.remove('active');
+                shelfView.classList.add('active');
+            } else {
+                toggle.setAttribute('data-active', 'home');
+                toggleText.textContent = 'Shelf';
+                homeView.classList.add('active');
+                readerView.classList.remove('active');
+                shelfView.classList.remove('active');
+            }
+        });
+
+        const searchInput = document.getElementById('main-search');
+        const island = document.getElementById('search-island');
+        const islandWrapper = document.querySelector('.bottom-island-wrapper');
+
+        searchInput.addEventListener('focus', () => island.classList.add('active'));
+        
+        searchInput.addEventListener('input', (e) => {
+            if (e.target.value.toLowerCase().startsWith('/reader')) {
+                island.classList.add('command-active');
+                islandWrapper.classList.add('command-active-wrapper');
+            } else {
+                island.classList.remove('command-active');
+                islandWrapper.classList.remove('command-active-wrapper');
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!islandWrapper.contains(e.target)) {
+                island.classList.remove('active');
+                island.classList.remove('command-active');
+                islandWrapper.classList.remove('command-active-wrapper');
+                searchInput.blur();
+                if (searchInput.value.toLowerCase().startsWith('/reader')) {
+                    searchInput.value = '';
+                }
+            }
+        });
+
+        function openReader(title) {
+            island.classList.remove('active');
+            island.classList.remove('command-active');
+            islandWrapper.classList.remove('command-active-wrapper');
+            searchInput.value = '';
+            searchInput.blur();
+            
+            toggle.setAttribute('data-active', 'reader');
+            toggleText.textContent = 'Shelf';
+            homeView.classList.remove('active');
+            shelfView.classList.remove('active');
+            readerView.classList.add('active');
+            
+            // Just for demo, we change the title in the reader view
+            // readerView.querySelector('.shelf-title').textContent = 'Reading: ' + title;
+        }
+    </script>
+</body>
+</html>

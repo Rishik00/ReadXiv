@@ -1,3 +1,8 @@
+/**
+ * Sidebar component - NOT IN USE.
+ * Replaced by top-left Shelf/Search toggle. Kept for reference.
+ * Settings button: kept in code but not in use. User will specify placement later.
+ */
 import { useEffect, useState } from 'react'
 import axios from 'axios'
 
@@ -6,7 +11,7 @@ const navItems = [
   { id: 'shelf', icon: '☰', label: 'Paper Shelf' },
 ]
 
-export default function Sidebar({ page, setPage, onSearchClick, collapsed, onOpenRecent }) {
+export default function Sidebar({ page, setPage, collapsed, onOpenRecent }) {
   const [recents, setRecents] = useState([])
 
   useEffect(() => {
@@ -46,22 +51,6 @@ export default function Sidebar({ page, setPage, onSearchClick, collapsed, onOpe
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onSearchClick}
-          className={`${
-            collapsed ? 'mx-auto h-10 w-10 justify-center px-0' : 'w-full px-4'
-          } flex items-center gap-3 rounded-xl border border-border bg-surface py-2.5 text-sm text-muted hover:border-secondary/50 hover:brightness-110 transition-all`}
-          title="Search papers"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          {!collapsed && <span className="flex-1 text-left">New Search</span>}
-          {!collapsed && (
-            <kbd className="font-mono text-[10px] opacity-40">
-              ⌘K
-            </kbd>
-          )}
-        </button>
       </div>
 
       <div className={`flex-1 overflow-auto ${collapsed ? 'p-2' : 'p-3'} flex flex-col gap-1`}>

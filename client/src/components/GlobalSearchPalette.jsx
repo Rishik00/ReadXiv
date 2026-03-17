@@ -3,10 +3,10 @@ import axios from 'axios'
 
 const COMMAND_PREFIXES = ['>', ':', '/']
 const APP_COMMANDS = [
-  { id: 'home', label: 'Go to Search', shortcut: 'g h', keywords: ['home', 'search', 'h'] },
-  { id: 'shelf', label: 'Go to Paper Shelf', shortcut: 'g s', keywords: ['shelf', 'papers', 'library', 's'] },
-  { id: 'settings', label: 'Go to Settings', shortcut: 'g c', keywords: ['settings', 'config', 'preferences', 'c'] },
-  { id: 'toggle-sidebar', label: 'Toggle sidebar', shortcut: 'Ctrl+B', keywords: ['sidebar', 'toggle', 'collapse', 'b'] },
+  { id: 'home', label: 'Go to Search', shortcut: 'Space h', keywords: ['home', 'search', 'h'] },
+  { id: 'shelf', label: 'Go to Paper Shelf', shortcut: 'Space s', keywords: ['shelf', 'papers', 'library', 's'] },
+  { id: 'settings', label: 'Go to Settings', shortcut: 'Space c', keywords: ['settings', 'config', 'preferences', 'c'] },
+  { id: 'help', label: 'Help (keyboard shortcuts)', shortcut: 'Space e', keywords: ['help', 'shortcuts', 'keys', 'e'] },
 ]
 
 function filterCommands(query) {
@@ -165,11 +165,11 @@ export default function GlobalSearchPalette({
 
   return (
     <div
-      className="fixed inset-0 z-[80] bg-foreground/80 backdrop-blur-sm flex items-start justify-center pt-[12vh] px-4"
+      className="fixed inset-0 z-[80] bg-foreground/80 backdrop-blur-sm flex items-start justify-center pt-[8vh] px-6 animate-backdrop-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[640px] border border-border bg-surface rounded-xl shadow-2xl overflow-hidden"
+        className="w-full max-w-[720px] border border-border bg-surface rounded-xl shadow-2xl overflow-hidden animate-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
@@ -188,7 +188,7 @@ export default function GlobalSearchPalette({
           <span className="text-[10px] text-muted/70 shrink-0">Esc</span>
         </div>
 
-        <div ref={listRef} className="max-h-[400px] overflow-auto py-2">
+        <div ref={listRef} className="max-h-[480px] overflow-auto py-2">
           {isCommandMode ? (
             <>
               {commandResults.length === 0 ? (
@@ -220,7 +220,10 @@ export default function GlobalSearchPalette({
           ) : (
             <>
               {loading && (
-                <div className="px-4 py-4 text-xs text-muted animate-pulse">Searching…</div>
+                <div className="px-4 py-4 flex items-center gap-3 animate-fade-in">
+                  <div className="h-2 w-24 rounded skeleton-shimmer" />
+                  <span className="text-xs text-muted">Searching…</span>
+                </div>
               )}
               {!loading && results.length === 0 && (
                 <div className="px-4 py-8 text-center text-xs text-muted">
@@ -260,6 +263,11 @@ export default function GlobalSearchPalette({
             <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">j</kbd>
             <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">k</kbd>
             <span className="ml-2">navigate</span>
+            <span className="mx-2">·</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono">Space h</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">Space s</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">Space c</kbd>
+            <span className="ml-1">switch</span>
           </span>
           <span>
             <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono">Enter</kbd>

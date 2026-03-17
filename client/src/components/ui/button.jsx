@@ -1,10 +1,10 @@
 import { cn } from '../../lib/utils';
 
 const variants = {
-  default: 'bg-foreground text-background hover:opacity-90',
-  secondary: 'bg-surface text-foreground border border-border hover:bg-background',
+  default: 'bg-foreground text-background hover:opacity-90 shadow-md hover:shadow-lg transition-shadow',
+  secondary: 'bg-surface text-foreground border-2 border-border hover:bg-background shadow-md hover:shadow-lg transition-shadow',
   ghost: 'bg-transparent text-muted hover:bg-surface hover:text-foreground',
-  outline: 'bg-transparent text-foreground border border-border hover:bg-surface',
+  outline: 'bg-transparent text-foreground border-2 border-border hover:bg-surface shadow-md hover:shadow-lg transition-shadow',
 };
 
 const sizes = {

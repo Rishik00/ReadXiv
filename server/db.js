@@ -85,6 +85,16 @@ export async function initDB() {
 
   db.run('CREATE INDEX IF NOT EXISTS idx_papers_last_accessed ON papers(last_accessed_at)');
 
+  // Migration: deadline, scheduled_date for calendar
+  const papersInfo = db.exec('PRAGMA table_info(papers)');
+  const papersCols = papersInfo.length > 0 ? papersInfo[0].values.map((r) => r[1]) : [];
+  if (!papersCols.includes('deadline')) {
+    db.run('ALTER TABLE papers ADD COLUMN deadline TEXT');
+  }
+  if (!papersCols.includes('scheduled_date')) {
+    db.run('ALTER TABLE papers ADD COLUMN scheduled_date TEXT');
+  }
+
   // Save database
   saveDB();
 

@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import os from 'os';
 import { initDB } from './db.js';
 import papersRouter from './routes/papers.js';
 import searchRouter from './routes/search.js';
@@ -41,6 +42,21 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Papyrus server running on http://localhost:${PORT}`);
+function getLocalIP() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal) return net.address;
+    }
+  }
+  return null;
+}
+
+app.listen(PORT, '0.0.0.0', () => {
+  const hostname = os.hostname();
+  const localIP = getLocalIP();
+  console.log(`🚀 ReadXiv server running on http://localhost:${PORT}`);
+  console.log(`   iPad/LAN access:`);
+  console.log(`   • http://${hostname}:5173  (alias – rename PC to "readxiv" for http://readxiv:5173)`);
+  if (localIP) console.log(`   • http://${localIP}:5173`);
 });

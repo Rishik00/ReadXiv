@@ -107,6 +107,22 @@ function rowToObject(row, columns) {
   return obj;
 }
 
+// Preview metadata only (no DB write) - for search bar lip
+router.get('/preview', async (req, res) => {
+  try {
+    const input = req.query.input || req.query.q || '';
+    const arxivId = extractArxivId(input.trim());
+    if (!arxivId) {
+      return res.status(400).json({ error: 'Invalid arxiv URL or ID' });
+    }
+    const metadata = await fetchArxivMetadata(arxivId);
+    return res.json({ title: metadata.title, authors: metadata.authors });
+  } catch (error) {
+    console.error('Error fetching arxiv preview:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // Add paper from arxiv URL/ID
 router.post('/add', async (req, res) => {
   try {
@@ -136,7 +152,7 @@ router.post('/add', async (req, res) => {
     
     // Create notes file
     const notesPath = path.join(PAPYRUS_DIR, 'notes', `${arxivId}.md`);
-    await fs.writeFile(notesPath, `# ${metadata.title}\n\n${metadata.authors}\n\n`);
+    await fs.writeFile(notesPath, `# ${metadata.title}\n\n`);
     
     // Insert lightweight paper shell first so UI can transition immediately.
     const now = new Date().toISOString();
