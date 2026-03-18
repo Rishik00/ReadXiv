@@ -18,6 +18,7 @@ export default function Help({ setPage }) {
       items: [
         ['Ctrl+Shift+M', 'Toggle PDF / notes panel'],
         ['Space b h', 'Toggle PDF dark mode'],
+        ['Ctrl+Shift+S', 'Copy current page to clipboard'],
         ['Ctrl+Shift+C', 'Copy paper link'],
         ['Ctrl+Shift+D', 'PDF zoom in'],
         ['Ctrl+Shift+F', 'PDF zoom out'],
@@ -37,6 +38,14 @@ export default function Help({ setPage }) {
       title: 'Search & Shelf',
       items: [
         ['Ctrl+Enter', 'Submit search / add paper'],
+      ],
+    },
+    {
+      title: 'Canvas',
+      items: [
+        ['Space k a', 'Open global canvas'],
+        ['Space h', 'Exit canvas (go home)'],
+        ['Esc', 'Exit canvas'],
       ],
     },
     {

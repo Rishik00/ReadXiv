@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Fraunces:opsz,wght@9..144,400..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Fraunces:opsz,wght@9..144,400..700&family=iA+Writer+Quattro:wght@400;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -14,6 +14,7 @@
   --font-sans: "Inter";
   --font-mono: "JetBrains Mono";
   --font-serif: "Fraunces";
+  --font-writing: "iA Writer Quattro", "SF Mono", "Monaco", "Inconsolata", "Fira Code", "Droid Sans Mono", "Source Code Pro", monospace;
 
   /* Primary = background/surface, Secondary = accent. --button-on-secondary = text on secondary bg */
   --primary: #0A0A0A;
@@ -95,10 +96,10 @@ code {
   font-family: var(--font-mono), monospace;
 }
 
-/* White text selection: Black text on White background */
+/* Text selection with lighter color */
 ::selection {
-  color: #000000;
-  background: var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 30%, transparent);
+  color: var(--foreground);
 }
 
 /* Keep scrollbar subtle - use theme variables */
@@ -107,46 +108,269 @@ code {
   scrollbar-color: var(--border) var(--background);
 }
 
+/* Markdown editor styles */
+.markdown-editor {
+  font-family: var(--font-writing), monospace;
+  font-size: 16px;
+  line-height: 1.8;
+  letter-spacing: 0;
+  caret-color: var(--secondary);
+}
+
+.markdown-editor::placeholder {
+  color: var(--muted);
+  opacity: 0.4;
+}
+
+/* Markdown preview styles - Obsidian-inspired */
+.markdown-preview {
+  font-family: var(--font-writing), monospace;
+  font-size: 16px;
+  line-height: 1.8;
+  letter-spacing: 0;
+  color: var(--foreground);
+}
+
 .markdown-preview h1 {
   font-family: var(--font-serif), serif;
-  font-size: 2rem;
-  font-weight: 400;
-  margin: 1.5rem 0 1rem;
+  font-size: 2.25rem;
+  font-weight: 600;
+  margin: 2rem 0 1rem;
+  line-height: 1.3;
+  letter-spacing: -0.03em;
+  color: var(--foreground);
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0.5rem;
 }
 
 .markdown-preview h2 {
   font-family: var(--font-serif), serif;
-  font-size: 1.5rem;
-  font-weight: 400;
-  margin: 1.2rem 0 0.8rem;
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 1.75rem 0 0.75rem;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.markdown-preview h3 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 1.375rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.5rem;
+  line-height: 1.4;
+  color: var(--foreground);
+}
+
+.markdown-preview h4 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 1.25rem 0 0.5rem;
+  color: var(--foreground);
+}
+
+.markdown-preview h5,
+.markdown-preview h6 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .markdown-preview p {
   margin: 1rem 0;
-  line-height: 1.7;
+  line-height: 1.8;
+  color: color-mix(in srgb, var(--foreground) 92%, transparent);
+}
+
+.markdown-preview strong {
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.markdown-preview em {
+  font-style: italic;
+  color: var(--foreground);
 }
 
 .markdown-preview code {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 0.2rem 0.4rem;
+  padding: 0.15rem 0.4rem;
   font-size: 0.9em;
+  font-family: var(--font-mono), monospace;
+  color: var(--secondary);
+}
+
+.markdown-preview pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1.25rem 0;
+  overflow-x: auto;
+}
+
+.markdown-preview pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--foreground);
+  font-size: 0.875rem;
 }
 
 .markdown-preview blockquote {
-  margin: 0.9rem 0;
-  padding: 0.5rem 0.9rem;
-  border-left: 3px solid var(--secondary);
-  background: color-mix(in srgb, var(--secondary) 12%, transparent);
-  border-radius: 6px;
+  margin: 1.25rem 0;
+  padding: 0.75rem 1.25rem;
+  border-left: 4px solid var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 8%, transparent);
+  border-radius: 0 6px 6px 0;
+  font-style: italic;
+  color: color-mix(in srgb, var(--foreground) 90%, transparent);
 }
 
+.markdown-preview blockquote p {
+  margin: 0.5rem 0;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  margin: 1rem 0;
+  padding-left: 2rem;
+}
+
+.markdown-preview li {
+  margin: 0.5rem 0;
+  line-height: 1.7;
+}
+
+.markdown-preview ul li {
+  list-style-type: disc;
+}
+
+.markdown-preview ol li {
+  list-style-type: decimal;
+}
+
+.markdown-preview ul ul li {
+  list-style-type: circle;
+}
+
+.markdown-preview ul ul ul li {
+  list-style-type: square;
+}
+
+/* Checkbox support */
+.markdown-preview input[type="checkbox"] {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+.markdown-preview a {
+  color: var(--secondary);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--secondary) 30%, transparent);
+  transition: border-color 0.2s ease;
+}
+
+.markdown-preview a:hover {
+  border-bottom-color: var(--secondary);
+}
+
+.markdown-preview hr {
+  border: none;
+  border-top: 2px solid var(--border);
+  margin: 2rem 0;
+}
+
+.markdown-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.9375rem;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+  border: 1px solid var(--border);
+  padding: 0.625rem 1rem;
+  text-align: left;
+}
+
+.markdown-preview th {
+  background: var(--surface);
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.markdown-preview tr:hover {
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
+}
+
+/* Task list styling */
+.markdown-preview .task-list-item {
+  list-style-type: none;
+  margin-left: -1.5rem;
+}
+
+.markdown-preview .task-list-item input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+
+/* LaTeX rendering styles */
 .markdown-preview .MathJax,
-.markdown-preview mjx-container {
+.markdown-preview mjx-container,
+.latex-preview-item .MathJax,
+.latex-preview-item mjx-container {
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
+}
+
+.markdown-preview mjx-container {
+  margin: 0.25rem 0;
+}
+
+.markdown-preview mjx-container[display="true"] {
+  margin: 1rem 0;
+  display: block !important;
+  text-align: center;
+}
+
+/* Inline LaTeX */
+.markdown-preview mjx-container[display="false"] {
+  display: inline-block !important;
+  vertical-align: middle;
+  margin: 0 0.15rem;
+}
+
+/* LaTeX preview popup */
+.latex-preview-item {
+  color: var(--foreground);
+}
+
+.latex-preview-item mjx-container {
+  color: var(--foreground) !important;
+}
+
+.latex-preview-item mjx-container svg {
+  color: var(--foreground);
+  fill: var(--foreground);
+}
+
+/* Better LaTeX colors in dark mode */
+mjx-container svg {
+  color: var(--foreground);
+  fill: var(--foreground);
+}
+
+mjx-container[display="true"] {
+  padding: 0.5rem 0;
 }
 
 .loading-indicator {
@@ -234,4 +458,51 @@ code {
 /* PDF dark mode - invert colors for dark theme viewing */
 .pdf-canvas-container {
   filter: invert(1) hue-rotate(180deg);
+}
+
+/* Obsidian-like editor background with subtle texture */
+.notes-editor-container {
+  background-color: var(--surface);
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-position: -1px -1px;
+}
+
+/* Smooth scrolling for better UX */
+.markdown-editor,
+.markdown-preview {
+  scroll-behavior: smooth;
+}
+
+/* Better focus states for accessibility */
+.markdown-editor:focus {
+  outline: none;
+}
+
+/* Subtle cursor line effect */
+.markdown-editor {
+  caret-color: var(--secondary);
+}
+
+/* Selection styling in editor */
+.markdown-editor::selection {
+  background: color-mix(in srgb, var(--secondary) 25%, transparent);
+  color: var(--foreground);
+}
+
+/* Heading indicators in editor (subtle left border) */
+.markdown-editor {
+  background-attachment: local;
+  background-image:
+    linear-gradient(to right, transparent 0, transparent calc(3rem - 1px), var(--border) calc(3rem - 1px), var(--border) 3rem, transparent 3rem);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+/* Status bar styling */
+.editor-status-bar {
+  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
 }

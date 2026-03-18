@@ -6,6 +6,7 @@ import papersRouter from './routes/papers.js';
 import searchRouter from './routes/search.js';
 import arxivRouter from './routes/arxiv.js';
 import readerRouter from './routes/reader.js';
+import canvasRouter from './routes/canvas.js';
 
 const app = express();
 const PORT = process.env.PORT || 7474;
@@ -36,6 +37,7 @@ app.use('/api/papers', papersRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/arxiv', arxivRouter);
 app.use('/api/reader', readerRouter);
+app.use('/api/canvas', canvasRouter);
 
 // Health check
 app.get('/health', (req, res) => {

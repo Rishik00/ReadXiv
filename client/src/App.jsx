@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useState, useCallback, useRef } from 'react'
 import GlobalSearchPalette from './components/GlobalSearchPalette'
 import RecentPapersFinder from './components/RecentPapersFinder'
+import GlobalCanvas from './components/GlobalCanvas'
 import Home from './pages/Home'
 import Shelf from './pages/Shelf'
 import Settings from './pages/Settings'
@@ -29,18 +30,21 @@ function App() {
   const [toasts, setToasts] = useState([])
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [recentsOpen, setRecentsOpen] = useState(false)
+  const [canvasOpen, setCanvasOpen] = useState(false)
   const [pendingG, setPendingG] = useState(false)
   const [pendingB, setPendingB] = useState(false)
+  const [pendingK, setPendingK] = useState(false)
   const readerRef = useRef(null)
 
   useEffect(() => {
-    if (!pendingG && !pendingB) return
+    if (!pendingG && !pendingB && !pendingK) return
     const t = setTimeout(() => {
       setPendingG(false)
       setPendingB(false)
+      setPendingK(false)
     }, 2000)
     return () => clearTimeout(t)
-  }, [pendingG, pendingB])
+  }, [pendingG, pendingB, pendingK])
   const [externalTabs, setExternalTabs] = useState([])
   const [activeExternalTabId, setActiveExternalTabId] = useState(null)
   const VALID_THEMES = ['default', 'monochrome', 'blue']
@@ -50,7 +54,7 @@ function App() {
     try {
       const parsed = JSON.parse(raw)
       const theme = VALID_THEMES.includes(parsed.theme) ? parsed.theme : 'default'
-      return { continuousScroll: true, liveMarkdownPreview: true, theme: 'default', fontFamily: 'brutalist', ...parsed, theme }
+      return { continuousScroll: true, liveMarkdownPreview: true, fontFamily: 'brutalist', ...parsed, theme }
     } catch {
       return { continuousScroll: true, liveMarkdownPreview: true, theme: 'default', fontFamily: 'brutalist' }
     }
@@ -104,6 +108,19 @@ function App() {
       if (event.key === 'Escape') {
         setPendingG(false)
         setPendingB(false)
+        setPendingK(false)
+        return
+      }
+
+      if (pendingK) {
+        const k = event.key.toLowerCase()
+        if (k === 'a') {
+          event.preventDefault()
+          setCanvasOpen(true)
+          setPendingK(false)
+        } else {
+          setPendingK(false)
+        }
         return
       }
 
@@ -145,6 +162,10 @@ function App() {
           event.preventDefault()
           setPendingG(false)
           setPendingB(true)
+        } else if (k === 'k') {
+          event.preventDefault()
+          setPendingG(false)
+          setPendingK(true)
         } else {
           setPendingG(false)
         }
@@ -170,7 +191,7 @@ function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [pendingG, pendingB, navigateTo, page])
+  }, [pendingG, pendingB, pendingK, navigateTo, page])
 
   const addToast = (message, type = 'info') => {
     const id = crypto.randomUUID()
@@ -283,6 +304,9 @@ function App() {
                 settings={settings}
                 initialTab={readerInitialTab}
                 addToast={addToast}
+                onSendToCanvas={(imageData) => {
+                  addToast(`Page ${imageData.page} copied to clipboard`)
+                }}
               />
             </Suspense>
           )}
@@ -338,6 +362,10 @@ function App() {
           }
           setQuickSearchOpen(false)
         }}
+      />
+      <GlobalCanvas
+        open={canvasOpen}
+        onClose={() => setCanvasOpen(false)}
       />
     </div>
   )

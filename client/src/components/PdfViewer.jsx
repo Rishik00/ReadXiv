@@ -42,7 +42,7 @@ function normalizeHighlight(highlight) {
   };
 }
 
-const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = true, onInsertQuote }, ref) {
+const PdfViewer = forwardRef(function PdfViewer({ paperId, paperTitle, continuousScroll = true, onInsertQuote, onSendToCanvas }, ref) {
   const pageCanvasRefs = useRef([]);
   const pageWrapperRefs = useRef([]);
   const pageTextLayerRefs = useRef([]);
@@ -58,6 +58,15 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
   const [pdfDarkMode, setPdfDarkMode] = useState(false);
   const [highlights, setHighlights] = useState([]);
   const [pageTextLayers, setPageTextLayers] = useState({});
+  const [visiblePages, setVisiblePages] = useState(new Set([1]));
+  const [fitMode, setFitMode] = useState('width');
+  const renderTasksRef = useRef({});
+  const intersectionObserverRef = useRef(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef(null);
 
   const pdfUrl = useMemo(() => (paperId ? `/api/reader/${paperId}/pdf` : null), [paperId]);
 
@@ -72,6 +81,7 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
       setDoc(null);
       setPage(1);
       setPageTextLayers({});
+      setVisiblePages(new Set([1]));
       userAdjustedScaleRef.current = false;
 
       try {
@@ -79,15 +89,29 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
           url: pdfUrl,
           stopAtErrors: false,
         });
+        
         const loadedDoc = await task.promise;
         if (!mounted) return;
         setDoc(loadedDoc);
         setNumPages(loadedDoc.numPages);
+        setLoading(false);
+        
+        if (loadedDoc.numPages > 1) {
+          setTimeout(async () => {
+            for (let i = 2; i <= Math.min(5, loadedDoc.numPages); i++) {
+              if (!mounted) break;
+              try {
+                await loadedDoc.getPage(i);
+              } catch {
+                break;
+              }
+            }
+          }, 100);
+        }
       } catch (err) {
         if (!mounted) return;
         setError(err?.message || 'Failed to load PDF');
-      } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
     }
 
@@ -127,7 +151,16 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
         if (cancelled) return;
         const viewport = firstPage.getViewport({ scale: 1 });
         const availableWidth = Math.max(container.clientWidth - 40, 480);
-        const fittedScale = clamp(availableWidth / Math.max(viewport.width, 1), 1.05, 2.2);
+        const availableHeight = container.clientHeight - 40;
+        
+        let fittedScale;
+        if (fitMode === 'width') {
+          fittedScale = clamp(availableWidth / Math.max(viewport.width, 1), 1.05, 2.2);
+        } else if (fitMode === 'height') {
+          fittedScale = clamp(availableHeight / Math.max(viewport.height, 1), 0.8, 2.2);
+        } else {
+          fittedScale = clamp(availableWidth / Math.max(viewport.width, 1), 1.05, 2.2);
+        }
         setScale(Number(fittedScale.toFixed(2)));
       } catch {
         // no-op
@@ -137,14 +170,53 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
     return () => {
       cancelled = true;
     };
-  }, [doc]);
+  }, [doc, fitMode]);
+
+  useEffect(() => {
+    if (!doc || !continuousScroll) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = new Set();
+        entries.forEach((entry) => {
+          const pageNum = parseInt(entry.target.dataset.pageNumber, 10);
+          if (entry.isIntersecting) {
+            visible.add(pageNum);
+            for (let i = Math.max(1, pageNum - 2); i <= Math.min(numPages, pageNum + 2); i++) {
+              visible.add(i);
+            }
+          }
+        });
+        if (visible.size > 0) {
+          setVisiblePages(visible);
+          const firstVisible = Math.min(...visible);
+          setPage(firstVisible);
+        }
+      },
+      {
+        root: contentRef.current,
+        rootMargin: '400px 0px',
+        threshold: 0.01,
+      }
+    );
+
+    intersectionObserverRef.current = observer;
+
+    pageWrapperRefs.current.forEach((wrapper) => {
+      if (wrapper) observer.observe(wrapper);
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [doc, continuousScroll, numPages]);
 
   useEffect(() => {
     let cancelled = false;
     async function renderPages() {
       if (!doc) return;
 
-      const pages = continuousScroll ? Array.from({ length: numPages }, (_, i) => i + 1) : [page];
+      const pages = continuousScroll ? Array.from(visiblePages).sort((a, b) => a - b) : [page];
       const dpr = (window.devicePixelRatio || 1) * RENDER_QUALITY_MULTIPLIER;
       const renderedTextLayers = {};
       let failedPages = 0;
@@ -153,6 +225,10 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
       for (const pageNumber of pages) {
         const canvas = pageCanvasRefs.current[pageNumber - 1];
         if (!canvas) continue;
+
+        if (renderTasksRef.current[pageNumber]) {
+          renderTasksRef.current[pageNumber].cancel();
+        }
 
         try {
           const currentPage = await doc.getPage(pageNumber);
@@ -166,11 +242,15 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
           canvas.style.height = `${Math.floor(viewport.height)}px`;
           context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-          await currentPage.render({
+          const renderTask = currentPage.render({
             canvasContext: context,
             viewport,
             annotationMode: AnnotationMode.DISABLE,
-          }).promise;
+          });
+          
+          renderTasksRef.current[pageNumber] = renderTask;
+          await renderTask.promise;
+          delete renderTasksRef.current[pageNumber];
 
           const textContent = await currentPage.getTextContent();
           renderedTextLayers[pageNumber] = {
@@ -182,9 +262,11 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
             items: textContent.items,
           };
         } catch (err) {
+          if (err?.name === 'RenderingCancelledException') {
+            continue;
+          }
           failedPages += 1;
           lastError = err;
-          // Continue rendering the rest of the document even if one page fails.
         }
       }
 
@@ -201,8 +283,11 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
     renderPages();
     return () => {
       cancelled = true;
+      Object.values(renderTasksRef.current).forEach((task) => {
+        if (task?.cancel) task.cancel();
+      });
     };
-  }, [doc, page, scale, continuousScroll, numPages]);
+  }, [doc, page, scale, continuousScroll, numPages, visiblePages]);
 
   async function createHighlight({ pageNumber, rect, text }) {
     if (!paperId) return;
@@ -239,6 +324,113 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
     } catch {
       // no-op
     }
+  }
+
+  function exportHighlightsAsMarkdown() {
+    if (highlights.length === 0) return;
+    
+    const sortedHighlights = [...highlights]
+      .filter((h) => h.text?.trim())
+      .sort((a, b) => Number(a.page) - Number(b.page));
+    
+    let markdown = '# Highlights\n\n';
+    let currentPage = null;
+    
+    sortedHighlights.forEach((h) => {
+      if (h.page !== currentPage) {
+        currentPage = h.page;
+        markdown += `\n## Page ${h.page}\n\n`;
+      }
+      markdown += `> ${h.text}\n\n`;
+    });
+    
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `highlights-${paperId || 'export'}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  async function copyPageToClipboard() {
+    if (!doc) return;
+    
+    try {
+      const currentPage = await doc.getPage(page);
+      const renderScale = 2;
+      const viewport = currentPage.getViewport({ scale: renderScale });
+      
+      const offscreenCanvas = document.createElement('canvas');
+      offscreenCanvas.width = viewport.width;
+      offscreenCanvas.height = viewport.height;
+      const context = offscreenCanvas.getContext('2d');
+      
+      await currentPage.render({
+        canvasContext: context,
+        viewport,
+        annotationMode: AnnotationMode.DISABLE,
+      }).promise;
+      
+      offscreenCanvas.toBlob(async (blob) => {
+        if (!blob) return;
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          onSendToCanvas?.({ page });
+        } catch (err) {
+          console.error('Failed to copy to clipboard:', err);
+        }
+      }, 'image/png');
+    } catch (err) {
+      console.error('Failed to capture page:', err);
+    }
+  }
+
+  async function performSearch(query) {
+    if (!doc || !query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const results = [];
+    const searchTerm = query.toLowerCase();
+
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      try {
+        const page = await doc.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item) => item.str).join(' ').toLowerCase();
+        
+        let index = 0;
+        while ((index = pageText.indexOf(searchTerm, index)) !== -1) {
+          results.push({ page: pageNum, index });
+          index += searchTerm.length;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    setSearchResults(results);
+    setCurrentSearchIndex(0);
+    if (results.length > 0) {
+      goToPage(results[0].page);
+    }
+  }
+
+  function navigateSearchResult(direction) {
+    if (searchResults.length === 0) return;
+    
+    let nextIndex = currentSearchIndex + direction;
+    if (nextIndex < 0) nextIndex = searchResults.length - 1;
+    if (nextIndex >= searchResults.length) nextIndex = 0;
+    
+    setCurrentSearchIndex(nextIndex);
+    goToPage(searchResults[nextIndex].page);
   }
 
   async function onTextLayerMouseUp(pageNumber) {
@@ -288,10 +480,151 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
     return () => el.removeEventListener('wheel', handler);
   }, []);
 
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+
+    let touchStartDistance = 0;
+    let touchStartScale = 1;
+    let touchStartX = 0;
+    let touchStartTime = 0;
+
+    const getTouchDistance = (touches) => {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.hypot(dx, dy);
+    };
+
+    const handleTouchStart = (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        touchStartDistance = getTouchDistance(e.touches);
+        touchStartScale = scaleRef.current;
+      } else if (e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartTime = Date.now();
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const distance = getTouchDistance(e.touches);
+        const scaleChange = distance / touchStartDistance;
+        const newScale = touchStartScale * scaleChange;
+        updateScale(newScale);
+      }
+    };
+
+    const handleTouchEnd = (e) => {
+      if (e.changedTouches.length === 1 && Date.now() - touchStartTime < 300) {
+        const touchEndX = e.changedTouches[0].clientX;
+        const swipeDistance = touchEndX - touchStartX;
+        
+        if (Math.abs(swipeDistance) > 100) {
+          if (swipeDistance > 0) {
+            goToPage(page - 1);
+          } else {
+            goToPage(page + 1);
+          }
+        }
+      }
+    };
+
+    el.addEventListener('touchstart', handleTouchStart, { passive: false });
+    el.addEventListener('touchmove', handleTouchMove, { passive: false });
+    el.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchmove', handleTouchMove);
+      el.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [page]);
+
   function handleKeyDown(e) {
     if (!doc) return;
+    
+    if (searchOpen && e.target === searchInputRef.current) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSearchOpen(false);
+        setSearchQuery('');
+        setSearchResults([]);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          navigateSearchResult(-1);
+        } else {
+          navigateSearchResult(1);
+        }
+        return;
+      }
+      return;
+    }
+
     const meta = e.ctrlKey || e.metaKey;
     const shift = e.shiftKey;
+
+    if (meta && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      setSearchOpen(true);
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+      return;
+    }
+
+    if (e.key === 'j') {
+      e.preventDefault();
+      contentRef.current?.scrollBy({ top: 120, behavior: 'smooth' });
+      return;
+    }
+    if (e.key === 'k') {
+      e.preventDefault();
+      contentRef.current?.scrollBy({ top: -120, behavior: 'smooth' });
+      return;
+    }
+    if (e.key === 'g' && !shift) {
+      e.preventDefault();
+      const secondG = setTimeout(() => {}, 500);
+      const handler = (e2) => {
+        if (e2.key === 'g') {
+          clearTimeout(secondG);
+          goToPage(1);
+          window.removeEventListener('keydown', handler);
+        }
+      };
+      window.addEventListener('keydown', handler);
+      setTimeout(() => window.removeEventListener('keydown', handler), 600);
+      return;
+    }
+    if (e.key === 'G' && shift) {
+      e.preventDefault();
+      goToPage(numPages);
+      return;
+    }
+    if (e.key === '[') {
+      e.preventDefault();
+      const sortedHighlights = [...highlights].sort((a, b) => Number(a.page) - Number(b.page));
+      const prevHighlight = sortedHighlights.reverse().find((h) => Number(h.page) < page);
+      if (prevHighlight) goToPage(Number(prevHighlight.page));
+      return;
+    }
+    if (e.key === ']') {
+      e.preventDefault();
+      const sortedHighlights = [...highlights].sort((a, b) => Number(a.page) - Number(b.page));
+      const nextHighlight = sortedHighlights.find((h) => Number(h.page) > page);
+      if (nextHighlight) goToPage(Number(nextHighlight.page));
+      return;
+    }
+
+    // Ctrl+Shift+S to copy current page to clipboard
+    if (meta && shift && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      copyPageToClipboard();
+      return;
+    }
 
     if (meta && shift && e.key.toLowerCase() === 'd') {
       e.preventDefault();
@@ -331,6 +664,9 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
     handleKeyDown,
     focusScrollArea: () => contentRef.current?.focus(),
     togglePdfDarkMode: () => setPdfDarkMode((v) => !v),
+    jumpToPage: (pageNum) => goToPage(pageNum),
+    getNumPages: () => numPages,
+    getCurrentPage: () => page,
   }));
 
   function goToPage(nextPage) {
@@ -421,7 +757,10 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
         ref={(el) => {
           pageWrapperRefs.current[pageNumber - 1] = el;
         }}
+        data-page-number={pageNumber}
         className="relative mb-4 flex justify-center"
+        role="article"
+        aria-label={`Page ${pageNumber}`}
       >
         <div className={`relative ${pdfDarkMode ? 'pdf-canvas-container' : ''}`}>
           <canvas
@@ -429,6 +768,7 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
               pageCanvasRefs.current[pageNumber - 1] = el;
             }}
             className="rounded-md border border-border"
+            aria-label={`PDF page ${pageNumber} content`}
           />
           {renderTextLayer(pageNumber)}
           {pageHighlights.map((h) => (
@@ -456,8 +796,8 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
   const recentQuoteHighlights = highlights.filter((h) => h.text?.trim()).slice(-5).reverse();
 
   return (
-    <Card className="h-full overflow-hidden">
-      <CardHeader className="flex items-center justify-between px-3 py-2">
+    <Card className="h-full overflow-hidden" role="region" aria-label="PDF Viewer">
+      <CardHeader className="flex items-center justify-between px-3 py-2" role="toolbar" aria-label="PDF controls">
         <div className="flex items-center gap-2">
           <Button
             variant={pdfDarkMode ? 'secondary' : 'ghost'}
@@ -475,14 +815,32 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
             className="text-sm h-7 px-2"
             onClick={() => setHighlightMode((v) => !v)}
             disabled={!doc}
+            title="Highlight mode"
           >
             ✦ Highlight
           </Button>
           {highlights.length > 0 && (
-            <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={clearAllHighlights} disabled={!doc} title="Clear all highlights">
-              Clear all
-            </Button>
+            <>
+              <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={clearAllHighlights} disabled={!doc} title="Clear all highlights">
+                Clear all
+              </Button>
+              <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={exportHighlightsAsMarkdown} disabled={!doc} title="Export highlights as markdown">
+                Export
+              </Button>
+            </>
           )}
+          <div className="h-4 w-px bg-border mx-1" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-sm h-7 px-2"
+            onClick={copyPageToClipboard}
+            disabled={!doc}
+            title="Copy current page to clipboard"
+          >
+            Copy Page
+          </Button>
+          <div className="h-4 w-px bg-border mx-1" />
           <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={() => updateScale(scale - 0.1)} disabled={!doc}>
             −
           </Button>
@@ -509,8 +867,61 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
           </Button>
         </div>
       </CardHeader>
+      {searchOpen && (
+        <div className="px-4 py-2 border-b border-border bg-surface/70 flex items-center gap-2">
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              performSearch(e.target.value);
+            }}
+            placeholder="Search in PDF..."
+            className="flex-1 px-3 py-1.5 text-sm bg-background border border-border rounded-md outline-none focus:border-secondary"
+          />
+          {searchResults.length > 0 && (
+            <span className="text-sm text-muted whitespace-nowrap">
+              {currentSearchIndex + 1} / {searchResults.length}
+            </span>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-sm h-7 px-2"
+            onClick={() => navigateSearchResult(-1)}
+            disabled={searchResults.length === 0}
+            title="Previous result (Shift+Enter)"
+          >
+            ↑
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-sm h-7 px-2"
+            onClick={() => navigateSearchResult(1)}
+            disabled={searchResults.length === 0}
+            title="Next result (Enter)"
+          >
+            ↓
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-sm h-7 px-2"
+            onClick={() => {
+              setSearchOpen(false);
+              setSearchQuery('');
+              setSearchResults([]);
+            }}
+            title="Close search (Esc)"
+          >
+            ✕
+          </Button>
+        </div>
+      )}
       {highlightMode && (
-        <div className="px-4 py-2 text-sm border-y border-border bg-surface/70">
+        <div className="px-4 py-2 text-sm border-b border-border bg-surface/70">
           Select text to create a yellow highlight. Click an existing highlight to remove it.
         </div>
       )}
@@ -532,9 +943,11 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, continuousScroll = tr
       )}
       <CardContent
         ref={contentRef}
-        tabIndex={-1}
+        tabIndex={0}
         data-pdf-scroll
-        className="h-[calc(100%-44px)] overflow-auto bg-background outline-none focus:outline-none"
+        role="document"
+        aria-label={`PDF document, page ${page} of ${numPages}`}
+        className="h-[calc(100%-44px)] overflow-auto bg-background outline-none focus:ring-2 focus:ring-secondary/50"
         onKeyDown={handleKeyDown}
         onClick={() => contentRef.current?.focus()}
         onWheel={() => contentRef.current?.focus()}
