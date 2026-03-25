@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReadXiv - Split Layout</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Mono&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Courier+Prime&family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Default B&W Theme */
+            --bg: #000000;
+            --surface: #111111;
+            --surface-hover: #222222;
+            --text: #FFFFFF;
+            --muted: #888888;
+            --border: #333333;
+            --accent: #FFFFFF;
+            --border-width: 1px;
+            --font-main: 'Inter', sans-serif;
+            --font-mono: 'Space Mono', monospace;
+            --greeting-style: normal;
+        }
+
+        [data-theme="vanta"] {
+            --bg: #0A0A0A;
+            --surface: #141414;
+            --surface-hover: #1A1A1A;
+            --text: #EDEDED;
+            --muted: #737373;
+            --border: #262626;
+            --accent: #F59E0B;
+            --border-width: 1px;
+            --font-main: 'Manrope', sans-serif;
+            --font-mono: 'IBM Plex Mono', monospace;
+            --greeting-style: italic;
+        }
+
+        [data-theme="noir"] {
+            --bg: #0A0A0A;
+            --surface: #121212;
+            --surface-hover: #1A1A1A;
+            --text: #F5F5F5;
+            --muted: #737373;
+            --border: #262626;
+            --accent: #E53E3E;
+            --border-width: 1px;
+            --font-main: 'Fraunces', serif;
+            --font-mono: 'Courier Prime', monospace;
+            --greeting-style: italic;
+        }
+
+        [data-theme="olive"] {
+            --bg: #1A1C18;
+            --surface: #222620;
+            --surface-hover: #2A2F27;
+            --text: #E8EBE4;
+            --muted: #8B9486;
+            --border: #363D32;
+            --accent: #F59E0B;
+            --border-width: 2px;
+            --font-main: 'Fraunces', serif;
+            --font-mono: 'Courier Prime', monospace;
+            --greeting-style: italic;
+        }
+        
+        ::selection {
+            background-color: var(--accent);
+            color: var(--bg);
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: var(--font-mono);
+            overflow: hidden;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .serif {
+            font-family: var(--font-main);
+        }
+        
+        .app-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+            position: relative;
+        }
+
+        /* Theme Toggles */
+        .theme-toggles {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 100;
+        }
+        .theme-btn {
+            background: var(--surface);
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 0.4rem 0.8rem;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .theme-btn:hover {
+            color: var(--text);
+            border-color: var(--text);
+        }
+        .theme-btn.active {
+            background: var(--text);
+            color: var(--bg);
+            border-color: var(--text);
+            font-weight: bold;
+        }
+
+        /* Top Nav */
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: var(--muted);
+            font-family: var(--font-mono);
+        }
+
+        /* Greeting */
+        .greeting {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .greeting.fade {
+            opacity: 0;
+            transform: scale(0.95);
+            pointer-events: none;
+        }
+        .greeting h1 {
+            font-size: 4.5rem;
+            font-weight: 400;
+            text-align: center;
+            max-width: 800px;
+            line-height: 1.1;
+        }
+        .greeting h1 i {
+            color: var(--accent);
+            font-style: var(--greeting-style);
+        }
+
+        /* Bottom Command Area */
+        .command-area {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 75%;
+            max-width: 1000px;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .command-area.focused {
+            bottom: 0;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        /* Results Panel (Split View) */
+        .results-panel {
+            width: 100%;
+            background: var(--bg);
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            border-top: var(--border-width) solid var(--border);
+        }
+        .results-panel.active {
+            max-height: 65vh;
+            opacity: 1;
+        }
+
+        .split-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Left side: List */
+        .results-list {
+            border-right: var(--border-width) solid var(--border);
+            overflow-y: auto;
+            max-height: 65vh;
+        }
+
+        .result-item {
+            padding: 1.5rem 2rem;
+            border-bottom: var(--border-width) solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .result-item:hover {
+            background: var(--surface-hover);
+        }
+        .result-item.selected {
+            background: var(--text);
+            color: var(--bg);
+        }
+        .result-item.selected .result-authors {
+            color: var(--bg);
+            opacity: 0.8;
+        }
+        .result-title {
+            font-family: var(--font-main);
+            font-size: 1.3rem;
+            line-height: 1.3;
+            margin-bottom: 0.5rem;
+        }
+        .result-authors {
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        /* Right side: Preview */
+        .preview-pane {
+            padding: 3rem;
+            background: var(--surface);
+            overflow-y: auto;
+            max-height: 65vh;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .preview-year {
+            font-size: 0.9rem;
+            color: var(--accent);
+            font-weight: bold;
+        }
+        .preview-title {
+            font-family: var(--font-main);
+            font-size: 2.2rem;
+            line-height: 1.2;
+        }
+        .preview-authors {
+            font-size: 1rem;
+            color: var(--muted);
+        }
+        .preview-abstract {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text);
+            opacity: 0.8;
+            margin-top: 1rem;
+            font-family: var(--font-mono);
+        }
+
+        /* Input */
+        .input-container {
+            width: 100%;
+            background: var(--surface);
+            display: flex;
+            align-items: center;
+            padding: 0 2rem;
+            height: 64px;
+            border: var(--border-width) solid var(--border);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        
+        .command-area.focused .input-container {
+            height: 80px;
+            border-left: none;
+            border-right: none;
+            border-bottom: none;
+            background: var(--bg);
+        }
+
+        .mode-tag {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            color: var(--bg);
+            background: var(--accent);
+            padding: 0.3rem 0.8rem;
+            margin-right: 1.5rem;
+            display: none;
+            font-weight: bold;
+        }
+        .mode-tag.active {
+            display: block;
+        }
+
+        input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 1.2rem;
+            height: 100%;
+        }
+        input::placeholder {
+            color: var(--muted);
+        }
+    </style>
+</head>
+<body data-theme="bw">
+
+    <div class="theme-toggles">
+        <button onclick="setTheme('bw')" class="theme-btn active" data-target="bw">B&W</button>
+        <button onclick="setTheme('vanta')" class="theme-btn" data-target="vanta">Vanta</button>
+        <button onclick="setTheme('noir')" class="theme-btn" data-target="noir">Noir</button>
+        <button onclick="setTheme('olive')" class="theme-btn" data-target="olive">Olive</button>
+    </div>
+
+    <div class="app-container">
+        <div class="top-nav">
+            <div>ReadXiv // Split</div>
+            <div>[Ctrl+P]</div>
+        </div>
+
+        <div class="greeting" id="greeting">
+            <h1 class="serif">What papers are we <i>conquering</i> today?</h1>
+        </div>
+
+        <div class="command-area" id="commandArea">
+            <div class="results-panel" id="resultsPanel">
+                <div class="split-container">
+                    <div class="results-list" id="resultsList">
+                        <!-- Items populated by JS -->
+                    </div>
+                    <div class="preview-pane" id="previewPane">
+                        <div class="preview-year" id="pYear">2026</div>
+                        <div class="preview-title" id="pTitle">Truth as a Trajectory: What Internal Representations Reveal</div>
+                        <div class="preview-authors" id="pAuthors">Hamed Damirchi, Ignacio Meza De la Jara</div>
+                        <div class="preview-abstract" id="pAbstract">We study the internal representations of large language models during reasoning tasks. By analyzing the trajectory of activations across layers, we demonstrate that truth emerges not as a static state, but as a dynamic trajectory...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-container">
+                <div class="mode-tag" id="modeTag">LOCAL</div>
+                <input type="text" id="cmdInput" placeholder="!local, !add, !upload, or search..." autocomplete="off">
+            </div>
+        </div>
+    </div>
+    
+    <input type="file" id="hiddenFileInput" style="display:none" accept=".pdf">
+
+    <script>
+        // Theme Toggle Logic
+        function setTheme(theme) {
+            document.body.setAttribute('data-theme', theme);
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if(btn.getAttribute('data-target') === theme) btn.classList.add('active');
+            });
+        }
+
+        const papers = [
+            {
+                title: "Truth as a Trajectory: What Internal Representations Reveal",
+                authors: "Hamed Damirchi, Ignacio Meza De la Jara",
+                year: "2026",
+                abstract: "We study the internal representations of large language models during reasoning tasks. By analyzing the trajectory of activations across layers, we demonstrate that truth emerges not as a static state, but as a dynamic trajectory..."
+            },
+            {
+                title: "The Platonic Representation Hypothesis",
+                authors: "Minyoung Huh, Brian Cheung",
+                year: "2024",
+                abstract: "We hypothesize that neural networks trained on diverse modalities converge to a shared, platonic representation of the world. We provide empirical evidence across vision and language models."
+            },
+            {
+                title: "Neural Thickets: Diverse Task Experts",
+                authors: "Yulu Gan, Phillip Isola",
+                year: "2026",
+                abstract: "We introduce Neural Thickets, a method for identifying dense regions of task-specific experts within pretrained weights. This allows for efficient routing and fine-tuning without catastrophic forgetting."
+            },
+            {
+                title: "The Condensate Theorem",
+                authors: "Jorge L. Ruiz Williams",
+                year: "2026",
+                abstract: "We prove that under specific conditions, transformer attention mechanisms can be condensed to O(n) complexity without loss of expressivity, challenging the standard O(n^2) assumption."
+            }
+        ];
+
+        const listContainer = document.getElementById('resultsList');
+        const pTitle = document.getElementById('pTitle');
+        const pAuthors = document.getElementById('pAuthors');
+        const pYear = document.getElementById('pYear');
+        const pAbstract = document.getElementById('pAbstract');
+
+        // Populate list
+        papers.forEach((paper, idx) => {
+            const div = document.createElement('div');
+            div.className = `result-item ${idx === 0 ? 'selected' : ''}`;
+            div.innerHTML = `
+                <div class="result-title">${paper.title}</div>
+                <div class="result-authors">${paper.authors}</div>
+            `;
+            listContainer.appendChild(div);
+        });
+
+        function updatePreview(idx) {
+            const p = papers[idx];
+            pTitle.textContent = p.title;
+            pAuthors.textContent = p.authors;
+            pYear.textContent = p.year;
+            pAbstract.textContent = p.abstract;
+        }
+
+        const input = document.getElementById('cmdInput');
+        const modeTag = document.getElementById('modeTag');
+        const resultsPanel = document.getElementById('resultsPanel');
+        const greeting = document.getElementById('greeting');
+        const commandArea = document.getElementById('commandArea');
+        const fileInput = document.getElementById('hiddenFileInput');
+        
+        let currentMode = 'normal';
+
+        input.addEventListener('focus', () => {
+            commandArea.classList.add('focused');
+            greeting.classList.add('fade');
+        });
+        
+        input.addEventListener('blur', () => {
+            if (input.value === '' && currentMode === 'normal') {
+                commandArea.classList.remove('focused');
+                greeting.classList.remove('fade');
+            }
+        });
+
+        input.addEventListener('input', (e) => {
+            const val = e.target.value;
+            
+            if (val.startsWith('!local ') || val === '!local') {
+                if (currentMode !== 'local') {
+                    currentMode = 'local';
+                    modeTag.textContent = 'LOCAL';
+                    modeTag.classList.add('active');
+                    input.value = val.replace('!local', '').trimStart();
+                    input.placeholder = "Search shelf...";
+                    
+                    resultsPanel.classList.add('active');
+                }
+            } 
+            else if (val.startsWith('!add ') || val === '!add') {
+                if (currentMode !== 'add') {
+                    currentMode = 'add';
+                    modeTag.textContent = 'ADD';
+                    modeTag.classList.add('active');
+                    input.value = val.replace('!add', '').trimStart();
+                    input.placeholder = "Paste link...";
+                    
+                    resultsPanel.classList.remove('active');
+                }
+            }
+            else if (val.startsWith('!upload ') || val === '!upload') {
+                if (currentMode !== 'upload') {
+                    currentMode = 'upload';
+                    modeTag.textContent = 'UPLOAD';
+                    modeTag.classList.add('active');
+                    input.value = val.replace('!upload', '').trimStart();
+                    input.placeholder = "Select a PDF file...";
+                    
+                    resultsPanel.classList.remove('active');
+                    
+                    fileInput.click();
+                }
+            }
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && input.value === '' && currentMode !== 'normal') {
+                currentMode = 'normal';
+                modeTag.classList.remove('active');
+                input.placeholder = "!local, !add, !upload, or search...";
+                resultsPanel.classList.remove('active');
+            }
+            
+            if (currentMode === 'local') {
+                const items = document.querySelectorAll('.result-item');
+                let selectedIdx = Array.from(items).findIndex(item => item.classList.contains('selected'));
+                
+                if (['ArrowDown', 'ArrowUp'].includes(e.key)) {
+                    e.preventDefault();
+                    items[selectedIdx].classList.remove('selected');
+                    
+                    if (e.key === 'ArrowDown') {
+                        selectedIdx = (selectedIdx + 1) % items.length;
+                    } else if (e.key === 'ArrowUp') {
+                        selectedIdx = (selectedIdx - 1 + items.length) % items.length;
+                    }
+                    
+                    items[selectedIdx].classList.add('selected');
+                    items[selectedIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    updatePreview(selectedIdx);
+                }
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                input.value = e.target.files[0].name;
+            }
+        });
+    </script>
+</body>
+</html>

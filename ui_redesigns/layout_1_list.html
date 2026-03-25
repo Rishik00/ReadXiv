@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReadXiv - List Layout</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Mono&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Default B&W Theme */
+            --bg: #000000;
+            --surface: #111111;
+            --surface-hover: #222222;
+            --text: #FFFFFF;
+            --muted: #888888;
+            --border: #333333;
+            --accent: #FFFFFF;
+            --accent-dim: rgba(255, 255, 255, 0.2);
+            --border-width: 1px;
+            --font-main: 'Inter', sans-serif;
+            --font-mono: 'Space Mono', monospace;
+            --shadow: 0 10px 30px rgba(0,0,0,0.3);
+            --shadow-focus: 0 0 0 2px var(--accent-dim), 0 10px 30px rgba(0,0,0,0.3);
+            --greeting-weight: 500;
+            --greeting-transform: none;
+            --greeting-shadow: none;
+            --greeting-span-color: var(--muted);
+            --greeting-span-stroke: none;
+            --sub-display: block;
+        }
+
+        [data-theme="lazyvim"] {
+            --bg: #1e1e2e;
+            --surface: #313244;
+            --surface-hover: #45475a;
+            --text: #cdd6f4;
+            --muted: #a6adc8;
+            --border: #45475a;
+            --accent: #cba6f7;
+            --accent-dim: rgba(203, 166, 247, 0.2);
+            --border-width: 1px;
+            --font-main: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --shadow: 0 10px 30px rgba(0,0,0,0.3);
+            --shadow-focus: 0 0 0 2px var(--accent-dim), 0 10px 30px rgba(0,0,0,0.3);
+            --greeting-weight: 600;
+            --greeting-transform: none;
+            --greeting-shadow: none;
+            --greeting-span-color: var(--text);
+            --greeting-span-stroke: none;
+            --sub-display: block;
+        }
+
+        [data-theme="cyber"] {
+            --bg: #0D0D0D;
+            --surface: #0D0D0D;
+            --surface-hover: #1A1A1A;
+            --text: #F2F2F2;
+            --muted: #888888;
+            --border: #F2F2F2;
+            --accent: #FAFF00;
+            --accent-dim: #FF003C; /* Used for shadow here */
+            --border-width: 3px;
+            --font-main: 'Clash Display', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --shadow: 8px 8px 0px var(--accent-dim);
+            --shadow-focus: 6px 6px 0px var(--accent-dim);
+            --greeting-weight: 600;
+            --greeting-transform: uppercase;
+            --greeting-shadow: 4px 4px 0px var(--accent-dim);
+            --greeting-span-color: var(--accent);
+            --greeting-span-stroke: none;
+            --sub-display: none;
+        }
+        
+        ::selection {
+            background-color: var(--accent);
+            color: var(--bg);
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: var(--font-main);
+            overflow: hidden;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .mono {
+            font-family: var(--font-mono);
+        }
+        
+        .app-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+            position: relative;
+        }
+
+        /* Theme Toggles */
+        .theme-toggles {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 100;
+        }
+        .theme-btn {
+            background: var(--surface);
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 0.4rem 0.8rem;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .theme-btn:hover {
+            color: var(--text);
+            border-color: var(--text);
+        }
+        .theme-btn.active {
+            background: var(--text);
+            color: var(--bg);
+            border-color: var(--text);
+            font-weight: bold;
+        }
+
+        /* Top Nav */
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-family: var(--font-mono);
+            font-weight: bold;
+        }
+
+        /* Greeting */
+        .greeting {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
+            transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .greeting.fade {
+            opacity: 0.1;
+            transform: scale(0.95) translateY(-20px);
+            pointer-events: none;
+        }
+        .greeting h1 {
+            font-size: 4rem;
+            font-weight: var(--greeting-weight);
+            text-align: center;
+            max-width: 900px;
+            line-height: 1.1;
+            text-transform: var(--greeting-transform);
+        }
+        .greeting h1 span {
+            color: var(--greeting-span-color);
+            text-shadow: var(--greeting-shadow);
+        }
+        .greeting .sub {
+            color: var(--muted);
+            font-size: 1.1rem;
+            display: var(--sub-display);
+        }
+
+        /* Bottom Command Area */
+        .command-area {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 10;
+        }
+        .command-area.focused {
+            bottom: 0;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        /* Results Panel */
+        .results-panel {
+            width: 100%;
+            background: var(--surface);
+            border: var(--border-width) solid var(--border);
+            border-bottom: none;
+            border-radius: 12px 12px 0 0;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+        }
+        [data-theme="cyber"] .results-panel {
+            border-radius: 0;
+            box-shadow: 8px 0px 0px var(--accent-dim);
+        }
+        .results-panel.active {
+            max-height: 60vh;
+            opacity: 1;
+        }
+
+        .result-item {
+            padding: 1.2rem 1.5rem;
+            border-bottom: var(--border-width) solid var(--border);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s, color 0.2s;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .result-item:hover, .result-item.selected {
+            background: var(--surface-hover);
+        }
+        [data-theme="cyber"] .result-item.selected {
+            background: var(--text);
+            color: var(--bg);
+        }
+        [data-theme="cyber"] .result-item.selected .result-authors,
+        [data-theme="cyber"] .result-item.selected .result-year {
+            color: var(--bg);
+        }
+        .result-title {
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin-bottom: 0.2rem;
+        }
+        [data-theme="cyber"] .result-title {
+            text-transform: uppercase;
+        }
+        .result-authors {
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+        .result-year {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+        [data-theme="cyber"] .result-item.selected .result-year {
+            color: var(--accent-dim);
+        }
+
+        /* Input */
+        .input-container {
+            width: 100%;
+            background: var(--surface);
+            border: var(--border-width) solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            padding: 0 1.5rem;
+            height: 64px;
+            box-shadow: var(--shadow);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        [data-theme="cyber"] .input-container {
+            border-radius: 0;
+            background: var(--bg);
+        }
+        .command-area.focused .input-container {
+            height: 80px;
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+            border-bottom: none;
+            box-shadow: none;
+        }
+        .input-container:focus-within {
+            border-color: var(--accent);
+            box-shadow: var(--shadow-focus);
+            transform: translate(0, 0);
+        }
+        [data-theme="cyber"] .input-container:focus-within {
+            transform: translate(2px, 2px);
+        }
+        .command-area.focused .input-container:focus-within {
+            transform: none;
+        }
+
+        .mode-tag {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            color: var(--bg);
+            background: var(--accent);
+            padding: 0.3rem 0.8rem;
+            border-radius: 4px;
+            margin-right: 1rem;
+            display: none;
+            font-weight: bold;
+        }
+        [data-theme="cyber"] .mode-tag {
+            border-radius: 0;
+            border: 2px solid var(--bg);
+        }
+        .mode-tag.active {
+            display: block;
+        }
+
+        input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 1.1rem;
+            height: 100%;
+        }
+        input::placeholder {
+            color: var(--muted);
+        }
+    </style>
+</head>
+<body data-theme="bw">
+
+    <div class="theme-toggles">
+        <button onclick="setTheme('bw')" class="theme-btn active" data-target="bw">B&W</button>
+        <button onclick="setTheme('lazyvim')" class="theme-btn" data-target="lazyvim">LazyVim</button>
+        <button onclick="setTheme('cyber')" class="theme-btn" data-target="cyber">Cyber</button>
+    </div>
+
+    <div class="app-container">
+        <div class="top-nav">
+            <div>ReadXiv // List</div>
+            <div>[Ctrl+P]</div>
+        </div>
+
+        <div class="greeting" id="greeting">
+            <h1>What papers are we <span>conquering</span> today?</h1>
+            <p class="sub mono">Type <span style="color: var(--accent)">!local</span> to search shelf, <span style="color: var(--accent)">!add</span> to fetch, or just search.</p>
+        </div>
+
+        <div class="command-area" id="commandArea">
+            <div class="results-panel" id="resultsPanel">
+                <div class="overflow-y-auto" id="resultsList">
+                    <div class="result-item selected">
+                        <div>
+                            <div class="result-title">Truth as a Trajectory: What Internal Representations Reveal</div>
+                            <div class="result-authors">Hamed Damirchi, Ignacio Meza De la Jara</div>
+                        </div>
+                        <div class="result-year">2026</div>
+                    </div>
+                    <div class="result-item">
+                        <div>
+                            <div class="result-title">The Platonic Representation Hypothesis</div>
+                            <div class="result-authors">Minyoung Huh, Brian Cheung</div>
+                        </div>
+                        <div class="result-year">2024</div>
+                    </div>
+                    <div class="result-item">
+                        <div>
+                            <div class="result-title">Neural Thickets: Diverse Task Experts</div>
+                            <div class="result-authors">Yulu Gan, Phillip Isola</div>
+                        </div>
+                        <div class="result-year">2026</div>
+                    </div>
+                    <div class="result-item">
+                        <div>
+                            <div class="result-title">The Condensate Theorem</div>
+                            <div class="result-authors">Jorge L. Ruiz Williams</div>
+                        </div>
+                        <div class="result-year">2026</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-container">
+                <div class="mode-tag mono" id="modeTag">LOCAL</div>
+                <input type="text" id="cmdInput" class="mono" placeholder="!local, !add, !upload, or search..." autocomplete="off">
+            </div>
+        </div>
+    </div>
+    
+    <input type="file" id="hiddenFileInput" style="display:none" accept=".pdf">
+
+    <script>
+        // Theme Toggle Logic
+        function setTheme(theme) {
+            document.body.setAttribute('data-theme', theme);
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if(btn.getAttribute('data-target') === theme) btn.classList.add('active');
+            });
+        }
+
+        // Command Logic
+        const input = document.getElementById('cmdInput');
+        const modeTag = document.getElementById('modeTag');
+        const resultsPanel = document.getElementById('resultsPanel');
+        const greeting = document.getElementById('greeting');
+        const commandArea = document.getElementById('commandArea');
+        const fileInput = document.getElementById('hiddenFileInput');
+        
+        let currentMode = 'normal';
+
+        input.addEventListener('focus', () => {
+            commandArea.classList.add('focused');
+            greeting.classList.add('fade');
+        });
+        
+        input.addEventListener('blur', () => {
+            if (input.value === '' && currentMode === 'normal') {
+                commandArea.classList.remove('focused');
+                greeting.classList.remove('fade');
+            }
+        });
+
+        input.addEventListener('input', (e) => {
+            const val = e.target.value;
+            
+            if (val.startsWith('!local ') || val === '!local') {
+                if (currentMode !== 'local') {
+                    currentMode = 'local';
+                    modeTag.textContent = 'LOCAL';
+                    modeTag.style.background = 'var(--accent)';
+                    modeTag.classList.add('active');
+                    input.value = val.replace('!local', '').trimStart();
+                    input.placeholder = "Search shelf...";
+                    
+                    resultsPanel.classList.add('active');
+                }
+            } 
+            else if (val.startsWith('!add ') || val === '!add') {
+                if (currentMode !== 'add') {
+                    currentMode = 'add';
+                    modeTag.textContent = 'ADD';
+                    modeTag.style.background = 'var(--accent)';
+                    if(document.body.getAttribute('data-theme') === 'cyber') modeTag.style.background = 'var(--accent-dim)';
+                    modeTag.classList.add('active');
+                    input.value = val.replace('!add', '').trimStart();
+                    input.placeholder = "Paste link...";
+                    
+                    resultsPanel.classList.remove('active');
+                }
+            }
+            else if (val.startsWith('!upload ') || val === '!upload') {
+                if (currentMode !== 'upload') {
+                    currentMode = 'upload';
+                    modeTag.textContent = 'UPLOAD';
+                    modeTag.style.background = 'var(--accent)';
+                    modeTag.classList.add('active');
+                    input.value = val.replace('!upload', '').trimStart();
+                    input.placeholder = "Select a PDF file...";
+                    
+                    resultsPanel.classList.remove('active');
+                    
+                    fileInput.click();
+                }
+            }
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && input.value === '' && currentMode !== 'normal') {
+                currentMode = 'normal';
+                modeTag.classList.remove('active');
+                input.placeholder = "!local, !add, !upload, or search...";
+                resultsPanel.classList.remove('active');
+            }
+            
+            if (currentMode === 'local' && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                e.preventDefault();
+                const items = document.querySelectorAll('.result-item');
+                let selectedIdx = Array.from(items).findIndex(item => item.classList.contains('selected'));
+                
+                items[selectedIdx].classList.remove('selected');
+                
+                if (e.key === 'ArrowDown') {
+                    selectedIdx = (selectedIdx + 1) % items.length;
+                } else {
+                    selectedIdx = (selectedIdx - 1 + items.length) % items.length;
+                }
+                
+                items[selectedIdx].classList.add('selected');
+                items[selectedIdx].scrollIntoView({ block: 'nearest' });
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                input.value = e.target.files[0].name;
+            }
+        });
+    </script>
+</body>
+</html>

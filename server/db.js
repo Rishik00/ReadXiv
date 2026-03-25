@@ -94,6 +94,22 @@ export async function initDB() {
   if (!papersCols.includes('scheduled_date')) {
     db.run('ALTER TABLE papers ADD COLUMN scheduled_date TEXT');
   }
+  if (!papersCols.includes('citation_count')) {
+    db.run('ALTER TABLE papers ADD COLUMN citation_count INTEGER');
+  }
+  if (!papersCols.includes('page_count')) {
+    db.run('ALTER TABLE papers ADD COLUMN page_count INTEGER');
+  }
+
+  // Reading queue: ordered subset of papers to read next
+  db.run(`
+    CREATE TABLE IF NOT EXISTS reading_queue (
+      paper_id TEXT PRIMARY KEY REFERENCES papers(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.run('CREATE INDEX IF NOT EXISTS idx_reading_queue_position ON reading_queue(position)');
 
   // Save database
   saveDB();

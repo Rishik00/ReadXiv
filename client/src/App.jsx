@@ -4,6 +4,7 @@ import RecentPapersFinder from './components/RecentPapersFinder'
 import GlobalCanvas from './components/GlobalCanvas'
 import Home from './pages/Home'
 import Shelf from './pages/Shelf'
+import Queue from './pages/Queue'
 import Settings from './pages/Settings'
 import Help from './pages/Help'
 const Reader = lazy(() => import('./pages/Reader'))
@@ -34,29 +35,37 @@ function App() {
   const [pendingG, setPendingG] = useState(false)
   const [pendingB, setPendingB] = useState(false)
   const [pendingK, setPendingK] = useState(false)
+  const [pendingF, setPendingF] = useState(false)
+  const [openSearchNonce, setOpenSearchNonce] = useState(0)
   const readerRef = useRef(null)
 
   useEffect(() => {
-    if (!pendingG && !pendingB && !pendingK) return
+    if (!pendingG && !pendingB && !pendingK && !pendingF) return
     const t = setTimeout(() => {
       setPendingG(false)
       setPendingB(false)
       setPendingK(false)
-    }, 2000)
+      if (pendingF) {
+        setPendingF(false)
+        setRecentsOpen(true)
+      }
+    }, pendingF ? 400 : 2000)
     return () => clearTimeout(t)
-  }, [pendingG, pendingB, pendingK])
+  }, [pendingG, pendingB, pendingK, pendingF])
   const [externalTabs, setExternalTabs] = useState([])
   const [activeExternalTabId, setActiveExternalTabId] = useState(null)
-  const VALID_THEMES = ['default', 'monochrome', 'blue']
+  const VALID_THEMES = ['default', 'monochrome', 'blue', 'noir', 'olive']
+  const VALID_LAYOUTS = ['list', 'split']
   const [settings, setSettings] = useState(() => {
     const raw = localStorage.getItem('papyrus-settings')
-    if (!raw) return { continuousScroll: true, liveMarkdownPreview: true, theme: 'default', fontFamily: 'brutalist' }
+    if (!raw) return { continuousScroll: true, liveMarkdownPreview: true, theme: 'default', fontFamily: 'brutalist', homeLayout: 'list' }
     try {
       const parsed = JSON.parse(raw)
       const theme = VALID_THEMES.includes(parsed.theme) ? parsed.theme : 'default'
-      return { continuousScroll: true, liveMarkdownPreview: true, fontFamily: 'brutalist', ...parsed, theme }
+      const homeLayout = VALID_LAYOUTS.includes(parsed.homeLayout) ? parsed.homeLayout : 'list'
+      return { continuousScroll: true, liveMarkdownPreview: true, fontFamily: 'brutalist', ...parsed, theme, homeLayout }
     } catch {
-      return { continuousScroll: true, liveMarkdownPreview: true, theme: 'default', fontFamily: 'brutalist' }
+      return { continuousScroll: true, liveMarkdownPreview: true, theme: 'default', fontFamily: 'brutalist', homeLayout: 'list' }
     }
   })
 
@@ -93,6 +102,8 @@ function App() {
       setHomeFocusNonce((n) => n + 1)
     } else if (target === 'shelf') {
       setPage('shelf')
+    } else if (target === 'queue') {
+      setPage('queue')
     } else if (target === 'settings') {
       setPage('settings')
     } else if (target === 'help') {
@@ -109,6 +120,7 @@ function App() {
         setPendingG(false)
         setPendingB(false)
         setPendingK(false)
+        setPendingF(false)
         return
       }
 
@@ -146,14 +158,18 @@ function App() {
           event.preventDefault()
           navigateTo('shelf')
           setPendingG(false)
+        } else if (k === 'q') {
+          event.preventDefault()
+          navigateTo('queue')
+          setPendingG(false)
         } else if (k === 'c') {
           event.preventDefault()
           navigateTo('settings')
           setPendingG(false)
         } else if (k === 'f') {
           event.preventDefault()
-          setRecentsOpen((v) => !v)
           setPendingG(false)
+          setPendingF(true)
         } else if (k === 'e') {
           event.preventDefault()
           setPage('help')
@@ -166,8 +182,31 @@ function App() {
           event.preventDefault()
           setPendingG(false)
           setPendingK(true)
+        } else if (k === 'm' && page === 'reader') {
+          event.preventDefault()
+          readerRef.current?.maximizePdf?.()
+          setPendingG(false)
+        } else if (k === 'n' && page === 'reader') {
+          event.preventDefault()
+          readerRef.current?.minimizePdf?.()
+          setPendingG(false)
         } else {
           setPendingG(false)
+        }
+        return
+      }
+
+      if (pendingF) {
+        const k = event.key.toLowerCase()
+        if (k === 'b') {
+          event.preventDefault()
+          setPendingF(false)
+          setPage('home')
+          setHomeFocusNonce((n) => n + 1)
+          setOpenSearchNonce((n) => n + 1)
+        } else {
+          setPendingF(false)
+          setRecentsOpen(true)
         }
         return
       }
@@ -191,7 +230,7 @@ function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [pendingG, pendingB, pendingK, navigateTo, page])
+  }, [pendingG, pendingB, pendingK, pendingF, navigateTo, page])
 
   const addToast = (message, type = 'info') => {
     const id = crypto.randomUUID()
@@ -265,7 +304,9 @@ function App() {
               setPage={setPage}
               setSelectedPaper={setSelectedPaper}
               focusNonce={homeFocusNonce}
+              openSearchNonce={openSearchNonce}
               addToast={addToast}
+              settings={settings}
               onSearchQuery={(query) => {
                 setShelfQuery(query)
                 setPage('shelf')
@@ -285,6 +326,11 @@ function App() {
                 setPage('reader')
               }}
             />
+            </div>
+          )}
+          {page === 'queue' && (
+            <div key="queue" className="animate-view-fade">
+            <Queue setPage={setPage} setSelectedPaper={setSelectedPaper} />
             </div>
           )}
           {page === 'reader' && (
@@ -312,7 +358,7 @@ function App() {
           )}
           {page === 'settings' && (
             <div key="settings" className="animate-view-fade">
-              <Settings settings={settings} setSettings={setSettings} setPage={setPage} />
+              <Settings settings={settings} setSettings={setSettings} setPage={setPage} addToast={addToast} />
             </div>
           )}
           {page === 'help' && (
@@ -357,7 +403,7 @@ function App() {
           setQuickSearchOpen(false)
         }}
         onCommand={(cmd) => {
-          if (['home', 'shelf', 'settings', 'help'].includes(cmd.id)) {
+          if (['home', 'shelf', 'queue', 'settings', 'help'].includes(cmd.id)) {
             navigateTo(cmd.id)
           }
           setQuickSearchOpen(false)

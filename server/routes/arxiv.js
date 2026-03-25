@@ -116,7 +116,7 @@ router.get('/preview', async (req, res) => {
       return res.status(400).json({ error: 'Invalid arxiv URL or ID' });
     }
     const metadata = await fetchArxivMetadata(arxivId);
-    return res.json({ title: metadata.title, authors: metadata.authors });
+    return res.json({ title: metadata.title, authors: metadata.authors, abstract: metadata.abstract });
   } catch (error) {
     console.error('Error fetching arxiv preview:', error);
     return res.status(500).json({ error: error.message });

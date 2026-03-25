@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReadXiv - Island Layout</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Mono&family=Syne:wght@400;600;700&family=JetBrains+Mono:wght@400;500&family=Courier+Prime&family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Default B&W Theme */
+            --bg: #000000;
+            --surface: #111111;
+            --surface-hover: #222222;
+            --text: #FFFFFF;
+            --muted: #888888;
+            --border: #333333;
+            --accent: #FFFFFF;
+            --border-width: 1px;
+            --font-main: 'Inter', sans-serif;
+            --font-mono: 'Space Mono', monospace;
+            --shadow-color: rgba(255,255,255,0.1);
+            --shadow-focus: rgba(255,255,255,0.2);
+            --greeting-style: normal;
+        }
+
+        [data-theme="purple"] {
+            --bg: #0F0A14;
+            --surface: #1A1325;
+            --surface-hover: rgba(236, 72, 153, 0.1);
+            --text: #FDF8FF;
+            --muted: #8F859E;
+            --border: #2D223B;
+            --accent: #EC4899;
+            --border-width: 1px;
+            --font-main: 'Syne', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --shadow-color: rgba(0,0,0,0.5);
+            --shadow-focus: rgba(0,0,0,0.8);
+            --greeting-style: normal;
+        }
+
+        [data-theme="sepia"] {
+            --bg: #1C1A17;
+            --surface: #24211D;
+            --surface-hover: rgba(230, 223, 209, 0.05);
+            --text: #E6DFD1;
+            --muted: #8C8372;
+            --border: #3D3830;
+            --accent: #FF4500;
+            --border-width: 2px;
+            --font-main: 'Fraunces', serif;
+            --font-mono: 'Courier Prime', monospace;
+            --shadow-color: rgba(0,0,0,0.5);
+            --shadow-focus: rgba(0,0,0,0.8);
+            --greeting-style: italic;
+        }
+        
+        ::selection {
+            background-color: var(--accent);
+            color: var(--bg);
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: var(--font-main);
+            overflow: hidden;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .mono {
+            font-family: var(--font-mono);
+        }
+        
+        .app-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+            position: relative;
+        }
+
+        /* Theme Toggles */
+        .theme-toggles {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 100;
+        }
+        .theme-btn {
+            background: var(--surface);
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 0.4rem 0.8rem;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .theme-btn:hover {
+            color: var(--text);
+            border-color: var(--text);
+        }
+        .theme-btn.active {
+            background: var(--text);
+            color: var(--bg);
+            border-color: var(--text);
+            font-weight: bold;
+        }
+
+        /* Top Nav */
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        /* Greeting */
+        .greeting {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .greeting.fade {
+            opacity: 0.1;
+            transform: scale(0.9) translateY(-10vh);
+            pointer-events: none;
+        }
+        .greeting h1 {
+            font-size: 4.5rem;
+            font-weight: 700;
+            text-align: center;
+            max-width: 900px;
+            line-height: 1.1;
+        }
+        .greeting h1 i {
+            color: var(--accent);
+            font-style: var(--greeting-style);
+        }
+        .greeting h1 span {
+            color: var(--accent);
+        }
+
+        /* Floating Island Command Area */
+        .command-area {
+            position: absolute;
+            bottom: 3rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            max-width: 700px;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            background: var(--surface);
+            border-radius: 16px;
+            border: var(--border-width) solid var(--border);
+            box-shadow: 0 20px 40px var(--shadow-color);
+            overflow: hidden;
+        }
+        .command-area.focused {
+            width: 85%;
+            max-width: 1000px;
+            bottom: 50%;
+            transform: translate(-50%, 50%);
+            box-shadow: 0 30px 60px var(--shadow-focus), 0 0 0 var(--border-width) var(--accent);
+        }
+
+        /* Results Panel (Grid inside Island) */
+        .results-panel {
+            width: 100%;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            border-bottom: var(--border-width) solid var(--border);
+        }
+        .results-panel.active {
+            max-height: 50vh;
+            opacity: 1;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            width: 100%;
+            overflow-y: auto;
+        }
+
+        .result-item {
+            padding: 1.5rem 2rem;
+            border-right: var(--border-width) solid var(--border);
+            border-bottom: var(--border-width) solid var(--border);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 180px;
+            transition: background 0.2s, color 0.2s;
+        }
+        .result-item:nth-child(2n) {
+            border-right: none;
+        }
+        .result-item:hover, .result-item.selected {
+            background: var(--surface-hover);
+        }
+        .result-item.selected {
+            border-left: calc(var(--border-width) * 2) solid var(--accent);
+            padding-left: calc(2rem - (var(--border-width) * 2));
+        }
+        [data-theme="sepia"] .result-item.selected {
+            background: var(--text);
+            color: var(--bg);
+            border-left: none;
+            padding-left: 2rem;
+        }
+        [data-theme="sepia"] .result-item.selected .result-authors,
+        [data-theme="sepia"] .result-item.selected .result-year {
+            color: var(--bg);
+        }
+        .result-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            line-height: 1.2;
+            margin-bottom: 1rem;
+        }
+        .result-authors {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-bottom: 1rem;
+        }
+        .result-year {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            align-self: flex-start;
+            font-weight: 600;
+        }
+        [data-theme="sepia"] .result-year {
+            color: var(--muted);
+            border: 1px solid currentColor;
+            padding: 0.2rem 0.6rem;
+            font-weight: normal;
+        }
+
+        /* Input */
+        .input-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0 2rem;
+            height: 70px;
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        
+        .command-area.focused .input-container {
+            height: 90px;
+        }
+
+        .mode-tag {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            color: var(--bg);
+            background: var(--accent);
+            padding: 0.4rem 1rem;
+            border-radius: 99px;
+            margin-right: 1.5rem;
+            display: none;
+            font-weight: 700;
+        }
+        [data-theme="sepia"] .mode-tag {
+            border-radius: 0;
+        }
+        .mode-tag.active {
+            display: block;
+        }
+
+        input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 1.3rem;
+            height: 100%;
+        }
+        input::placeholder {
+            color: var(--muted);
+        }
+    </style>
+</head>
+<body data-theme="bw">
+
+    <div class="theme-toggles">
+        <button onclick="setTheme('bw')" class="theme-btn active" data-target="bw">B&W</button>
+        <button onclick="setTheme('purple')" class="theme-btn" data-target="purple">Purple</button>
+        <button onclick="setTheme('sepia')" class="theme-btn" data-target="sepia">Sepia</button>
+    </div>
+
+    <div class="app-container">
+        <div class="top-nav">
+            <div>ReadXiv // Island</div>
+            <div class="mono">[Ctrl+P]</div>
+        </div>
+
+        <div class="greeting" id="greeting">
+            <h1>What papers are we <i>conquering</i> today?</h1>
+        </div>
+
+        <div class="command-area" id="commandArea">
+            <div class="results-panel" id="resultsPanel">
+                <div class="results-grid" id="resultsList">
+                    <div class="result-item selected">
+                        <div>
+                            <div class="result-title">Truth as a Trajectory: What Internal Representations Reveal</div>
+                            <div class="result-authors mono">Hamed Damirchi, Ignacio Meza De la Jara</div>
+                        </div>
+                        <div class="result-year mono">2026</div>
+                    </div>
+                    <div class="result-item">
+                        <div>
+                            <div class="result-title">The Platonic Representation Hypothesis</div>
+                            <div class="result-authors mono">Minyoung Huh, Brian Cheung</div>
+                        </div>
+                        <div class="result-year mono">2024</div>
+                    </div>
+                    <div class="result-item">
+                        <div>
+                            <div class="result-title">Neural Thickets: Diverse Task Experts</div>
+                            <div class="result-authors mono">Yulu Gan, Phillip Isola</div>
+                        </div>
+                        <div class="result-year mono">2026</div>
+                    </div>
+                    <div class="result-item">
+                        <div>
+                            <div class="result-title">The Condensate Theorem</div>
+                            <div class="result-authors mono">Jorge L. Ruiz Williams</div>
+                        </div>
+                        <div class="result-year mono">2026</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-container">
+                <div class="mode-tag mono" id="modeTag">LOCAL</div>
+                <input type="text" id="cmdInput" class="mono" placeholder="!local, !add, !upload, or search..." autocomplete="off">
+            </div>
+        </div>
+    </div>
+    
+    <input type="file" id="hiddenFileInput" style="display:none" accept=".pdf">
+
+    <script>
+        // Theme Toggle Logic
+        function setTheme(theme) {
+            document.body.setAttribute('data-theme', theme);
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if(btn.getAttribute('data-target') === theme) btn.classList.add('active');
+            });
+            
+            // Adjust greeting styling based on theme
+            const greetingH1 = document.querySelector('.greeting h1');
+            if(theme === 'purple' || theme === 'bw') {
+                greetingH1.innerHTML = 'What papers are we <span>conquering</span> today?';
+            } else {
+                greetingH1.innerHTML = 'What papers are we <i>conquering</i> today?';
+            }
+        }
+
+        const input = document.getElementById('cmdInput');
+        const modeTag = document.getElementById('modeTag');
+        const resultsPanel = document.getElementById('resultsPanel');
+        const greeting = document.getElementById('greeting');
+        const commandArea = document.getElementById('commandArea');
+        const fileInput = document.getElementById('hiddenFileInput');
+        
+        let currentMode = 'normal';
+
+        input.addEventListener('focus', () => {
+            commandArea.classList.add('focused');
+            greeting.classList.add('fade');
+        });
+        
+        input.addEventListener('blur', () => {
+            if (input.value === '' && currentMode === 'normal') {
+                commandArea.classList.remove('focused');
+                greeting.classList.remove('fade');
+            }
+        });
+
+        input.addEventListener('input', (e) => {
+            const val = e.target.value;
+            
+            if (val.startsWith('!local ') || val === '!local') {
+                if (currentMode !== 'local') {
+                    currentMode = 'local';
+                    modeTag.textContent = 'LOCAL';
+                    modeTag.classList.add('active');
+                    input.value = val.replace('!local', '').trimStart();
+                    input.placeholder = "Search shelf...";
+                    
+                    resultsPanel.classList.add('active');
+                }
+            } 
+            else if (val.startsWith('!add ') || val === '!add') {
+                if (currentMode !== 'add') {
+                    currentMode = 'add';
+                    modeTag.textContent = 'ADD';
+                    modeTag.classList.add('active');
+                    input.value = val.replace('!add', '').trimStart();
+                    input.placeholder = "Paste link...";
+                    
+                    resultsPanel.classList.remove('active');
+                }
+            }
+            else if (val.startsWith('!upload ') || val === '!upload') {
+                if (currentMode !== 'upload') {
+                    currentMode = 'upload';
+                    modeTag.textContent = 'UPLOAD';
+                    modeTag.classList.add('active');
+                    input.value = val.replace('!upload', '').trimStart();
+                    input.placeholder = "Select a PDF file...";
+                    
+                    resultsPanel.classList.remove('active');
+                    
+                    fileInput.click();
+                }
+            }
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && input.value === '' && currentMode !== 'normal') {
+                currentMode = 'normal';
+                modeTag.classList.remove('active');
+                input.placeholder = "!local, !add, !upload, or search...";
+                resultsPanel.classList.remove('active');
+            }
+            
+            if (currentMode === 'local') {
+                const items = document.querySelectorAll('.result-item');
+                let selectedIdx = Array.from(items).findIndex(item => item.classList.contains('selected'));
+                
+                if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) {
+                    e.preventDefault();
+                    items[selectedIdx].classList.remove('selected');
+                    
+                    if (e.key === 'ArrowRight') {
+                        selectedIdx = (selectedIdx + 1) % items.length;
+                    } else if (e.key === 'ArrowLeft') {
+                        selectedIdx = (selectedIdx - 1 + items.length) % items.length;
+                    } else if (e.key === 'ArrowDown') {
+                        selectedIdx = (selectedIdx + 2) % items.length;
+                    } else if (e.key === 'ArrowUp') {
+                        selectedIdx = (selectedIdx - 2 + items.length) % items.length;
+                    }
+                    
+                    items[selectedIdx].classList.add('selected');
+                    items[selectedIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                input.value = e.target.files[0].name;
+            }
+        });
+    </script>
+</body>
+</html>

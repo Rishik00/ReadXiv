@@ -7,6 +7,7 @@ import searchRouter from './routes/search.js';
 import arxivRouter from './routes/arxiv.js';
 import readerRouter from './routes/reader.js';
 import canvasRouter from './routes/canvas.js';
+import readingQueueRouter from './routes/reading-queue.js';
 
 const app = express();
 const PORT = process.env.PORT || 7474;
@@ -34,6 +35,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/papers', papersRouter);
+app.use('/api/reading-queue', readingQueueRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/arxiv', arxivRouter);
 app.use('/api/reader', readerRouter);

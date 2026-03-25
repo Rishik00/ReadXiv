@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reader Mockup 8 - Dynamic Island</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=Courier+Prime&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0A0A0A;
+            --surface: #121212;
+            --text: #F5F5F5;
+            --muted: #737373;
+            --border: #262626;
+            --accent: #E53E3E;
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Fraunces', serif;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+        .mono { font-family: 'Courier Prime', monospace; }
+        
+        .pane {
+            height: 100%;
+            overflow-y: auto;
+            position: relative;
+        }
+        
+        /* PDF Pane */
+        .pdf-pane {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            padding: 4rem 2rem 2rem 2rem;
+            background-color: #0A0A0A;
+        }
+        
+        .pdf-page {
+            background-color: #E8E8E8;
+            color: #111;
+            width: 100%;
+            max-width: 800px;
+            height: 1200px;
+            padding: 4rem;
+            font-family: sans-serif;
+            border: 1px solid var(--border);
+        }
+
+        /* Resizer */
+        .resizer {
+            width: 1px;
+            background-color: var(--border);
+            cursor: col-resize;
+        }
+
+        /* Notes Pane */
+        .notes-pane {
+            width: 40%;
+            background-color: var(--bg);
+            padding: 4rem 2rem 2rem 2rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-family: 'Courier Prime', monospace;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+        }
+
+        /* Dynamic Island */
+        .dynamic-island {
+            position: fixed;
+            top: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            z-index: 100;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        
+        .island-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: opacity 0.2s;
+        }
+
+        .control-btn {
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            font-family: 'Courier Prime', monospace;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        .control-btn:hover {
+            color: var(--text);
+        }
+        .control-btn.active {
+            color: var(--accent);
+        }
+        
+        .island-divider {
+            width: 1px;
+            height: 16px;
+            background: var(--border);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="dynamic-island mono">
+        <button class="control-btn">&larr; BACK</button>
+        <div class="island-divider"></div>
+        
+        <!-- PDF Context (visible when hovering PDF pane) -->
+        <div class="island-section" id="pdf-context">
+            <button class="control-btn">-</button>
+            <span style="font-size: 0.85rem;">100%</span>
+            <button class="control-btn">+</button>
+            <div class="island-divider"></div>
+            <button class="control-btn">DARK</button>
+            <button class="control-btn active">HIGHLIGHT</button>
+        </div>
+        
+        <!-- Notes Context (visible when hovering Notes pane) -->
+        <div class="island-section" id="notes-context" style="opacity: 0.3; display: none;">
+            <button class="control-btn active">EDIT</button>
+            <button class="control-btn">PREVIEW</button>
+            <div class="island-divider"></div>
+            <span style="font-size: 0.85rem; color: var(--muted);">64 W</span>
+        </div>
+    </div>
+
+    <div class="pane pdf-pane" onmouseenter="document.getElementById('pdf-context').style.display='flex'; document.getElementById('notes-context').style.display='none';">
+        <div class="pdf-page">
+            <h1 style="font-size: 2.5rem; margin-bottom: 1rem; text-align: center;">Attention Is All You Need</h1>
+            <p style="text-align: center; color: #555; margin-bottom: 3rem;">Ashish Vaswani, Noam Shazeer...</p>
+        </div>
+    </div>
+
+    <div class="resizer"></div>
+
+    <div class="pane notes-pane" onmouseenter="document.getElementById('pdf-context').style.display='none'; document.getElementById('notes-context').style.display='flex'; document.getElementById('notes-context').style.opacity='1';">
+        <textarea placeholder="Start typing your notes here..."># Attention Is All You Need
+
+## Key Concepts
+- Replaces RNNs/CNNs entirely with attention.
+- **Self-attention**: relates different positions of a single sequence to compute a representation of the sequence.
+- Highly parallelizable compared to RNNs.</textarea>
+    </div>
+
+</body>
+</html>

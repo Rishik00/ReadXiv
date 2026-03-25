@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Fraunces:opsz,wght@9..144,400..700&family=iA+Writer+Quattro:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Fraunces:opsz,wght@9..144,400..700&family=iA+Writer+Quattro:wght@400;700&family=Courier+Prime&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Space+Mono&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=clash-display@500,600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -11,8 +12,8 @@
 
   color-scheme: dark;
 
-  --font-sans: "Inter";
-  --font-mono: "JetBrains Mono";
+  --font-sans: "Fraunces", serif;
+  --font-mono: "Courier Prime", monospace;
   --font-serif: "Fraunces";
   --font-writing: "iA Writer Quattro", "SF Mono", "Monaco", "Inconsolata", "Fira Code", "Droid Sans Mono", "Source Code Pro", monospace;
 
@@ -66,6 +67,34 @@
   --border: #262626;
   --muted: #7a8aa8;
   --foreground: #E5E5E5;
+}
+
+/* 4. Noir - Deep red accent theme */
+[data-theme='noir'] {
+  --primary: #0A0A0A;
+  --secondary: #E53E3E;
+  --button-on-secondary: #0A0A0A;
+  --background: #0A0A0A;
+  --surface: #121212;
+  --border: #262626;
+  --muted: #737373;
+  --foreground: #F5F5F5;
+  --font-sans: "Fraunces", serif;
+  --font-mono: "Courier Prime", monospace;
+}
+
+/* 5. Olive - Earthy green theme */
+[data-theme='olive'] {
+  --primary: #1A1C18;
+  --secondary: #F59E0B;
+  --button-on-secondary: #1A1C18;
+  --background: #1A1C18;
+  --surface: #222620;
+  --border: #363D32;
+  --muted: #8B9486;
+  --foreground: #E8EBE4;
+  --font-sans: "Fraunces", serif;
+  --font-mono: "Courier Prime", monospace;
 }
 
 /* Apply theme background to entire document - no dimmer/mismatched areas */
@@ -492,14 +521,6 @@ mjx-container[display="true"] {
   color: var(--foreground);
 }
 
-/* Heading indicators in editor (subtle left border) */
-.markdown-editor {
-  background-attachment: local;
-  background-image:
-    linear-gradient(to right, transparent 0, transparent calc(3rem - 1px), var(--border) calc(3rem - 1px), var(--border) 3rem, transparent 3rem);
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-}
 
 /* Status bar styling */
 .editor-status-bar {

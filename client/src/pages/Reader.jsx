@@ -62,6 +62,14 @@ const Reader = forwardRef(function Reader({ paper, setSelectedPaper, setPage, se
 
   useImperativeHandle(ref, () => ({
     togglePdfDarkMode: () => pdfViewerRef.current?.togglePdfDarkMode?.(),
+    maximizePdf: () => {
+      setNotesCollapsed(true);
+      setPdfCollapsed(false);
+    },
+    minimizePdf: () => {
+      setPdfCollapsed(true);
+      setNotesCollapsed(false);
+    },
   }));
 
   const paperId = useMemo(() => readerPaper?.id || paper?.id, [readerPaper?.id, paper?.id]);

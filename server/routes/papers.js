@@ -138,7 +138,7 @@ router.patch('/:id', async (req, res) => {
   try {
     const db = await getDB();
     const updates = req.body;
-    const allowedFields = ['title', 'authors', 'abstract', 'status', 'tags', 'year', 'deadline', 'scheduled_date'];
+    const allowedFields = ['title', 'authors', 'abstract', 'status', 'tags', 'year', 'deadline', 'scheduled_date', 'citation_count', 'page_count'];
     
     const setParts = [];
     const values = [];

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reader Mockup 7 - Center Split Controls</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=Courier+Prime&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0A0A0A;
+            --surface: #121212;
+            --text: #F5F5F5;
+            --muted: #737373;
+            --border: #262626;
+            --accent: #E53E3E;
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Fraunces', serif;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+        .mono { font-family: 'Courier Prime', monospace; }
+        
+        .pane {
+            height: 100%;
+            overflow-y: auto;
+            position: relative;
+        }
+        
+        /* PDF Pane */
+        .pdf-pane {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            padding: 2rem;
+            background-color: #0F0F0F;
+        }
+        
+        .pdf-page {
+            background-color: #E8E8E8;
+            color: #111;
+            width: 100%;
+            max-width: 800px;
+            height: 1200px;
+            padding: 4rem;
+            font-family: sans-serif;
+            border-radius: 2px;
+        }
+
+        /* Notes Pane */
+        .notes-pane {
+            width: 40%;
+            background-color: var(--bg);
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-family: 'Courier Prime', monospace;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+        }
+
+        /* Center Resizer & Controls */
+        .resizer-container {
+            width: 40px;
+            background-color: transparent;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            margin-left: -20px;
+            margin-right: -20px;
+        }
+        
+        .resizer-line {
+            width: 1px;
+            height: 100%;
+            background-color: var(--border);
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1;
+        }
+
+        .center-pill {
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 1.5rem 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            z-index: 2;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: col-resize;
+        }
+        
+        .resizer-container:hover .center-pill {
+            background-color: #1A1A1A;
+            border-color: var(--muted);
+        }
+
+        .control-btn {
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            font-family: 'Courier Prime', monospace;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+            width: 24px;
+            height: 24px;
+        }
+        .control-btn:hover {
+            color: var(--text);
+        }
+        .control-btn.active {
+            color: var(--accent);
+        }
+        
+        .pill-divider {
+            width: 16px;
+            height: 1px;
+            background: var(--border);
+            margin: 0 auto;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="pane pdf-pane">
+        <div class="pdf-page">
+            <h1 style="font-size: 2.5rem; margin-bottom: 1rem; text-align: center;">Attention Is All You Need</h1>
+            <p style="text-align: center; color: #555; margin-bottom: 3rem;">Ashish Vaswani, Noam Shazeer...</p>
+        </div>
+    </div>
+
+    <div class="resizer-container">
+        <div class="resizer-line"></div>
+        <div class="center-pill">
+            <button class="control-btn" title="Highlight">H</button>
+            <button class="control-btn" title="Dark Mode">D</button>
+            <div class="pill-divider"></div>
+            <button class="control-btn" title="Zoom In">+</button>
+            <button class="control-btn" title="Zoom Out">-</button>
+            <div class="pill-divider"></div>
+            <button class="control-btn" title="Preview Notes">P</button>
+            <button class="control-btn active" title="Edit Notes">E</button>
+        </div>
+    </div>
+
+    <div class="pane notes-pane">
+        <textarea placeholder="Start typing your notes here..."># Attention Is All You Need
+
+## Key Concepts
+- Replaces RNNs/CNNs entirely with attention.
+- **Self-attention**: relates different positions of a single sequence to compute a representation of the sequence.
+- Highly parallelizable compared to RNNs.</textarea>
+    </div>
+
+</body>
+</html>

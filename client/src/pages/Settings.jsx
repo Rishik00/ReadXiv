@@ -3,6 +3,13 @@ export default function Settings({ settings, setSettings, setPage }) {
     { id: 'default', name: 'Black & Orange' },
     { id: 'monochrome', name: 'Black & White' },
     { id: 'blue', name: 'Black & Blue' },
+    { id: 'noir', name: 'Noir' },
+    { id: 'olive', name: 'Olive' },
+  ]
+
+  const layouts = [
+    { id: 'list', name: 'List View' },
+    { id: 'split', name: 'Split View' },
   ]
 
   return (
@@ -32,6 +39,30 @@ export default function Settings({ settings, setSettings, setPage }) {
                 {themes.map((theme) => (
                   <option key={theme.id} value={theme.id}>
                     {theme.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all">
+              <div>
+                <div className="text-sm font-semibold text-foreground">Home page layout</div>
+                <div className="text-sm text-muted mt-1">Choose how search results are displayed</div>
+              </div>
+              <select
+                value={settings.homeLayout || 'list'}
+                onChange={(e) => setSettings(prev => ({ ...prev, homeLayout: e.target.value }))}
+                className="w-40 pl-3 pr-8 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer appearance-none shrink-0"
+                style={{
+                  backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'292.4\' height=\'292.4\'%3E%3Cpath fill=\'%23737373\' d=\'M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.5-12.8z\'/%3E%3C/svg%3E")',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 0.5rem top 50%',
+                  backgroundSize: '0.5rem auto',
+                }}
+              >
+                {layouts.map((layout) => (
+                  <option key={layout.id} value={layout.id}>
+                    {layout.name}
                   </option>
                 ))}
               </select>

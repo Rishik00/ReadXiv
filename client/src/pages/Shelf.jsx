@@ -79,6 +79,7 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
   const [currentPage, setCurrentPage] = useState(1)
   const [deletingPaperId, setDeletingPaperId] = useState(null)
   const [schedulePaperId, setSchedulePaperId] = useState(null)
+  const [addingToQueueId, setAddingToQueueId] = useState(null)
 
   useEffect(() => {
     fetchPapers()
@@ -150,6 +151,24 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
       setSchedulePaperId(null)
     } catch (err) {
       console.error('Failed to update schedule', err)
+    }
+  }
+
+  const handleAddToQueue = async (paper, event) => {
+    event.stopPropagation()
+    if (addingToQueueId) return
+    setAddingToQueueId(paper.id)
+    try {
+      await axios.post('/api/reading-queue', { paperId: paper.id })
+      setPage('queue')
+    } catch (err) {
+      if (err.response?.status === 409) {
+        setPage('queue')
+      } else {
+        console.error('Failed to add to queue', err)
+      }
+    } finally {
+      setAddingToQueueId(null)
     }
   }
 
@@ -229,8 +248,8 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
         </div>
       ) : (
         <div className="claude-card overflow-hidden">
-          <div className="grid grid-cols-[2fr_0.8fr_0.8fr_0.8fr] gap-4 p-4 px-6 bg-background/50 border-b-2 border-border items-center">
-            <div className="text-xs font-semibold text-muted/60">Title</div>
+          <div className="grid grid-cols-[1fr_100px_110px_220px] gap-4 p-4 px-6 bg-background/50 border-b-2 border-border items-center">
+            <div className="text-xs font-semibold text-muted/60 text-left">Title</div>
             <div className="text-xs font-semibold text-muted/60 text-center">Status</div>
             <div className="text-xs font-semibold text-muted/60 text-center">Source</div>
             <div className="text-xs font-semibold text-muted/60 text-center">Actions</div>
@@ -243,13 +262,13 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
                 setSelectedPaper(paper)
                 setPage('reader')
               }}
-              className="grid grid-cols-[2fr_0.8fr_0.8fr_0.8fr] gap-4 py-6 px-6 border-b-2 border-border last:border-0 cursor-pointer hover:bg-foreground/[0.02] transition-colors items-center group animate-stagger-fade opacity-0"
+              className="grid grid-cols-[1fr_100px_110px_220px] gap-4 py-6 px-6 border-b-2 border-border last:border-0 cursor-pointer hover:bg-foreground/[0.02] transition-colors items-center group animate-stagger-fade opacity-0"
             >
-              <div>
+              <div className="min-w-0 text-left">
                 <div className="text-sm font-medium leading-snug group-hover:text-secondary transition-colors line-clamp-2">{paper.title}</div>
                 <div className="text-[11px] text-muted mt-1.5 font-mono opacity-50">{paper.id}</div>
               </div>
-              <div className="flex justify-center">
+              <div className="flex justify-center min-w-[100px]">
                 <select
                   value={paper.status || 'queued'}
                   onChange={async (e) => {
@@ -272,7 +291,7 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
                   <option value="done">Done</option>
                 </select>
               </div>
-              <div className="flex justify-center">
+              <div className="flex justify-center min-w-[110px]">
                 {paper.url ? (
                   <a
                     href={paper.url}
@@ -287,7 +306,16 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', on
                   <span className="text-xs text-muted/40">Local PDF</span>
                 )}
               </div>
-              <div className="flex items-center justify-center gap-4">
+              <div className="flex items-center justify-center gap-3 min-w-[220px]">
+                <button
+                  type="button"
+                  onClick={(e) => handleAddToQueue(paper, e)}
+                  disabled={addingToQueueId === paper.id}
+                  className="text-xs text-foreground font-medium hover:text-secondary transition-colors disabled:opacity-60"
+                  title="Add to reading queue"
+                >
+                  {addingToQueueId === paper.id ? 'Adding...' : 'Add to queue'}
+                </button>
                 <button
                   type="button"
                   onClick={(e) => {

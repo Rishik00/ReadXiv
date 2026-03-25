@@ -62,12 +62,6 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, paperTitle, continuou
   const [fitMode, setFitMode] = useState('width');
   const renderTasksRef = useRef({});
   const intersectionObserverRef = useRef(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const searchInputRef = useRef(null);
-
   const pdfUrl = useMemo(() => (paperId ? `/api/reader/${paperId}/pdf` : null), [paperId]);
 
   useEffect(() => {
@@ -390,49 +384,6 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, paperTitle, continuou
     }
   }
 
-  async function performSearch(query) {
-    if (!doc || !query.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
-    const results = [];
-    const searchTerm = query.toLowerCase();
-
-    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-      try {
-        const page = await doc.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item) => item.str).join(' ').toLowerCase();
-        
-        let index = 0;
-        while ((index = pageText.indexOf(searchTerm, index)) !== -1) {
-          results.push({ page: pageNum, index });
-          index += searchTerm.length;
-        }
-      } catch {
-        continue;
-      }
-    }
-
-    setSearchResults(results);
-    setCurrentSearchIndex(0);
-    if (results.length > 0) {
-      goToPage(results[0].page);
-    }
-  }
-
-  function navigateSearchResult(direction) {
-    if (searchResults.length === 0) return;
-    
-    let nextIndex = currentSearchIndex + direction;
-    if (nextIndex < 0) nextIndex = searchResults.length - 1;
-    if (nextIndex >= searchResults.length) nextIndex = 0;
-    
-    setCurrentSearchIndex(nextIndex);
-    goToPage(searchResults[nextIndex].page);
-  }
-
   async function onTextLayerMouseUp(pageNumber) {
     if (!highlightMode) return;
     const selection = window.getSelection();
@@ -479,6 +430,22 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, paperTitle, continuou
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);
   }, []);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (!doc || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+      const el = contentRef.current;
+      if (!el) return;
+      const active = document.activeElement;
+      const pdfFocused = el.contains(active) || active?.contains?.(el);
+      if (!pdfFocused) return;
+      e.preventDefault();
+      e.stopPropagation();
+      el.scrollBy({ top: e.key === 'ArrowUp' ? -120 : 120, behavior: 'smooth' });
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [doc]);
 
   useEffect(() => {
     const el = contentRef.current;
@@ -544,36 +511,9 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, paperTitle, continuou
 
   function handleKeyDown(e) {
     if (!doc) return;
-    
-    if (searchOpen && e.target === searchInputRef.current) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setSearchOpen(false);
-        setSearchQuery('');
-        setSearchResults([]);
-        return;
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          navigateSearchResult(-1);
-        } else {
-          navigateSearchResult(1);
-        }
-        return;
-      }
-      return;
-    }
 
     const meta = e.ctrlKey || e.metaKey;
     const shift = e.shiftKey;
-
-    if (meta && e.key.toLowerCase() === 'f') {
-      e.preventDefault();
-      setSearchOpen(true);
-      setTimeout(() => searchInputRef.current?.focus(), 50);
-      return;
-    }
 
     if (e.key === 'j') {
       e.preventDefault();
@@ -849,17 +789,17 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, paperTitle, continuou
             +
           </Button>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={() => goToPage(page - 1)} disabled={!doc || page <= 1}>
+        <div className="flex items-center gap-3 mr-2">
+          <Button variant="ghost" size="sm" className="text-sm h-7 px-2.5" onClick={() => goToPage(page - 1)} disabled={!doc || page <= 1}>
             ◀
           </Button>
-          <span className="text-sm text-muted font-mono">
+          <span className="text-sm text-muted font-mono min-w-[4.5rem] text-center">
             {doc ? `${page} / ${numPages}` : '— / —'}
           </span>
           <Button
             variant="ghost"
             size="sm"
-            className="text-sm h-7 px-2"
+            className="text-sm h-7 px-2.5"
             onClick={() => goToPage(page + 1)}
             disabled={!doc || page >= numPages}
           >
@@ -867,59 +807,6 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, paperTitle, continuou
           </Button>
         </div>
       </CardHeader>
-      {searchOpen && (
-        <div className="px-4 py-2 border-b border-border bg-surface/70 flex items-center gap-2">
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              performSearch(e.target.value);
-            }}
-            placeholder="Search in PDF..."
-            className="flex-1 px-3 py-1.5 text-sm bg-background border border-border rounded-md outline-none focus:border-secondary"
-          />
-          {searchResults.length > 0 && (
-            <span className="text-sm text-muted whitespace-nowrap">
-              {currentSearchIndex + 1} / {searchResults.length}
-            </span>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-sm h-7 px-2"
-            onClick={() => navigateSearchResult(-1)}
-            disabled={searchResults.length === 0}
-            title="Previous result (Shift+Enter)"
-          >
-            ↑
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-sm h-7 px-2"
-            onClick={() => navigateSearchResult(1)}
-            disabled={searchResults.length === 0}
-            title="Next result (Enter)"
-          >
-            ↓
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-sm h-7 px-2"
-            onClick={() => {
-              setSearchOpen(false);
-              setSearchQuery('');
-              setSearchResults([]);
-            }}
-            title="Close search (Esc)"
-          >
-            ✕
-          </Button>
-        </div>
-      )}
       {highlightMode && (
         <div className="px-4 py-2 text-sm border-b border-border bg-surface/70">
           Select text to create a yellow highlight. Click an existing highlight to remove it.

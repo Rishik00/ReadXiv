@@ -13,14 +13,6 @@ Ways to start a project:
 1. With multiple arxiv links
 2. From a base paper itself - for ex I can go pick a paper from the papershelf and that can bee a project where i look through the references and it makes relevant paper notes for all of them and store them in a folder. 
 
-Projects will not appear in the papershelf, they'll be stored separately. 
-
-# Recents/Recommendations from email (Big, Not immediate)
-I can link my scholar inbox API to this app and it can fetch all the recommendations for me (it won't be a papernote, just an item). And every weekend or every N days the app can help me pick out and put papers of my choice as notes. We can mark these as recommendations and train my own recommeder system to go out there and fetch me papers hubba. 
-
-Or we can scrap the every N days part, I want to see the recommendations in the search page, near the nav bar with a dedicated recommendations section in the nav bar. 
-
-Why? - I want to have recommendations come from outside this and I want to try training my own recommender engine :)
 
 # Fast and accessible search (Small, Immediate) - Implemented
 Just like obsidian, I want to have a fast search interface to search for keywords, titles, authors. This should be similar to neovim's interface and should be immediately available for me at any place. You can take inspiration from neovim's file browser for this feature. 
@@ -35,14 +27,13 @@ I really love vim bindings, and I want to have them whereever possible! The foll
 
 Do note that I don't want to over complicate this, just want to have a similar experience with the whole navigation. 
 
-2. Enable keybindings in the markdown editor that would make it neovim-like. This involves different editor modes, copy pasting content and vim keybindings for different actions. 
+2. Enable keybindings in the markdown editor that would make it neovim-like. This involves different editor modes, copy pasting content and vim keybindings for different actions. (Done)
 
 Note: this feature should be enabled via a `enable-vim-navigation` for the first one and `enable-vim-keybindings` for the second one. Both of them will be settings when enabled will aid in the above behaviours. 
 
 # Better structuring for the PDF reader and notes editor (Small, Immediate)
 For the PDF reader: 
 1. Allow annotation/marking highlighted text for me to quote inside the markdown editor. 
-2. Allow more colors for highlighting, though I guess the following would do - yellow, green, red. They should not be too obstructive, just enough transparent and dull to highlight over the text. 
 
 For the notes editor: 
 1. Allow latex compilation for equations and mathematical notation. 
