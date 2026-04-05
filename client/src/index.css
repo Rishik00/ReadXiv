@@ -17,15 +17,15 @@
   --font-serif: "Fraunces";
   --font-writing: "iA Writer Quattro", "SF Mono", "Monaco", "Inconsolata", "Fira Code", "Droid Sans Mono", "Source Code Pro", monospace;
 
-  /* Primary = background/surface, Secondary = accent. --button-on-secondary = text on secondary bg */
-  --primary: #0A0A0A;
-  --secondary: #D97706;
-  --button-on-secondary: #000000;
-  --background: #0A0A0A;
-  --surface: #141414;
-  --border: #262626;
-  --muted: #737373;
-  --foreground: #E5E5E5;
+  /* Default tokens before data-theme (matches Mist — soft dark, no pure black) */
+  --primary: #17181c;
+  --secondary: #7d9a8c;
+  --button-on-secondary: #0c0f0e;
+  --background: #17181c;
+  --surface: #1f2128;
+  --border: #2e313b;
+  --muted: #8b909e;
+  --foreground: #e4e5ea;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -45,19 +45,7 @@
   --foreground: #FFFFFF;
 }
 
-/* 2. Black and orange (default) */
-[data-theme='default'] {
-  --primary: #0A0A0A;
-  --secondary: #D97706;
-  --button-on-secondary: #000000;
-  --background: #0A0A0A;
-  --surface: #141414;
-  --border: #262626;
-  --muted: #737373;
-  --foreground: #E5E5E5;
-}
-
-/* 3. Black and blue (lighter slate blue) */
+/* 2. Black and blue (lighter slate blue) */
 [data-theme='blue'] {
   --primary: #0A0A0A;
   --secondary: #a0aecd;
@@ -69,7 +57,7 @@
   --foreground: #E5E5E5;
 }
 
-/* 4. Noir - Deep red accent theme */
+/* 3. Noir - Deep red accent theme */
 [data-theme='noir'] {
   --primary: #0A0A0A;
   --secondary: #E53E3E;
@@ -83,7 +71,7 @@
   --font-mono: "Courier Prime", monospace;
 }
 
-/* 5. Olive - Earthy green theme */
+/* 4. Olive - Earthy green theme */
 [data-theme='olive'] {
   --primary: #1A1C18;
   --secondary: #F59E0B;
@@ -93,6 +81,76 @@
   --border: #363D32;
   --muted: #8B9486;
   --foreground: #E8EBE4;
+  --font-sans: "Fraunces", serif;
+  --font-mono: "Courier Prime", monospace;
+}
+
+/* 5. Mist — soft dark: blue-gray base, muted sage accent */
+[data-theme='mist'] {
+  --primary: #17181c;
+  --secondary: #7d9a8c;
+  --button-on-secondary: #0c0f0e;
+  --background: #17181c;
+  --surface: #1f2128;
+  --border: #2e313b;
+  --muted: #8b909e;
+  --foreground: #e4e5ea;
+  --font-sans: "Fraunces", serif;
+  --font-mono: "Courier Prime", monospace;
+}
+
+/* 6. Plum — deep violet shell, muted lavender accent */
+[data-theme='plum'] {
+  --primary: #18141f;
+  --secondary: #a691c8;
+  --button-on-secondary: #120f18;
+  --background: #18141f;
+  --surface: #221c2a;
+  --border: #342b42;
+  --muted: #958da8;
+  --foreground: #ebe6f2;
+  --font-sans: "Fraunces", serif;
+  --font-mono: "Courier Prime", monospace;
+}
+
+/* 7. Periwinkle — charcoal + soft periwinkle accent */
+[data-theme='periwinkle'] {
+  --primary: #1c1d22;
+  --secondary: #9eabf0;
+  --button-on-secondary: #121318;
+  --background: #1c1d22;
+  --surface: #25262d;
+  --border: #363841;
+  --muted: #989aa8;
+  --foreground: #f0f1f7;
+  --font-sans: "Fraunces", serif;
+  --font-mono: "Courier Prime", monospace;
+}
+
+/* 8. Lichen — gray primary, accent #9AB17A (borders/surfaces use color-mix for calmer contrast) */
+[data-theme='lichen'] {
+  --primary: #2a2a2c;
+  --secondary: #9ab17a;
+  --button-on-secondary: #1a1e16;
+  --background: #2a2a2c;
+  --surface: color-mix(in srgb, #ffffff 5%, #2a2a2c);
+  --border: color-mix(in srgb, #9ab17a 14%, #404042);
+  --muted: #9a9a9f;
+  --foreground: #ececed;
+  --font-sans: "Fraunces", serif;
+  --font-mono: "Courier Prime", monospace;
+}
+
+/* 9. Cinder — warm graphite + dusty mauve (accent mixed down from a vivid base so UI stays soft) */
+[data-theme='cinder'] {
+  --primary: #252428;
+  --secondary: color-mix(in srgb, #b4a7c8 62%, #252428);
+  --button-on-secondary: #141318;
+  --background: #252428;
+  --surface: color-mix(in srgb, #ffffff 4%, #252428);
+  --border: color-mix(in srgb, #b4a7c8 18%, #353338);
+  --muted: #96929e;
+  --foreground: #eae9ed;
   --font-sans: "Fraunces", serif;
   --font-mono: "Courier Prime", monospace;
 }
@@ -158,6 +216,61 @@ code {
   line-height: 1.8;
   letter-spacing: 0;
   color: var(--foreground);
+}
+
+/* Notes outline: heading hierarchy + inline markdown (strong, code, links) */
+.notes-outline-panel .notes-outline-heading.markdown-preview {
+  font-family: var(--font-sans), sans-serif;
+  font-size: inherit;
+  line-height: 1.35;
+  margin: 0;
+  padding: 0;
+  color: var(--foreground);
+}
+
+.notes-outline-panel .notes-outline-heading[data-level='1'] {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.notes-outline-panel .notes-outline-heading[data-level='2'] {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.notes-outline-panel .notes-outline-heading[data-level='3'] {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.notes-outline-panel .notes-outline-heading[data-level='4'] {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--foreground) 88%, transparent);
+}
+
+.notes-outline-panel .notes-outline-heading[data-level='5'],
+.notes-outline-panel .notes-outline-heading[data-level='6'] {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.notes-outline-panel .group:hover .notes-outline-heading {
+  color: var(--secondary);
+}
+
+.notes-outline-panel .group:hover .notes-outline-heading[data-level='4'],
+.notes-outline-panel .group:hover .notes-outline-heading[data-level='5'],
+.notes-outline-panel .group:hover .notes-outline-heading[data-level='6'] {
+  color: var(--secondary);
+}
+
+.notes-outline-panel .notes-outline-heading.markdown-preview a:hover {
+  color: var(--foreground);
+  border-bottom-color: var(--foreground);
 }
 
 .markdown-preview h1 {
@@ -499,10 +612,13 @@ mjx-container[display="true"] {
   background-position: -1px -1px;
 }
 
-/* Smooth scrolling for better UX */
-.markdown-editor,
+/* Preview: smooth scroll; editor: instant so caret follow feels immediate */
 .markdown-preview {
   scroll-behavior: smooth;
+}
+
+.markdown-editor {
+  scroll-behavior: auto;
 }
 
 /* Better focus states for accessibility */
@@ -526,4 +642,21 @@ mjx-container[display="true"] {
 .editor-status-bar {
   backdrop-filter: blur(8px);
   background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+
+/* Reader floating toolbar — mockup-8: pill slides from the round toggle */
+.reader-pdf-toolbar-m8 .reader-pdf-toolbar-m8-panel {
+  opacity: 0;
+  transform: translateX(-20px) scale(0.95);
+  pointer-events: none;
+  transition:
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: left center;
+}
+
+.reader-pdf-toolbar-m8.reader-pdf-toolbar-m8-expanded .reader-pdf-toolbar-m8-panel {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  pointer-events: auto;
 }

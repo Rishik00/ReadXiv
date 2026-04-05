@@ -2,8 +2,7 @@ import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef }
 import { getDocument, GlobalWorkerOptions, AnnotationMode, Util } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import axios from 'axios';
-import { Button } from './ui/button';
-import { Card, CardContent, CardHeader } from './ui/card';
+import { Card, CardContent } from './ui/card';
 
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -42,7 +41,10 @@ function normalizeHighlight(highlight) {
   };
 }
 
-const PdfViewer = forwardRef(function PdfViewer({ paperId, paperTitle, continuousScroll = true, onInsertQuote, onSendToCanvas }, ref) {
+const PdfViewer = forwardRef(function PdfViewer(
+  { paperId, paperTitle, continuousScroll = true, onInsertQuote, onSendToCanvas, onToolbarState },
+  ref
+) {
   const pageCanvasRefs = useRef([]);
   const pageWrapperRefs = useRef([]);
   const pageTextLayerRefs = useRef([]);
@@ -133,6 +135,46 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, paperTitle, continuou
       active = false;
     };
   }, [paperId]);
+
+  const toolbarRafRef = useRef(null);
+  useEffect(() => {
+    if (!onToolbarState) return undefined;
+    const payload = {
+      scale,
+      page,
+      numPages,
+      highlightMode,
+      pdfDarkMode,
+      highlightsCount: highlights.length,
+      docReady: Boolean(doc && !loading && !error),
+      loading,
+      error: Boolean(error),
+    };
+    if (toolbarRafRef.current != null) {
+      cancelAnimationFrame(toolbarRafRef.current);
+    }
+    toolbarRafRef.current = requestAnimationFrame(() => {
+      toolbarRafRef.current = null;
+      onToolbarState(payload);
+    });
+    return () => {
+      if (toolbarRafRef.current != null) {
+        cancelAnimationFrame(toolbarRafRef.current);
+        toolbarRafRef.current = null;
+      }
+    };
+  }, [
+    scale,
+    page,
+    numPages,
+    highlightMode,
+    pdfDarkMode,
+    highlights.length,
+    doc,
+    loading,
+    error,
+    onToolbarState,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -604,9 +646,15 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, paperTitle, continuou
     handleKeyDown,
     focusScrollArea: () => contentRef.current?.focus(),
     togglePdfDarkMode: () => setPdfDarkMode((v) => !v),
+    toggleHighlightMode: () => setHighlightMode((v) => !v),
     jumpToPage: (pageNum) => goToPage(pageNum),
     getNumPages: () => numPages,
     getCurrentPage: () => page,
+    zoomIn: () => updateScale(scaleRef.current + 0.1),
+    zoomOut: () => updateScale(scaleRef.current - 0.1),
+    copyPageToClipboard,
+    prevPage: () => goToPage(page - 1),
+    nextPage: () => goToPage(page + 1),
   }));
 
   function goToPage(nextPage) {
@@ -736,77 +784,7 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, paperTitle, continuou
   const recentQuoteHighlights = highlights.filter((h) => h.text?.trim()).slice(-5).reverse();
 
   return (
-    <Card className="h-full overflow-hidden" role="region" aria-label="PDF Viewer">
-      <CardHeader className="flex items-center justify-between px-3 py-2" role="toolbar" aria-label="PDF controls">
-        <div className="flex items-center gap-2">
-          <Button
-            variant={pdfDarkMode ? 'secondary' : 'ghost'}
-            size="sm"
-            className="text-sm h-7 px-2"
-            onClick={() => setPdfDarkMode((v) => !v)}
-            disabled={!doc}
-            title="Toggle PDF dark mode"
-          >
-            Dark
-          </Button>
-          <Button
-            variant={highlightMode ? 'secondary' : 'ghost'}
-            size="sm"
-            className="text-sm h-7 px-2"
-            onClick={() => setHighlightMode((v) => !v)}
-            disabled={!doc}
-            title="Highlight mode"
-          >
-            ✦ Highlight
-          </Button>
-          {highlights.length > 0 && (
-            <>
-              <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={clearAllHighlights} disabled={!doc} title="Clear all highlights">
-                Clear all
-              </Button>
-              <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={exportHighlightsAsMarkdown} disabled={!doc} title="Export highlights as markdown">
-                Export
-              </Button>
-            </>
-          )}
-          <div className="h-4 w-px bg-border mx-1" />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-sm h-7 px-2"
-            onClick={copyPageToClipboard}
-            disabled={!doc}
-            title="Copy current page to clipboard"
-          >
-            Copy Page
-          </Button>
-          <div className="h-4 w-px bg-border mx-1" />
-          <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={() => updateScale(scale - 0.1)} disabled={!doc}>
-            −
-          </Button>
-          <span className="text-sm text-muted font-mono w-12 text-center">{Math.round(scale * 100)}%</span>
-          <Button variant="ghost" size="sm" className="text-sm h-7 px-2" onClick={() => updateScale(scale + 0.1)} disabled={!doc}>
-            +
-          </Button>
-        </div>
-        <div className="flex items-center gap-3 mr-2">
-          <Button variant="ghost" size="sm" className="text-sm h-7 px-2.5" onClick={() => goToPage(page - 1)} disabled={!doc || page <= 1}>
-            ◀
-          </Button>
-          <span className="text-sm text-muted font-mono min-w-[4.5rem] text-center">
-            {doc ? `${page} / ${numPages}` : '— / —'}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-sm h-7 px-2.5"
-            onClick={() => goToPage(page + 1)}
-            disabled={!doc || page >= numPages}
-          >
-            ▶
-          </Button>
-        </div>
-      </CardHeader>
+    <Card className="flex h-full flex-col overflow-hidden border-0 bg-transparent shadow-none" role="region" aria-label="PDF Viewer">
       {highlightMode && (
         <div className="px-4 py-2 text-sm border-b border-border bg-surface/70">
           Select text to create a yellow highlight. Click an existing highlight to remove it.
@@ -834,7 +812,7 @@ const PdfViewer = forwardRef(function PdfViewer({ paperId, paperTitle, continuou
         data-pdf-scroll
         role="document"
         aria-label={`PDF document, page ${page} of ${numPages}`}
-        className="h-[calc(100%-44px)] overflow-auto bg-background outline-none focus:ring-2 focus:ring-secondary/50"
+        className="min-h-0 flex-1 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-secondary/50 focus-visible:ring-offset-0 p-0"
         onKeyDown={handleKeyDown}
         onClick={() => contentRef.current?.focus()}
         onWheel={() => contentRef.current?.focus()}

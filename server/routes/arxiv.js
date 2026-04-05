@@ -6,6 +6,21 @@ import { getDB, saveDB, PAPYRUS_DIR } from '../db.js';
 
 const router = express.Router();
 
+const ARXIV_UA =
+  'ReadXiv/1.0 (arxiv metadata; +https://github.com/readxiv; contact: local-app)';
+
+function isRetryableArxivError(error) {
+  if (!error) return false;
+  if (error.code === 'ECONNABORTED' || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
+    return true;
+  }
+  if (error.response) {
+    const s = error.response.status;
+    return s === 429 || s === 502 || s === 503 || s === 504;
+  }
+  return Boolean(error.request);
+}
+
 // Extract arxiv ID from URL or string
 function extractArxivId(input) {
   // Match arxiv.org URLs
@@ -19,13 +34,17 @@ function extractArxivId(input) {
   return null;
 }
 
-// Fetch paper metadata from arxiv API with retry on rate limit
-async function fetchArxivMetadata(arxivId, retries = 3) {
+// Fetch paper metadata from arxiv API with retry on rate limit / flaky network
+async function fetchArxivMetadata(arxivId, retries = 4) {
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      const response = await axios.get(`http://export.arxiv.org/api/query?id_list=${arxivId}`, {
-        headers: { 'Accept': 'application/atom+xml' },
-        timeout: 15000,
+      const response = await axios.get(`https://export.arxiv.org/api/query?id_list=${arxivId}`, {
+        headers: {
+          Accept: 'application/atom+xml',
+          'User-Agent': ARXIV_UA,
+        },
+        timeout: 28000,
+        maxRedirects: 5,
       });
       
       // Parse XML response (simplified - in production use proper XML parser)
@@ -60,9 +79,11 @@ async function fetchArxivMetadata(arxivId, retries = 3) {
     
       return { title, authors, abstract, year, arxivId };
     } catch (error) {
-      if (error.response?.status === 429 && attempt < retries - 1) {
-        const delayMs = Math.min(1000 * Math.pow(2, attempt), 8000);
-        console.warn(`arXiv rate limit hit, retrying in ${delayMs}ms (attempt ${attempt + 1}/${retries})`);
+      if (attempt < retries - 1 && isRetryableArxivError(error)) {
+        const delayMs = Math.min(1500 * Math.pow(2, attempt), 12000);
+        console.warn(
+          `arXiv metadata request failed (${error.message}), retrying in ${delayMs}ms (${attempt + 1}/${retries})`
+        );
         await new Promise((resolve) => setTimeout(resolve, delayMs));
         continue;
       }
@@ -82,14 +103,16 @@ async function downloadPDF(arxivId, retries = 3) {
     try {
       const response = await axios.get(pdfUrl, {
         responseType: 'arraybuffer',
-        timeout: 60000,
+        timeout: 120000,
+        maxRedirects: 5,
+        headers: { 'User-Agent': ARXIV_UA },
       });
       await fs.writeFile(pdfPath, response.data);
       return { pdfPath, pdfUrl };
     } catch (error) {
-      if (error.response?.status === 429 && attempt < retries - 1) {
+      if (attempt < retries - 1 && (error.response?.status === 429 || isRetryableArxivError(error))) {
         const delayMs = Math.min(2000 * Math.pow(2, attempt), 16000);
-        console.warn(`arXiv PDF download rate limit, retrying in ${delayMs}ms (attempt ${attempt + 1}/${retries})`);
+        console.warn(`arXiv PDF download retry in ${delayMs}ms (${attempt + 1}/${retries}): ${error.message}`);
         await new Promise((resolve) => setTimeout(resolve, delayMs));
         continue;
       }

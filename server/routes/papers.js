@@ -1,4 +1,5 @@
 import express from 'express';
+import axios from 'axios';
 import { getDB, saveDB } from '../db.js';
 import { randomUUID } from 'crypto';
 import { createHash } from 'crypto';
@@ -17,6 +18,48 @@ function rowToObject(row, columns) {
     obj[col] = row[i];
   });
   return obj;
+}
+
+async function fetchPaperById(id) {
+  const db = await getDB();
+  const result = db.exec('SELECT * FROM papers WHERE id = ?', [id]);
+  if (result.length === 0 || result[0].values.length === 0) return null;
+  return rowToObject(result[0].values[0], result[0].columns);
+}
+
+/** Ensure a non-empty PDF exists at paper.pdf_path (or default pdfs/{id}.pdf); download from pdf_url if needed. Updates DB when downloading. */
+async function ensurePaperPdfOnDisk(paper) {
+  const db = await getDB();
+  const id = paper.id;
+  let pdfPath = paper.pdf_path || path.join(PAPYRUS_DIR, 'pdfs', `${id}.pdf`);
+
+  let hasFile = false;
+  if (await fs.pathExists(pdfPath)) {
+    const st = await fs.stat(pdfPath);
+    hasFile = st.size > 0;
+  }
+
+  if (!hasFile) {
+    const pdfUrl = paper.pdf_url;
+    if (!pdfUrl) {
+      throw new Error('No local PDF and no download URL. Connect to the internet once to fetch this paper.');
+    }
+    await fs.ensureDir(path.dirname(pdfPath));
+    const response = await axios.get(pdfUrl, {
+      responseType: 'arraybuffer',
+      timeout: 120000,
+      maxRedirects: 5,
+      headers: { 'User-Agent': 'ReadXiv/1.0' },
+    });
+    await fs.writeFile(pdfPath, Buffer.from(response.data));
+    db.run(
+      "UPDATE papers SET pdf_path = ?, pdf_url = ?, status = 'queued', updated_at = datetime('now') WHERE id = ?",
+      [pdfPath, pdfUrl, id]
+    );
+    saveDB();
+  }
+
+  return pdfPath;
 }
 
 // Get all papers
@@ -52,6 +95,41 @@ router.get('/recents', async (req, res) => {
     const papers = result[0].values.map((row) => rowToObject(row, columns));
     return res.json(papers);
   } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Copy PDF into ~/.papyrus/offline and mark paper for offline reading
+router.post('/:id/offline', async (req, res) => {
+  try {
+    const enabled = Boolean(req.body?.enabled);
+    const paper = await fetchPaperById(req.params.id);
+    if (!paper) return res.status(404).json({ error: 'Paper not found' });
+
+    const offlineDir = path.join(PAPYRUS_DIR, 'offline');
+    const offlinePath = path.join(offlineDir, `${paper.id}.pdf`);
+
+    if (enabled) {
+      const pdfPath = await ensurePaperPdfOnDisk(paper);
+      await fs.ensureDir(offlineDir);
+      await fs.copy(pdfPath, offlinePath, { overwrite: true });
+      const db = await getDB();
+      db.run("UPDATE papers SET offline_pinned = 1, updated_at = datetime('now') WHERE id = ?", [paper.id]);
+      saveDB();
+      const updated = await fetchPaperById(paper.id);
+      return res.json(updated);
+    }
+
+    if (await fs.pathExists(offlinePath)) {
+      await fs.remove(offlinePath);
+    }
+    const db = await getDB();
+    db.run("UPDATE papers SET offline_pinned = 0, updated_at = datetime('now') WHERE id = ?", [paper.id]);
+    saveDB();
+    const updated = await fetchPaperById(paper.id);
+    return res.json(updated);
+  } catch (error) {
+    console.error('Offline pin failed:', error);
     return res.status(500).json({ error: error.message });
   }
 });

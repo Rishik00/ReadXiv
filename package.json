@@ -67,15 +67,26 @@
   "build": {
     "appId": "com.readxiv.app",
     "productName": "ReadXiv",
-    "directories": { "output": "release" },
+    "directories": {
+      "output": "release"
+    },
     "files": [
       "electron/**",
       "client/dist/**",
       "server/**"
     ],
-    "asarUnpack": ["server/**"],
-    "win": { "target": "nsis" },
-    "mac": { "target": "dmg", "category": "public.app-category.productivity" },
-    "linux": { "target": "AppImage" }
+    "asarUnpack": [
+      "server/**"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   }
 }

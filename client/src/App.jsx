@@ -1,16 +1,30 @@
 import { Suspense, lazy, useEffect, useState, useCallback, useRef } from 'react'
+import axios from 'axios'
 import GlobalSearchPalette from './components/GlobalSearchPalette'
 import RecentPapersFinder from './components/RecentPapersFinder'
 import GlobalCanvas from './components/GlobalCanvas'
 import Home from './pages/Home'
 import Shelf from './pages/Shelf'
-import Queue from './pages/Queue'
 import Settings from './pages/Settings'
 import Help from './pages/Help'
 const Reader = lazy(() => import('./pages/Reader'))
 
 // Settings button: kept in code but not in use. User will specify placement later.
 // See Settings page and setPage('settings') - accessible via Ctrl+P > "settings" for now.
+
+function parsePaperDeepLink(pathname) {
+  const m = pathname.match(/^\/p\/([^/]+)\/?$/)
+  if (!m) return null
+  try {
+    return decodeURIComponent(m[1])
+  } catch {
+    return m[1]
+  }
+}
+
+function readerPathForPaperId(id) {
+  return `/p/${encodeURIComponent(id)}`
+}
 
 function getTabTitle(url) {
   try {
@@ -38,10 +52,19 @@ function App() {
   const [pendingF, setPendingF] = useState(false)
   const [openSearchNonce, setOpenSearchNonce] = useState(0)
   const readerRef = useRef(null)
+  /** Mirror chord flags so the next key is recognized before React re-renders (fixes Space then o). */
+  const pendingGRef = useRef(false)
+  const pendingBRef = useRef(false)
+  const pendingKRef = useRef(false)
+  const pendingFRef = useRef(false)
 
   useEffect(() => {
     if (!pendingG && !pendingB && !pendingK && !pendingF) return
     const t = setTimeout(() => {
+      pendingGRef.current = false
+      pendingBRef.current = false
+      pendingKRef.current = false
+      pendingFRef.current = false
       setPendingG(false)
       setPendingB(false)
       setPendingK(false)
@@ -54,31 +77,34 @@ function App() {
   }, [pendingG, pendingB, pendingK, pendingF])
   const [externalTabs, setExternalTabs] = useState([])
   const [activeExternalTabId, setActiveExternalTabId] = useState(null)
-  const VALID_THEMES = ['default', 'monochrome', 'blue', 'noir', 'olive']
+  const DEFAULT_THEME = 'mist'
+  const VALID_THEMES = ['monochrome', 'blue', 'noir', 'olive', 'mist', 'plum', 'periwinkle', 'lichen', 'cinder']
   const VALID_LAYOUTS = ['list', 'split']
   const [settings, setSettings] = useState(() => {
     const raw = localStorage.getItem('papyrus-settings')
-    if (!raw) return { continuousScroll: true, liveMarkdownPreview: true, theme: 'default', fontFamily: 'brutalist', homeLayout: 'list' }
+    if (!raw)
+      return { continuousScroll: true, liveMarkdownPreview: true, theme: DEFAULT_THEME, fontFamily: 'brutalist', homeLayout: 'list' }
     try {
       const parsed = JSON.parse(raw)
-      const theme = VALID_THEMES.includes(parsed.theme) ? parsed.theme : 'default'
+      let rawTheme =
+        parsed.theme === 'default' || parsed.theme === 'aurora'
+          ? DEFAULT_THEME
+          : parsed.theme === 'experimental'
+            ? 'periwinkle'
+            : parsed.theme
+      const theme = VALID_THEMES.includes(rawTheme) ? rawTheme : DEFAULT_THEME
       const homeLayout = VALID_LAYOUTS.includes(parsed.homeLayout) ? parsed.homeLayout : 'list'
       return { continuousScroll: true, liveMarkdownPreview: true, fontFamily: 'brutalist', ...parsed, theme, homeLayout }
     } catch {
-      return { continuousScroll: true, liveMarkdownPreview: true, theme: 'default', fontFamily: 'brutalist', homeLayout: 'list' }
+      return { continuousScroll: true, liveMarkdownPreview: true, theme: DEFAULT_THEME, fontFamily: 'brutalist', homeLayout: 'list' }
     }
   })
 
   useEffect(() => {
     localStorage.setItem('papyrus-settings', JSON.stringify(settings))
     // Apply theme variables to document element
-    document.documentElement.setAttribute('data-theme', settings.theme || 'default')
+    document.documentElement.setAttribute('data-theme', settings.theme || DEFAULT_THEME)
     document.documentElement.setAttribute('data-font', settings.fontFamily || 'brutalist')
-    
-    // Legacy support for secondaryColor if it exists in old settings but not theme
-    if (settings.secondaryColor === 'white' && settings.theme === 'default') {
-       // We can map this to monochrome or just keep it as is if we want
-    }
   }, [settings])
 
   useEffect(() => {
@@ -102,8 +128,6 @@ function App() {
       setHomeFocusNonce((n) => n + 1)
     } else if (target === 'shelf') {
       setPage('shelf')
-    } else if (target === 'queue') {
-      setPage('queue')
     } else if (target === 'settings') {
       setPage('settings')
     } else if (target === 'help') {
@@ -117,6 +141,10 @@ function App() {
       const isInputFocused = tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
 
       if (event.key === 'Escape') {
+        pendingGRef.current = false
+        pendingBRef.current = false
+        pendingKRef.current = false
+        pendingFRef.current = false
         setPendingG(false)
         setPendingB(false)
         setPendingK(false)
@@ -124,87 +152,127 @@ function App() {
         return
       }
 
-      if (pendingK) {
+      if (pendingKRef.current) {
         const k = event.key.toLowerCase()
         if (k === 'a') {
           event.preventDefault()
           setCanvasOpen(true)
+          pendingKRef.current = false
           setPendingK(false)
         } else {
+          pendingKRef.current = false
           setPendingK(false)
         }
         return
       }
 
-      if (pendingB) {
+      if (pendingBRef.current) {
         const k = event.key.toLowerCase()
         if (k === 'h') {
           event.preventDefault()
           readerRef.current?.togglePdfDarkMode?.()
+          pendingBRef.current = false
           setPendingB(false)
         } else {
+          pendingBRef.current = false
           setPendingB(false)
         }
         return
       }
 
-      if (pendingG) {
+      if (pendingGRef.current) {
         const k = event.key.toLowerCase()
         if (k === 'h') {
           event.preventDefault()
           navigateTo('home')
+          pendingGRef.current = false
           setPendingG(false)
         } else if (k === 's') {
           event.preventDefault()
           navigateTo('shelf')
+          pendingGRef.current = false
           setPendingG(false)
-        } else if (k === 'q') {
+        } else if (page === 'reader' && k === 'q') {
           event.preventDefault()
-          navigateTo('queue')
+          readerRef.current?.setReaderView?.('pdf')
+          pendingGRef.current = false
+          setPendingG(false)
+        } else if (page === 'reader' && k === 'w') {
+          event.preventDefault()
+          readerRef.current?.setReaderView?.('split')
+          pendingGRef.current = false
+          setPendingG(false)
+        } else if (page === 'reader' && k === 'e') {
+          event.preventDefault()
+          readerRef.current?.setReaderView?.('notes')
+          pendingGRef.current = false
           setPendingG(false)
         } else if (k === 'c') {
           event.preventDefault()
           navigateTo('settings')
+          pendingGRef.current = false
           setPendingG(false)
         } else if (k === 'f') {
           event.preventDefault()
+          pendingGRef.current = false
+          pendingFRef.current = true
           setPendingG(false)
           setPendingF(true)
         } else if (k === 'e') {
           event.preventDefault()
           setPage('help')
+          pendingGRef.current = false
           setPendingG(false)
         } else if (k === 'b' && page === 'reader') {
           event.preventDefault()
+          pendingGRef.current = false
+          pendingBRef.current = true
           setPendingG(false)
           setPendingB(true)
         } else if (k === 'k') {
           event.preventDefault()
+          pendingGRef.current = false
+          pendingKRef.current = true
           setPendingG(false)
           setPendingK(true)
         } else if (k === 'm' && page === 'reader') {
           event.preventDefault()
           readerRef.current?.maximizePdf?.()
+          pendingGRef.current = false
           setPendingG(false)
         } else if (k === 'n' && page === 'reader') {
           event.preventDefault()
           readerRef.current?.minimizePdf?.()
+          pendingGRef.current = false
+          setPendingG(false)
+        } else if (k === 'o' && page === 'reader') {
+          event.preventDefault()
+          readerRef.current?.toggleReaderToolbarExpanded?.()
+          pendingGRef.current = false
+          setPendingG(false)
+        } else if (k === 't' && page === 'reader') {
+          event.preventDefault()
+          readerRef.current?.openPdfPageJumpMenu?.()
+          pendingGRef.current = false
           setPendingG(false)
         } else {
+          pendingGRef.current = false
           setPendingG(false)
         }
         return
       }
 
-      if (pendingF) {
+      if (pendingFRef.current) {
         const k = event.key.toLowerCase()
         if (k === 'b') {
           event.preventDefault()
+          pendingFRef.current = false
           setPendingF(false)
           setPage('home')
           setHomeFocusNonce((n) => n + 1)
           setOpenSearchNonce((n) => n + 1)
         } else {
+          pendingFRef.current = false
           setPendingF(false)
           setRecentsOpen(true)
         }
@@ -213,6 +281,7 @@ function App() {
 
       if (event.key === ' ' && !event.ctrlKey && !event.metaKey && !event.altKey && !isInputFocused) {
         event.preventDefault()
+        pendingGRef.current = true
         setPendingG(true)
         return
       }
@@ -230,23 +299,76 @@ function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [pendingG, pendingB, pendingK, pendingF, navigateTo, page])
+  }, [navigateTo, page])
 
-  const addToast = (message, type = 'info') => {
+  const addToast = useCallback((message, type = 'info') => {
     const id = crypto.randomUUID()
     setToasts((prev) => [...prev, { id, message, type }])
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id))
     }, 2600)
-  }
+  }, [])
+
+  const openPaperById = useCallback(
+    async (id) => {
+      try {
+        const { data } = await axios.get(`/api/papers/${encodeURIComponent(id)}`)
+        setSelectedPaper(data)
+        setReaderInitialTab('edit')
+        setPage('reader')
+        return true
+      } catch (e) {
+        addToast(e.response?.status === 404 ? 'Paper not found' : 'Could not open paper', 'error')
+        window.history.replaceState(null, '', '/')
+        setPage('home')
+        setSelectedPaper(null)
+        return false
+      }
+    },
+    [addToast]
+  )
+
+  useEffect(() => {
+    const fromPath = parsePaperDeepLink(window.location.pathname)
+    if (fromPath) openPaperById(fromPath)
+  }, [openPaperById])
+
+  useEffect(() => {
+    const onPop = () => {
+      const id = parsePaperDeepLink(window.location.pathname)
+      if (id) openPaperById(id)
+      else {
+        setPage('home')
+        setSelectedPaper(null)
+      }
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [openPaperById])
+
+  useEffect(() => {
+    if (page === 'reader' && selectedPaper?.id) {
+      const target = readerPathForPaperId(selectedPaper.id)
+      if (window.location.pathname !== target) {
+        const swapWithinReader = window.location.pathname.startsWith('/p/')
+        if (swapWithinReader) {
+          window.history.replaceState({ readxiv: 'reader', id: selectedPaper.id }, '', target)
+        } else {
+          window.history.pushState({ readxiv: 'reader', id: selectedPaper.id }, '', target)
+        }
+      }
+    } else if (page !== 'reader' && window.location.pathname.startsWith('/p/')) {
+      window.history.replaceState(null, '', '/')
+    }
+  }, [page, selectedPaper?.id])
 
   return (
     <div className="flex min-h-screen text-foreground font-sans">
-      <div className="fixed right-4 top-4 z-50 flex w-[320px] flex-col gap-2">
+      <div className="fixed bottom-6 left-1/2 z-50 flex w-[min(92vw,22rem)] -translate-x-1/2 flex-col-reverse gap-2 pointer-events-none">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`rounded-xl border px-4 py-3 text-sm shadow-xl animate-toast-in ${
+            className={`pointer-events-auto rounded-xl border px-4 py-3 text-sm shadow-xl animate-toast-in ${
               toast.type === 'success'
                 ? 'border-secondary/50 bg-secondary/10 text-secondary'
                 : toast.type === 'error'
@@ -320,17 +442,8 @@ function App() {
               setPage={setPage}
               setSelectedPaper={setSelectedPaper}
               initialQuery={shelfQuery}
-              onOpenNotes={(paper) => {
-                setSelectedPaper(paper)
-                setReaderInitialTab('edit')
-                setPage('reader')
-              }}
+              addToast={addToast}
             />
-            </div>
-          )}
-          {page === 'queue' && (
-            <div key="queue" className="animate-view-fade">
-            <Queue setPage={setPage} setSelectedPaper={setSelectedPaper} />
             </div>
           )}
           {page === 'reader' && (
@@ -403,7 +516,7 @@ function App() {
           setQuickSearchOpen(false)
         }}
         onCommand={(cmd) => {
-          if (['home', 'shelf', 'queue', 'settings', 'help'].includes(cmd.id)) {
+          if (['home', 'shelf', 'settings', 'help'].includes(cmd.id)) {
             navigateTo(cmd.id)
           }
           setQuickSearchOpen(false)

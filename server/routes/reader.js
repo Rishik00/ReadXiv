@@ -2,6 +2,23 @@ import express from 'express';
 import fs from 'fs-extra';
 import path from 'path';
 import { getDB, saveDB, PAPYRUS_DIR } from '../db.js';
+import { fetchReferencesFromSemanticScholar } from '../semanticScholarReferences.mjs';
+
+async function resolvePdfPathForPaper(paper) {
+  if (!paper?.id) return null;
+  if (paper.pdf_path) {
+    if (await fs.pathExists(paper.pdf_path)) {
+      const st = await fs.stat(paper.pdf_path);
+      if (st.size > 0) return paper.pdf_path;
+    }
+  }
+  const offlinePath = path.join(PAPYRUS_DIR, 'offline', `${paper.id}.pdf`);
+  if (await fs.pathExists(offlinePath)) {
+    const st = await fs.stat(offlinePath);
+    if (st.size > 0) return offlinePath;
+  }
+  return null;
+}
 import { randomUUID } from 'crypto';
 
 const router = express.Router();
@@ -29,20 +46,48 @@ function buildDefaultNotesTemplate(paper) {
   return `# ${paper.title}\n\n## Quotes from the paper\n\n> Add highlighted quotes here.\n\n## Opinions and Questions\n\n- Add your thoughts, critiques, and open questions.\n`;
 }
 
+router.get('/:id/references', async (req, res) => {
+  try {
+    const paper = await getPaperById(req.params.id);
+    if (!paper) return res.status(404).json({ error: 'Paper not found' });
+    const references = await fetchReferencesFromSemanticScholar(paper);
+    return res.json({ references });
+  } catch (err) {
+    console.warn('[reader] references:', err?.message || err);
+    return res.json({ references: [] });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const paper = await getPaperById(req.params.id);
     if (!paper) return res.status(404).json({ error: 'Paper not found' });
+
+    const brief =
+      req.query.brief === '1' ||
+      req.query.brief === 'true' ||
+      req.query.light === '1';
+
+    if (brief) {
+      const pdfPath = await resolvePdfPathForPaper(paper);
+      return res.json({
+        ...paper,
+        hasPdf: Boolean(pdfPath),
+        offline_pinned: Number(paper.offline_pinned) === 1 ? 1 : 0,
+      });
+    }
 
     const notesPath = getNotesPath(paper.id);
     const notes = (await fs.pathExists(notesPath))
       ? await fs.readFile(notesPath, 'utf8')
       : buildDefaultNotesTemplate(paper);
 
+    const pdfPath = await resolvePdfPathForPaper(paper);
     return res.json({
       ...paper,
       notes,
-      hasPdf: Boolean(paper.pdf_path && (await fs.pathExists(paper.pdf_path))),
+      hasPdf: Boolean(pdfPath),
+      offline_pinned: Number(paper.offline_pinned) === 1 ? 1 : 0,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -53,9 +98,9 @@ router.get('/:id/pdf', async (req, res) => {
   try {
     const paper = await getPaperById(req.params.id);
     if (!paper) return res.status(404).json({ error: 'Paper not found' });
-    if (!paper.pdf_path) return res.status(404).json({ error: 'PDF path missing for paper' });
-    if (!(await fs.pathExists(paper.pdf_path))) return res.status(404).json({ error: 'PDF file not found' });
-    const stat = await fs.stat(paper.pdf_path);
+    const resolvedPath = await resolvePdfPathForPaper(paper);
+    if (!resolvedPath) return res.status(404).json({ error: 'PDF file not found' });
+    const stat = await fs.stat(resolvedPath);
     const fileSize = stat.size;
     const range = req.headers.range;
     res.setHeader('Accept-Ranges', 'bytes');
@@ -69,11 +114,11 @@ router.get('/:id/pdf', async (req, res) => {
       res.status(206);
       res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
       res.setHeader('Content-Length', chunkSize);
-      return fs.createReadStream(paper.pdf_path, { start, end }).pipe(res);
+      return fs.createReadStream(resolvedPath, { start, end }).pipe(res);
     }
 
     res.setHeader('Content-Length', fileSize);
-    return fs.createReadStream(paper.pdf_path).pipe(res);
+    return fs.createReadStream(resolvedPath).pipe(res);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

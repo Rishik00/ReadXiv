@@ -21,6 +21,7 @@ export async function initDB() {
   // Ensure .papyrus directory exists
   fs.ensureDirSync(PAPYRUS_DIR);
   fs.ensureDirSync(path.join(PAPYRUS_DIR, 'pdfs'));
+  fs.ensureDirSync(path.join(PAPYRUS_DIR, 'offline'));
   fs.ensureDirSync(path.join(PAPYRUS_DIR, 'notes'));
   fs.ensureDirSync(path.join(PAPYRUS_DIR, 'canvas'));
 
@@ -100,16 +101,18 @@ export async function initDB() {
   if (!papersCols.includes('page_count')) {
     db.run('ALTER TABLE papers ADD COLUMN page_count INTEGER');
   }
+  if (!papersCols.includes('offline_pinned')) {
+    db.run('ALTER TABLE papers ADD COLUMN offline_pinned INTEGER DEFAULT 0');
+  }
 
-  // Reading queue: ordered subset of papers to read next
-  db.run(`
-    CREATE TABLE IF NOT EXISTS reading_queue (
-      paper_id TEXT PRIMARY KEY REFERENCES papers(id) ON DELETE CASCADE,
-      position INTEGER NOT NULL,
-      created_at TEXT DEFAULT (datetime('now'))
-    )
-  `);
-  db.run('CREATE INDEX IF NOT EXISTS idx_reading_queue_position ON reading_queue(position)');
+  const papersColsFinal = db.exec('PRAGMA table_info(papers)');
+  const colNames =
+    papersColsFinal.length > 0 ? papersColsFinal[0].values.map((r) => r[1]) : [];
+  if (!colNames.includes('todoist_task_id')) {
+    db.run('ALTER TABLE papers ADD COLUMN todoist_task_id TEXT');
+  }
+
+  db.run('DROP TABLE IF EXISTS reading_queue');
 
   // Save database
   saveDB();

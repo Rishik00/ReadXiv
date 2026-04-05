@@ -226,7 +226,7 @@ readxiv/
 **Entry:** `bin/readxiv.mjs`  
 **Commands:** `readxiv init`, `start:client`, `add`, `remove`, `show_db`, `exportdb`, `start_project`, `config get/set`
 
-**Config:** `~/.papyrus/config.json` – `serverPort`, `clientPort`, `autoStartServer`, `defaultBrowser`, `exportDir`
+**Config:** `~/.papyrus/config.json` – CLI keys: `serverPort`, `clientPort`, `autoStartServer`, `defaultBrowser`, `exportDir`. Todoist keys (`todoistApiToken`, `todoistProjectId`) are written from **Settings** in the client, not `readxiv config set`.
 
 ---
 

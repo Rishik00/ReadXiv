@@ -11,24 +11,23 @@
           var s = localStorage.getItem('papyrus-settings');
           if (s) {
             var p = JSON.parse(s);
-            if (p && p.theme) document.documentElement.setAttribute('data-theme', p.theme);
+            if (p && p.theme) {
+              var th =
+                p.theme === 'default' || p.theme === 'aurora'
+                  ? 'mist'
+                  : p.theme === 'experimental'
+                    ? 'periwinkle'
+                    : p.theme;
+              document.documentElement.setAttribute('data-theme', th);
+            }
           }
         } catch (e) {}
       })();
     </script>
   </head>
-  <body style="background-color: #0A0A0A">
+  <body style="background-color: #17181c">
     <div id="root"></div>
-    <script>
-      window.MathJax = {
-        tex: {
-          inlineMath: [['$', '$'], ['\\(', '\\)']],
-          displayMath: [['$$', '$$'], ['\\[', '\\]']],
-        },
-        svg: { fontCache: 'global' },
-      };
-    </script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <!-- MathJax is loaded on demand from Notes preview (see utils/mathjax.js) -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

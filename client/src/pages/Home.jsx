@@ -7,6 +7,46 @@ function isArxivInput(val) {
   return val.includes('arxiv.org') || /^\d{4}\.\d+/.test(val.trim())
 }
 
+function formatTodoistPriority(p) {
+  if (typeof p !== 'number') return '—'
+  const map = { 4: 'P1', 3: 'P2', 2: 'P3', 1: 'P4' }
+  return map[p] ?? `(${p})`
+}
+
+function formatTodoistDue(due) {
+  if (!due) return null
+  if (typeof due === 'string') return due
+  if (due.string) return due.string
+  if (due.date) return due.date
+  return null
+}
+
+/** One-line summary for /search list rows */
+function searchPaperTodoistSubtitle(paper, map, todoistLoading) {
+  if (!paper.todoist_task_id) return 'NOT IN TODOIST'
+  if (todoistLoading && map[paper.id] == null) return 'Todoist…'
+  const row = map[paper.id]
+  if (!row || row.stale || !row.todoist) {
+    if (row?.stale) return 'Todoist (stale link)'
+    return 'Todoist…'
+  }
+  const t = row.todoist
+  const status = t.checked ? 'Done' : 'Open'
+  const due = formatTodoistDue(t.due)
+  const pr = formatTodoistPriority(t.priority)
+  const parts = [status, pr]
+  if (due) parts.push(due)
+  return parts.join(' · ')
+}
+
+const todoistDetailLabel = {
+  fontSize: '0.7rem',
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+  color: 'var(--muted)',
+  marginBottom: '0.2rem',
+}
+
 export default function Home({ setPage, setSelectedPaper, focusNonce, openSearchNonce, onSearchQuery, addToast, settings }) {
   const goToHelp = () => setPage('help')
   const [input, setInput] = useState('')
@@ -26,6 +66,8 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, openSearch
   const [addQuery, setAddQuery] = useState('')
   const [previewQuery, setPreviewQuery] = useState('')
   const [previewData, setPreviewData] = useState(null) // { title, abstract } for /preview
+  const [searchTodoistMap, setSearchTodoistMap] = useState({})
+  const [searchTodoistLoading, setSearchTodoistLoading] = useState(false)
 
   const homeLayout = settings?.homeLayout || 'list'
   const listRef = useRef(null)
@@ -80,6 +122,8 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, openSearch
         setAddQuery('')
         setPreviewQuery('')
         setPreviewData(null)
+        setSearchTodoistMap({})
+        setSearchTodoistLoading(false)
       }
     }
   }, [input])
@@ -118,6 +162,38 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, openSearch
       clearTimeout(timer)
     }
   }, [currentMode, searchQuery])
+
+  // /search: fetch Todoist task snippets for papers that have a linked task
+  useEffect(() => {
+    if (currentMode !== 'search') {
+      setSearchTodoistMap({})
+      setSearchTodoistLoading(false)
+      return
+    }
+    const ids = [...new Set(searchResults.filter((p) => p.todoist_task_id).map((p) => p.id))]
+    if (ids.length === 0) {
+      setSearchTodoistMap({})
+      setSearchTodoistLoading(false)
+      return
+    }
+    let cancelled = false
+    setSearchTodoistLoading(true)
+    axios
+      .post('/api/todoist/resolve-papers', { paperIds: ids })
+      .then(({ data }) => {
+        if (!cancelled) setSearchTodoistMap(data && typeof data === 'object' ? data : {})
+      })
+      .catch(() => {
+        if (!cancelled)
+          setSearchTodoistMap(Object.fromEntries(ids.map((id) => [id, { stale: true, todoist: null }])))
+      })
+      .finally(() => {
+        if (!cancelled) setSearchTodoistLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentMode, searchResults])
 
   // ArXiv preview for !add mode (title animation when prefetch loads)
   useEffect(() => {
@@ -388,10 +464,11 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, openSearch
   // Keyboard navigation for results
   useEffect(() => {
     if (currentMode !== 'search' || searchResults.length === 0) return
+    const len = searchResults.length
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedIndex((prev) => Math.min(prev + 1, searchResults.length - 1))
+        setSelectedIndex((prev) => Math.min(prev + 1, len - 1))
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         setSelectedIndex((prev) => Math.max(prev - 1, 0))
@@ -444,7 +521,7 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, openSearch
     'Type / for commands…'
 
   const SLASH_COMMANDS = [
-    { id: 'search', slug: 'search', label: 'Search library', desc: 'Fuzzy search your papers', prefix: '/search ' },
+    { id: 'search', slug: 'search', label: 'Search library', desc: 'Fuzzy search your papers; Todoist status when linked', prefix: '/search ' },
     { id: 'add', slug: 'add', label: 'Add from arXiv', desc: 'Fetch paper by URL or ID', prefix: '/add ' },
     { id: 'preview', slug: 'preview', label: 'Preview paper', desc: 'Title & abstract without adding', prefix: '/preview ' },
     { id: 'upload', slug: 'upload', label: 'Upload PDF', desc: 'Add a local PDF file', prefix: null },
@@ -822,6 +899,15 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, openSearch
               }}>
                 {paper.title}
               </div>
+              <div style={{
+                fontSize: '0.8125rem',
+                marginBottom: paper.abstract ? '0.35rem' : 0,
+                fontFamily: 'var(--font-mono)',
+                opacity: idx === selectedIndex ? 0.95 : 0.8,
+                lineHeight: 1.4,
+              }}>
+                {searchPaperTodoistSubtitle(paper, searchTodoistMap, searchTodoistLoading)}
+              </div>
               {paper.abstract && (
                 <div style={{
                   fontSize: '0.875rem',
@@ -904,6 +990,15 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, openSearch
                 }}>
                   {paper.title}
                 </div>
+                <div style={{
+                  fontSize: '0.75rem',
+                  marginBottom: paper.abstract ? '0.35rem' : 0,
+                  fontFamily: 'var(--font-mono)',
+                  opacity: idx === selectedIndex ? 0.95 : 0.8,
+                  lineHeight: 1.4,
+                }}>
+                  {searchPaperTodoistSubtitle(paper, searchTodoistMap, searchTodoistLoading)}
+                </div>
                 {paper.abstract && (
                   <div style={{
                     fontSize: '0.8rem',
@@ -958,11 +1053,71 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, openSearch
                     fontSize: '0.75rem',
                     fontFamily: 'var(--font-mono)',
                     fontWeight: 600,
-                    marginBottom: '1.5rem'
+                    marginBottom: '1rem'
                   }}>
                     {searchResults[selectedIndex].year}
                   </div>
                 )}
+                {(() => {
+                  const p = searchResults[selectedIndex]
+                  const entry = searchTodoistMap[p.id]
+                  if (!p.todoist_task_id) {
+                    return (
+                      <p style={{
+                        fontSize: '0.9rem',
+                        color: 'var(--muted)',
+                        marginBottom: '1.25rem',
+                        marginTop: 0,
+                        letterSpacing: '0.02em',
+                      }}
+                      >
+                        NOT IN TODOIST
+                      </p>
+                    )
+                  }
+                  if (searchTodoistLoading && entry == null) {
+                    return (
+                      <p style={{ fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '1.25rem', marginTop: 0 }}>
+                        Loading Todoist…
+                      </p>
+                    )
+                  }
+                  if (!entry || entry.stale || !entry.todoist) {
+                    return (
+                      <p style={{ fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '1.25rem', marginTop: 0 }}>
+                        Todoist (stale link)
+                      </p>
+                    )
+                  }
+                  const t = entry.todoist
+                  const cell = { flex: '1 1 0', minWidth: '4.5rem', maxWidth: '100%' }
+                  return (
+                    <dl style={{
+                      margin: '0 0 1.25rem 0',
+                      padding: 0,
+                      display: 'flex',
+                      flexDirection: 'row',
+                      flexWrap: 'wrap',
+                      gap: '0.75rem 1.25rem',
+                      alignItems: 'flex-start',
+                      fontSize: '0.95rem',
+                    }}
+                    >
+                      <div style={cell}>
+                        <dt style={todoistDetailLabel}>Status</dt>
+                        <dd style={{ margin: 0, lineHeight: 1.35, wordBreak: 'break-word' }}>{t.checked ? 'Done' : 'Open'}{t.completedAt ? ` · ${t.completedAt}` : ''}</dd>
+                      </div>
+                      <div style={cell}>
+                        <dt style={todoistDetailLabel}>Priority</dt>
+                        <dd style={{ margin: 0, lineHeight: 1.35 }}>{formatTodoistPriority(t.priority)}</dd>
+                      </div>
+                      <div style={cell}>
+                        <dt style={todoistDetailLabel}>Due</dt>
+                        <dd style={{ margin: 0, lineHeight: 1.35, wordBreak: 'break-word' }}>{formatTodoistDue(t.due) || '—'}</dd>
+                      </div>
+                    </dl>
+                  )
+                })()}
                 {searchResults[selectedIndex].abstract && (
                   <p style={{
                     fontSize: '0.95rem',
@@ -1070,7 +1225,7 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, openSearch
                 </button>
               </div>
               {[
-                ['/search [query]', 'Search your local papers'],
+                ['/search [query]', 'Search your library; linked papers show Todoist status in the results'],
                 ['/add <arxiv-url-or-id>', 'Add paper from arXiv'],
                 ['/preview <arxiv-url-or-id>', 'Preview title & abstract without adding'],
                 ['/upload', 'Upload a PDF file'],
@@ -1080,13 +1235,13 @@ export default function Home({ setPage, setSelectedPaper, focusNonce, openSearch
                 ['/howto', 'Show this help panel'],
                 ['/bindings', 'Same as /help (keybindings)'],
                 ['any text', 'Fuzzy search your shelf'],
-              ].map(([cmd, desc], i) => (
+              ].map(([cmd, desc], i, arr) => (
                 <div key={i} style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '1rem',
                   padding: '0.5rem 0',
-                  borderBottom: i < 9 ? '1px solid rgba(255,255,255,0.1)' : 'none'
+                  borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none'
                 }}>
                   <code style={{
                     fontSize: '0.875rem',

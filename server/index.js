@@ -7,9 +7,10 @@ import searchRouter from './routes/search.js';
 import arxivRouter from './routes/arxiv.js';
 import readerRouter from './routes/reader.js';
 import canvasRouter from './routes/canvas.js';
-import readingQueueRouter from './routes/reading-queue.js';
-
+import todoistRouter from './routes/todoist.js';
+import semanticScholarSettingsRouter from './routes/semanticScholarSettings.js';
 const app = express();
+// Todoist & Semantic Scholar keys: ~/.papyrus/config.json from Settings UI; env vars override (see Help).
 const PORT = process.env.PORT || 7474;
 
 // Middleware
@@ -35,11 +36,12 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/papers', papersRouter);
-app.use('/api/reading-queue', readingQueueRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/arxiv', arxivRouter);
 app.use('/api/reader', readerRouter);
 app.use('/api/canvas', canvasRouter);
+app.use('/api/todoist', todoistRouter);
+app.use('/api/semantic-scholar', semanticScholarSettingsRouter);
 
 // Health check
 app.get('/health', (req, res) => {

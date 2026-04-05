@@ -84,6 +84,8 @@ Supported keys:
 - `defaultBrowser`
 - `exportDir`
 
+Todoist credentials are configured in the app (**Settings**), not via `readxiv config`; they are stored in `config.json` under `todoistApiToken` / `todoistProjectId`.
+
 ## Data Storage
 
 ReadXiv stores data in `~/.papyrus/`:
@@ -102,6 +104,12 @@ ReadXiv stores data in `~/.papyrus/`:
 3. Verify package contents: `npm pack --dry-run`.
 4. Login to npm: `npm login`.
 5. Publish scoped package: `npm publish --access public`.
+
+## Todoist (optional)
+
+Open **Settings** in ReadXiv (`Space c`), use the **Todoist** section: paste your [Todoist API token](https://app.todoist.com/app/settings/integrations), choose Inbox or a project (or create **ReadXiv Todoist**), then Save. Data is stored in `~/.papyrus/config.json` on that machine.
+
+Optional: set `TODOIST_API_TOKEN` and `TODOIST_PROJECT_ID` on the **server process** to override the file. See **Help** in the app.
 
 ## Local Development
 
