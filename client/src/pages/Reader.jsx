@@ -344,6 +344,7 @@ const Reader = forwardRef(function Reader(
       },
       toggleReaderToolbarExpanded: () => setReaderToolbarExpanded((v) => !v),
       setReaderView,
+      setNoteTab: (tab) => setNoteTab(tab === 'references' ? 'references' : 'edit'),
       openPdfPageJumpMenu: () => setPageJumpMenuNonce((n) => n + 1),
     }),
     [setReaderView]

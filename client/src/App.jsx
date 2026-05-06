@@ -4,6 +4,7 @@ import GlobalSearchPalette from './components/GlobalSearchPalette'
 import RecentPapersFinder from './components/RecentPapersFinder'
 import GlobalCanvas from './components/GlobalCanvas'
 import CommandStatusBar from './components/CommandStatusBar'
+import CommandBar from './components/CommandBar'
 import Home from './pages/Home'
 import Shelf from './pages/Shelf'
 import Settings from './pages/Settings'
@@ -44,6 +45,7 @@ function App() {
   const [homeFocusNonce, setHomeFocusNonce] = useState(0)
   const [readerInitialTab, setReaderInitialTab] = useState('edit')
   const [toasts, setToasts] = useState([])
+  const [commandBarOpen, setCommandBarOpen] = useState(false)
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [recentsOpen, setRecentsOpen] = useState(false)
   const [canvasOpen, setCanvasOpen] = useState(false)
@@ -299,6 +301,11 @@ function App() {
         setQuickSearchOpen(true)
         return
       }
+      if (event.key === ':' && !event.ctrlKey && !event.metaKey && !event.altKey && !isInputFocused) {
+        event.preventDefault()
+        setCommandBarOpen(true)
+        return
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -330,6 +337,42 @@ function App() {
     },
     [addToast]
   )
+
+  const openPaper = useCallback((paper) => {
+    setSelectedPaper(paper)
+    setReaderInitialTab('edit')
+    setPage('reader')
+  }, [])
+
+  const addPaperFromCommand = useCallback(
+    async (input) => {
+      try {
+        const { data } = await axios.post('/api/arxiv/add', { input })
+        addToast(data?.alreadyExists ? 'Paper already in shelf' : 'Added paper', 'success')
+        if (data?.id) {
+          setSelectedPaper(data)
+          setReaderInitialTab('edit')
+          setPage('reader')
+        }
+      } catch (error) {
+        addToast(error.response?.data?.error || 'Could not add paper', 'error')
+      }
+    },
+    [addToast]
+  )
+
+  const runReaderAction = useCallback((action) => {
+    if (action === 'references') {
+      readerRef.current?.setNoteTab?.('references')
+      readerRef.current?.setReaderView?.('notes')
+    } else if (action === 'page') {
+      readerRef.current?.openPdfPageJumpMenu?.()
+    } else if (action === 'toolbar') {
+      readerRef.current?.toggleReaderToolbarExpanded?.()
+    } else {
+      readerRef.current?.setReaderView?.(action)
+    }
+  }, [])
 
   useEffect(() => {
     const fromPath = parsePaperDeepLink(window.location.pathname)
@@ -421,7 +464,7 @@ function App() {
         )}
         <div className={`flex-1 overflow-auto ${activeExternalTabId ? 'hidden' : ''}`}>
           <div className={`relative z-10 ${
-            page === 'reader' ? '' : 'brutalist-container pl-6 pr-6 pt-6 pb-24'
+            page === 'reader' ? '' : 'brutalist-container pl-6 pr-6 pt-6 pb-16'
           }`}>
           {page === 'home' && (
             <div key="home" className="animate-view-fade">
@@ -508,14 +551,22 @@ function App() {
           setRecentsOpen(false)
         }}
       />
+      <CommandBar
+        open={commandBarOpen}
+        currentPage={page}
+        onClose={() => setCommandBarOpen(false)}
+        onSearch={() => setQuickSearchOpen(true)}
+        onAddPaper={addPaperFromCommand}
+        onNavigate={navigateTo}
+        onRecent={() => setRecentsOpen(true)}
+        onReaderAction={runReaderAction}
+      />
       <GlobalSearchPalette
         open={quickSearchOpen}
         onClose={() => setQuickSearchOpen(false)}
         currentPage={page}
         onSelectPaper={(paper) => {
-          setSelectedPaper(paper)
-          setReaderInitialTab('edit')
-          setPage('reader')
+          openPaper(paper)
           setQuickSearchOpen(false)
         }}
         onCommand={(cmd) => {
@@ -531,13 +582,12 @@ function App() {
       />
       <CommandStatusBar
         page={page}
-        selectedPaper={selectedPaper}
         pendingG={pendingG}
         pendingB={pendingB}
         pendingK={pendingK}
         pendingF={pendingF}
         onNavigate={navigateTo}
-        onCommand={() => setQuickSearchOpen(true)}
+        onCommand={() => setCommandBarOpen(true)}
         onRecents={() => setRecentsOpen(true)}
       />
     </div>

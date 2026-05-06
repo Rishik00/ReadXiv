@@ -804,34 +804,25 @@ mjx-container[display="true"] {
 .command-status-bar {
   position: fixed;
   left: 50%;
-  bottom: 0.75rem;
+  top: 0.75rem;
   z-index: 45;
   display: flex;
-  width: min(calc(100vw - 2rem), 1040px);
   min-height: 2rem;
   transform: translateX(-50%);
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  justify-content: center;
+  gap: 0.5rem;
   border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--background) 82%, transparent);
+  background: color-mix(in srgb, var(--background) 90%, transparent);
   padding: 0.25rem 0.55rem;
   color: var(--muted);
-  opacity: 0.48;
+  opacity: 1;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
   backdrop-filter: blur(12px);
-  transition: opacity 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+  animation: command-hints-in 90ms ease-out;
 }
 
-.command-status-bar:hover,
-.command-status-bar:focus-within {
-  opacity: 1;
-  border-color: color-mix(in srgb, var(--border) 72%, transparent);
-  background: color-mix(in srgb, var(--background) 92%, var(--surface));
-}
-
-.command-status-left,
 .command-status-hints {
   display: flex;
   min-width: 0;
@@ -839,16 +830,7 @@ mjx-container[display="true"] {
   gap: 0.45rem;
 }
 
-.command-status-left {
-  flex: 1 1 auto;
-}
-
-.command-status-hints {
-  flex: 0 0 auto;
-}
-
 .command-status-mode,
-.command-status-page,
 .command-status-hint {
   display: inline-flex;
   align-items: center;
@@ -875,23 +857,6 @@ mjx-container[display="true"] {
   color: var(--secondary);
 }
 
-.command-status-page {
-  font-family: var(--font-mono), monospace;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--foreground);
-  cursor: pointer;
-}
-
-.command-status-context {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.78rem;
-}
-
 .command-status-hint {
   gap: 0.3rem;
   border-radius: 999px;
@@ -916,6 +881,120 @@ mjx-container[display="true"] {
   color: color-mix(in srgb, var(--muted) 88%, transparent);
 }
 
+.global-command-bar {
+  position: fixed;
+  left: 50%;
+  top: 0.85rem;
+  z-index: 90;
+  width: min(calc(100vw - 2rem), 760px);
+  transform: translateX(-50%);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--background) 82%, transparent);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(16px);
+  animation: command-hints-in 90ms ease-out;
+}
+
+.global-command-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
+}
+
+.global-command-prefix {
+  font-family: var(--font-mono), monospace;
+  font-size: 1rem;
+  color: var(--secondary);
+}
+
+.global-command-input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--foreground);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.95rem;
+}
+
+.global-command-input::placeholder {
+  color: color-mix(in srgb, var(--muted) 58%, transparent);
+}
+
+.global-command-esc {
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  padding: 0.12rem 0.4rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.global-command-results {
+  max-height: min(46vh, 420px);
+  overflow: auto;
+  padding: 0.35rem;
+}
+
+.global-command-empty {
+  padding: 1.4rem 1rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.global-command-result {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  color: var(--foreground);
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.global-command-result.is-active {
+  background: color-mix(in srgb, var(--secondary) 13%, transparent);
+  color: var(--foreground);
+}
+
+.global-command-result-main {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.global-command-result-meta {
+  min-width: 8rem;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.global-command-result kbd {
+  flex: 0 0 auto;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
 @media (max-width: 760px) {
   .command-status-bar {
     width: min(calc(100vw - 1rem), 100%);
@@ -923,7 +1002,18 @@ mjx-container[display="true"] {
   }
 
   .command-status-hints {
-    display: none;
+    overflow-x: auto;
+  }
+}
+
+@keyframes command-hints-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 }
 
