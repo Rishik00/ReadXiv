@@ -456,25 +456,6 @@ export default function Settings({ settings, setSettings, setPage }) {
               />
             </label>
 
-            <label className="flex items-center justify-between bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all cursor-pointer group">
-              <div>
-                <div className="text-sm font-semibold text-foreground group-hover:text-secondary transition-colors">
-                  Live markdown preview
-                </div>
-                <div className="text-sm text-muted mt-1">
-                  While you edit, keep the Preview tab’s HTML (and TeX) updating on a short delay. The Preview tab is
-                  always available in the Reader either way.
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                className="w-5 h-5 accent-secondary cursor-pointer"
-                checked={settings.liveMarkdownPreview}
-                onChange={(e) =>
-                  setSettings((prev) => ({ ...prev, liveMarkdownPreview: e.target.checked }))
-                }
-              />
-            </label>
           </div>
         </div>
       </div>

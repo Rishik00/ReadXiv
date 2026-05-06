@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mdxeditor/editor": "^3.55.0",
     "axios": "^1.6.2",
     "fuse.js": "^7.0.0",
     "katex": "^0.16.40",

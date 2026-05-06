@@ -44,5 +44,5 @@ For the notes editor:
 # Bugs/Things that need fixing (small/medium, immediate)
 
 1. The PDF reader is wayy too small and low dimensional in terms of resolution. 
-2. The markdown preview thing doesn't work. And I don't know whether auto save is enabled or do I have to save it manually? 
+2. Notes now use the rendered MDX editor as the canonical writing surface; autosave should stay clear and visible. 
 3. I cannot do anything to the PDF, no pinch zoom, no highlighting

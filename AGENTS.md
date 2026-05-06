@@ -118,7 +118,7 @@ readxiv/
 | Shelf     | `pages/Shelf.jsx`      | `shelf`     | Paper grid, search, status, delete, schedule |
 | Reader    | `pages/Reader.jsx`     | `reader`    | PDF + notes split pane, highlights, status    |
 | Calendar  | `pages/Calendar.jsx`   | `calendar`  | PapersCalendar wrapper, deadlines, ICS export |
-| Settings  | `pages/Settings.jsx`   | `settings`  | Themes, continuous scroll, markdown preview    |
+| Settings  | `pages/Settings.jsx`   | `settings`  | Themes, continuous scroll, home layout          |
 
 ### Components
 
@@ -142,7 +142,7 @@ readxiv/
 
 - **State:** Local `useState`; no global store. Props flow down from App.
 - **API:** `axios.get/post/patch/delete` with relative `/api/*` paths (baseURL set in Electron)
-- **Settings:** `localStorage.getItem('papyrus-settings')`; keys: `theme`, `fontFamily`, `continuousScroll`, `liveMarkdownPreview`
+- **Settings:** `localStorage.getItem('papyrus-settings')`; keys: `theme`, `fontFamily`, `continuousScroll`, `homeLayout`
 
 ---
 

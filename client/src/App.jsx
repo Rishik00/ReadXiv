@@ -3,6 +3,7 @@ import axios from 'axios'
 import GlobalSearchPalette from './components/GlobalSearchPalette'
 import RecentPapersFinder from './components/RecentPapersFinder'
 import GlobalCanvas from './components/GlobalCanvas'
+import CommandStatusBar from './components/CommandStatusBar'
 import Home from './pages/Home'
 import Shelf from './pages/Shelf'
 import Settings from './pages/Settings'
@@ -83,7 +84,7 @@ function App() {
   const [settings, setSettings] = useState(() => {
     const raw = localStorage.getItem('papyrus-settings')
     if (!raw)
-      return { continuousScroll: true, liveMarkdownPreview: true, theme: DEFAULT_THEME, fontFamily: 'brutalist', homeLayout: 'list' }
+      return { continuousScroll: true, theme: DEFAULT_THEME, fontFamily: 'brutalist', homeLayout: 'list' }
     try {
       const parsed = JSON.parse(raw)
       let rawTheme =
@@ -94,9 +95,11 @@ function App() {
             : parsed.theme
       const theme = VALID_THEMES.includes(rawTheme) ? rawTheme : DEFAULT_THEME
       const homeLayout = VALID_LAYOUTS.includes(parsed.homeLayout) ? parsed.homeLayout : 'list'
-      return { continuousScroll: true, liveMarkdownPreview: true, fontFamily: 'brutalist', ...parsed, theme, homeLayout }
+      const currentSettings = { ...parsed }
+      delete currentSettings['live' + 'MarkdownPreview']
+      return { continuousScroll: true, fontFamily: 'brutalist', ...currentSettings, theme, homeLayout }
     } catch {
-      return { continuousScroll: true, liveMarkdownPreview: true, theme: DEFAULT_THEME, fontFamily: 'brutalist', homeLayout: 'list' }
+      return { continuousScroll: true, theme: DEFAULT_THEME, fontFamily: 'brutalist', homeLayout: 'list' }
     }
   })
 
@@ -418,7 +421,7 @@ function App() {
         )}
         <div className={`flex-1 overflow-auto ${activeExternalTabId ? 'hidden' : ''}`}>
           <div className={`relative z-10 ${
-            page === 'reader' ? '' : 'brutalist-container pl-6 pr-6 pt-6 pb-16'
+            page === 'reader' ? '' : 'brutalist-container pl-6 pr-6 pt-6 pb-24'
           }`}>
           {page === 'home' && (
             <div key="home" className="animate-view-fade">
@@ -525,6 +528,17 @@ function App() {
       <GlobalCanvas
         open={canvasOpen}
         onClose={() => setCanvasOpen(false)}
+      />
+      <CommandStatusBar
+        page={page}
+        selectedPaper={selectedPaper}
+        pendingG={pendingG}
+        pendingB={pendingB}
+        pendingK={pendingK}
+        pendingF={pendingF}
+        onNavigate={navigateTo}
+        onCommand={() => setQuickSearchOpen(true)}
+        onRecents={() => setRecentsOpen(true)}
       />
     </div>
   )

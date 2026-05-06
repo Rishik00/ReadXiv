@@ -1,21 +1,35 @@
 import {
   forwardRef,
+  Profiler,
   useCallback,
   useEffect,
   useImperativeHandle,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 import axios from 'axios';
 import MarkdownIt from 'markdown-it';
+import {
+  MDXEditor,
+  codeBlockPlugin,
+  headingsPlugin,
+  linkPlugin,
+  listsPlugin,
+  markdownShortcutPlugin,
+  quotePlugin,
+  tablePlugin,
+  thematicBreakPlugin,
+} from '@mdxeditor/editor';
+import '@mdxeditor/editor/style.css';
 import PdfViewer from '../components/PdfViewer';
 import ReaderPdfFloatingToolbar from '../components/ReaderPdfFloatingToolbar';
 import { Card, CardContent } from '../components/ui/card';
-import { ensureMathJax, notesMayContainTex } from '../utils/mathjax';
+import { ensureMathJax } from '../utils/mathjax';
 
 const DEFAULT_SPLIT = 68;
+const PERF_FLAG = 'readxiv-perf';
+const NOTE_BENCHMARK_FLAG = 'readxiv-note-benchmark';
 const md = new MarkdownIt({ 
   html: true, 
   linkify: true, 
@@ -47,39 +61,6 @@ md.use((md) => {
   };
 });
 
-function scrollTextareaCaretIntoView(textarea) {
-  if (!textarea || textarea.tagName !== 'TEXTAREA') return;
-  const value = textarea.value;
-  const pos = Math.min(value.length, Math.max(0, textarea.selectionStart));
-  const lineIndex = value.slice(0, pos).split('\n').length - 1;
-  const lineCount = Math.max(1, value.split('\n').length);
-
-  const style = getComputedStyle(textarea);
-  let lineHeightPx = parseFloat(style.lineHeight);
-  if (!Number.isFinite(lineHeightPx) || lineHeightPx <= 0) {
-    const fs = parseFloat(style.fontSize) || 16;
-    lineHeightPx = fs * 1.45;
-  }
-
-  // Blend CSS line-height with average row height from layout (helps wrapped lines & after React repaint).
-  const avgFromScroll = textarea.scrollHeight / lineCount;
-  const effLineHeight = Math.max(lineHeightPx, avgFromScroll * 0.92);
-
-  const paddingTop = parseFloat(style.paddingTop) || 0;
-  const caretTop = lineIndex * effLineHeight + paddingTop;
-  const caretBottom = caretTop + effLineHeight;
-  const margin = 12;
-  const viewTop = textarea.scrollTop;
-  const viewBottom = viewTop + textarea.clientHeight;
-  const maxScroll = Math.max(0, textarea.scrollHeight - textarea.clientHeight);
-
-  if (caretTop < viewTop + margin) {
-    textarea.scrollTop = Math.min(maxScroll, Math.max(0, caretTop - margin));
-  } else   if (caretBottom > viewBottom - margin) {
-    textarea.scrollTop = Math.min(maxScroll, Math.max(0, caretBottom - textarea.clientHeight + margin));
-  }
-}
-
 function referenceIsAddableToShelf(ref) {
   return (
     ref?.arxivId &&
@@ -110,15 +91,180 @@ function referenceExternalLinkHref(ref) {
   return null;
 }
 
+function readPerfEnabled() {
+  try {
+    return localStorage.getItem(PERF_FLAG) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function readNoteBenchmarkEnabled() {
+  try {
+    return localStorage.getItem(NOTE_BENCHMARK_FLAG) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function perfLog(label, payload = {}) {
+  if (!readPerfEnabled()) return;
+  if (typeof window !== 'undefined') {
+    window.__readxivPerfEvents = window.__readxivPerfEvents || [];
+    window.__readxivPerfEvents.push({
+      kind: 'event',
+      label,
+      at: performance.now(),
+      payload,
+    });
+  }
+  console.log(`[readxiv:perf] ${label}`, payload);
+}
+
+function profileRender(id, phase, actualDuration, baseDuration, startTime, commitTime) {
+  if (!readPerfEnabled()) return;
+  if (typeof window !== 'undefined') {
+    window.__readxivPerfEvents = window.__readxivPerfEvents || [];
+    window.__readxivPerfEvents.push({
+      kind: 'profiler',
+      id,
+      phase,
+      actualDuration,
+      baseDuration,
+      startTime,
+      commitTime,
+    });
+  }
+  console.log(`[readxiv:profiler] ${id}`, {
+    phase,
+    actualMs: Number(actualDuration.toFixed(2)),
+    baseMs: Number(baseDuration.toFixed(2)),
+    startMs: Number(startTime.toFixed(2)),
+    commitMs: Number(commitTime.toFixed(2)),
+  });
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function waitForFrames(count = 2) {
+  return new Promise((resolve) => {
+    let remaining = count;
+    const tick = () => {
+      remaining -= 1;
+      if (remaining <= 0) resolve();
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+function makeSyntheticMarkdown(targetKb) {
+  const target = targetKb * 1024;
+  const paragraphs = [];
+  let i = 1;
+  while (paragraphs.join('\n\n').length < target) {
+    paragraphs.push(
+      `## Section ${i}\n\n` +
+        `This synthetic benchmark paragraph contains representative paper notes, equations like $x_${i} = y + z$, ` +
+        `short observations, citation reminders, and action items for later reading. ` +
+        `The goal is to approximate normal markdown editing cost without relying on any one real note.`
+    );
+    i += 1;
+  }
+  return paragraphs.join('\n\n').slice(0, target);
+}
+
+function summarizeEvents(events, sizeKb, markdown, editCount, elapsedMs) {
+  const profilers = events.filter((event) => event.kind === 'profiler');
+  const byId = new Map();
+  for (const event of profilers) {
+    const current = byId.get(event.id) || { count: 0, total: 0, max: 0 };
+    current.count += 1;
+    current.total += event.actualDuration;
+    current.max = Math.max(current.max, event.actualDuration);
+    byId.set(event.id, current);
+  }
+  const lines = markdown.split('\n').length;
+  const words = markdown.split(/\s+/).filter(Boolean).length;
+  const row = {
+    sizeKb,
+    chars: markdown.length,
+    lines,
+    words,
+    edits: editCount,
+    elapsedMs: Number(elapsedMs.toFixed(1)),
+    readerCommits: events.filter((e) => e.label === 'Reader commit').length,
+    onChanges: events.filter((e) => e.label === 'MDXEditor onChange').length,
+    outlineRuns: events.filter((e) => e.label === 'notesOutline recomputed').length,
+  };
+  for (const [id, stats] of byId) {
+    const shortId = id.replace(/^Reader\./, '');
+    row[`${shortId} commits`] = stats.count;
+    row[`${shortId} avgMs`] = Number((stats.total / stats.count).toFixed(2));
+    row[`${shortId} maxMs`] = Number(stats.max.toFixed(2));
+  }
+  return row;
+}
+
+function getCaretRangeFromPoint(x, y) {
+  if (document.caretRangeFromPoint) return document.caretRangeFromPoint(x, y);
+  if (document.caretPositionFromPoint) {
+    const pos = document.caretPositionFromPoint(x, y);
+    if (!pos) return null;
+    const range = document.createRange();
+    range.setStart(pos.offsetNode, pos.offset);
+    range.collapse(true);
+    return range;
+  }
+  return null;
+}
+
+function extractTexTokenAtOffset(text, offset) {
+  if (!text || typeof text !== 'string') return null;
+  const pairedPatterns = [
+    /\$\$\$\$[\s\S]+?\$\$\$\$/g,
+    /\\\[[\s\S]+?\\\]/g,
+    /\$\$[\s\S]+?\$\$/g,
+    /\\\([\s\S]+?\\\)/g,
+  ];
+
+  for (const pattern of pairedPatterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const start = match.index;
+      const end = start + match[0].length;
+      if (offset >= start && offset <= end) return match[0];
+    }
+  }
+
+  const starts = [];
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] === '$' && text[i - 1] !== '\\' && text[i + 1] !== '$' && text[i - 1] !== '$') {
+      starts.push(i);
+    }
+  }
+  for (let i = 0; i < starts.length - 1; i += 2) {
+    const start = starts[i];
+    const end = starts[i + 1] + 1;
+    if (offset >= start && offset <= end) return text.slice(start, end);
+  }
+  return null;
+}
+
 const Reader = forwardRef(function Reader(
   { paper, setSelectedPaper, setPage, settings, initialTab = 'edit', addToast, onSendToCanvas },
   ref
 ) {
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+  const normalizedInitialTab = initialTab === 'references' ? 'references' : 'edit';
   const [readerPaper, setReaderPaper] = useState(paper);
   const [notes, setNotes] = useState('');
   const [serverNotes, setServerNotes] = useState('');
   const [notesStatus, setNotesStatus] = useState('idle');
-  const [noteTab, setNoteTab] = useState(initialTab);
+  const [noteTab, setNoteTab] = useState(normalizedInitialTab);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [leftWidth, setLeftWidth] = useState(DEFAULT_SPLIT);
@@ -135,13 +281,41 @@ const Reader = forwardRef(function Reader(
   const [referencesLoading, setReferencesLoading] = useState(false);
   const [referencesLoadedForPaperId, setReferencesLoadedForPaperId] = useState(null);
   const [addingReferenceKeys, setAddingReferenceKeys] = useState(() => new Set());
+  const [mathHoverPreview, setMathHoverPreview] = useState(null);
   const splitRootRef = useRef(null);
   const saveTimerRef = useRef(null);
   const pdfPanelRef = useRef(null);
-  const notesTextareaRef = useRef(null);
-  const notesPreviewRef = useRef(null);
-  const mathPreviewContentRef = useRef(null);
+  const mdxEditorRef = useRef(null);
+  const notesEditPanelRef = useRef(null);
+  const mathHoverPreviewRef = useRef(null);
   const pdfViewerRef = useRef(null);
+  const benchmarkRanRef = useRef(false);
+  const benchmarkActiveRef = useRef(false);
+
+  useEffect(() => {
+    perfLog('Reader commit', {
+      render: renderCountRef.current,
+      paperId,
+      notesLength: notes.length,
+      noteTab,
+      pdfCollapsed,
+      notesCollapsed,
+    });
+  });
+
+  const mdxPlugins = useMemo(
+    () => [
+      headingsPlugin(),
+      listsPlugin(),
+      quotePlugin(),
+      linkPlugin(),
+      tablePlugin(),
+      thematicBreakPlugin(),
+      codeBlockPlugin({ defaultCodeBlockLanguage: 'txt' }),
+      markdownShortcutPlugin(),
+    ],
+    []
+  );
 
   const setReaderView = useCallback((mode) => {
     if (mode === 'split') {
@@ -202,6 +376,7 @@ const Reader = forwardRef(function Reader(
   );
 
   const notesOutline = useMemo(() => {
+    const startedAt = performance.now();
     const lines = notes.split('\n');
     const outline = [];
     lines.forEach((line, index) => {
@@ -214,6 +389,12 @@ const Reader = forwardRef(function Reader(
         });
       }
     });
+    perfLog('notesOutline recomputed', {
+      notesLength: notes.length,
+      lines: lines.length,
+      headings: outline.length,
+      ms: Number((performance.now() - startedAt).toFixed(2)),
+    });
     return outline;
   }, [notes]);
 
@@ -221,16 +402,6 @@ const Reader = forwardRef(function Reader(
     () => paperReferences.filter(referenceIsAddableToShelf),
     [paperReferences]
   );
-
-  const [previewHtml, setPreviewHtml] = useState('');
-
-  function renderPreviewMarkdown(source) {
-    try {
-      return md.render(source || '');
-    } catch {
-      return '<p>Unable to render markdown preview.</p>';
-    }
-  }
 
   function renderOutlineHeadingInline(source) {
     const s = source ?? '';
@@ -241,42 +412,27 @@ const Reader = forwardRef(function Reader(
     }
   }
 
-  // Snapshot markdown when switching to Preview (avoids heavy updates on every keystroke unless live preview is on).
-  useLayoutEffect(() => {
-    if (noteTab !== 'preview') return;
-    setPreviewHtml(renderPreviewMarkdown(notes));
-  }, [noteTab]);
-
   useEffect(() => {
-    if (noteTab !== 'preview' || !settings?.liveMarkdownPreview) return undefined;
-    const id = setTimeout(() => {
-      setPreviewHtml(renderPreviewMarkdown(notes));
-    }, 260);
-    return () => clearTimeout(id);
-  }, [notes, noteTab, settings?.liveMarkdownPreview]);
-
-  useEffect(() => {
-    if (noteTab !== 'preview') return undefined;
-    if (!notesMayContainTex(notes)) return undefined;
+    if (!mathHoverPreview?.source) return undefined;
     let cancelled = false;
     const id = setTimeout(() => {
-      if (cancelled || !mathPreviewContentRef.current) return;
+      if (cancelled || !mathHoverPreviewRef.current) return;
       ensureMathJax()
         .then(() => {
-          if (cancelled || !mathPreviewContentRef.current || !window.MathJax?.typesetPromise) return;
-          return window.MathJax.typesetPromise([mathPreviewContentRef.current]);
+          if (cancelled || !mathHoverPreviewRef.current || !window.MathJax?.typesetPromise) return;
+          return window.MathJax.typesetPromise([mathHoverPreviewRef.current]);
         })
         .catch(() => {});
-    }, 320);
+    }, 80);
     return () => {
       cancelled = true;
       clearTimeout(id);
     };
-  }, [noteTab, previewHtml, notes]);
+  }, [mathHoverPreview?.source]);
 
   useEffect(() => {
-    setNoteTab(initialTab);
-  }, [initialTab, paperId]);
+    setNoteTab(normalizedInitialTab);
+  }, [normalizedInitialTab, paperId]);
 
   useEffect(() => {
     setPaperReferences([]);
@@ -377,6 +533,7 @@ const Reader = forwardRef(function Reader(
   }, [paperId]);
 
   useEffect(() => {
+    if (benchmarkActiveRef.current) return undefined;
     if (!paperId || notes === serverNotes) return undefined;
     setNotesStatus('saving');
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -394,29 +551,76 @@ const Reader = forwardRef(function Reader(
     };
   }, [notes, serverNotes, paperId]);
 
-  // Controlled <textarea> re-renders reset scrollTop; sync after React commits DOM so new lines stay in view.
-  useLayoutEffect(() => {
-    if (noteTab !== 'edit') return;
-    const ta = notesTextareaRef.current;
-    if (!ta || document.activeElement !== ta) return;
-    scrollTextareaCaretIntoView(ta);
-  }, [notes, noteTab]);
+  useEffect(() => {
+    if (!readPerfEnabled() || !readNoteBenchmarkEnabled()) return undefined;
+    if (benchmarkRanRef.current || noteTab !== 'edit' || loading || !paperId) return undefined;
+    let cancelled = false;
+    benchmarkRanRef.current = true;
+
+    async function runBenchmark() {
+      const sizes = [10, 25, 50, 100, 250];
+      const editCount = 8;
+      const results = [];
+      benchmarkActiveRef.current = true;
+      setNotesStatus('idle');
+      perfLog('note benchmark started', { sizes, editCount });
+
+      try {
+        for (const sizeKb of sizes) {
+          if (cancelled) return;
+          const synthetic = makeSyntheticMarkdown(sizeKb);
+          setNotes(synthetic);
+          await wait(800);
+          await waitForFrames(3);
+
+          if (cancelled) return;
+          window.__readxivPerfEvents = [];
+          const startedAt = performance.now();
+          for (let i = 0; i < editCount; i += 1) {
+            mdxEditorRef.current?.insertMarkdown?.(` bench${i}`);
+            await wait(120);
+          }
+          await wait(700);
+          await waitForFrames(3);
+          const elapsedMs = performance.now() - startedAt;
+          const events = window.__readxivPerfEvents || [];
+          results.push(summarizeEvents(events, sizeKb, synthetic, editCount, elapsedMs));
+        }
+
+        if (cancelled) return;
+        window.__readxivNoteBenchmarkResults = results;
+        console.table(results);
+        perfLog('note benchmark complete', {
+          results,
+          note: 'Results are also available at window.__readxivNoteBenchmarkResults',
+        });
+      } finally {
+        benchmarkActiveRef.current = false;
+        setNotesStatus('idle');
+      }
+    }
+
+    runBenchmark();
+    return () => {
+      cancelled = true;
+      benchmarkActiveRef.current = false;
+    };
+  }, [noteTab, loading, paperId]);
 
   useEffect(() => {
     if (noteTab !== 'edit') return;
-    let raf = 0;
-    const onSel = () => {
-      const ta = notesTextareaRef.current;
-      if (!ta || document.activeElement !== ta) return;
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => scrollTextareaCaretIntoView(ta));
-    };
-    document.addEventListener('selectionchange', onSel);
-    return () => {
-      cancelAnimationFrame(raf);
-      document.removeEventListener('selectionchange', onSel);
-    };
-  }, [noteTab]);
+    const startedAt = performance.now();
+    const editorMarkdown = mdxEditorRef.current?.getMarkdown?.();
+    perfLog('MDX sync effect checked', {
+      notesLength: notes.length,
+      editorLength: editorMarkdown?.length,
+      changed: editorMarkdown !== undefined && editorMarkdown !== notes,
+      ms: Number((performance.now() - startedAt).toFixed(2)),
+    });
+    if (editorMarkdown !== undefined && editorMarkdown !== notes) {
+      mdxEditorRef.current?.setMarkdown(notes);
+    }
+  }, [notes, noteTab, paperId]);
 
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -431,8 +635,7 @@ const Reader = forwardRef(function Reader(
               } else {
                 setNoteTab('edit');
                 setTimeout(() => {
-                  const el = notesTextareaRef.current ?? notesPreviewRef.current;
-                  el?.focus();
+                  mdxEditorRef.current?.focus?.();
                 }, 80);
               }
             });
@@ -497,21 +700,18 @@ const Reader = forwardRef(function Reader(
   }
 
   function wrapSelection(prefix, suffix = '') {
-    const textarea = document.activeElement;
-    if (!textarea || textarea.tagName !== 'TEXTAREA') return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    setNotes((prev) => `${prev.slice(0, start)}${prefix}${prev.slice(start, end)}${suffix}${prev.slice(end)}`);
+    const selected = mdxEditorRef.current?.getSelectionMarkdown?.();
+    if (!selected) return;
+    mdxEditorRef.current?.insertMarkdown?.(`${prefix}${selected}${suffix}`);
   }
 
   function insertAtCursor(text) {
-    const textarea = document.activeElement;
-    if (!textarea || textarea.tagName !== 'TEXTAREA') {
-      setNotes((prev) => `${prev}\n${text}`);
-      return;
+    if (noteTab !== 'edit') {
+      setNoteTab('edit');
+      setTimeout(() => mdxEditorRef.current?.insertMarkdown?.(text), 80);
+    } else {
+      mdxEditorRef.current?.insertMarkdown?.(text);
     }
-    const start = textarea.selectionStart;
-    setNotes((prev) => `${prev.slice(0, start)}${text}${prev.slice(start)}`);
   }
 
   function ensureReaderSections(content) {
@@ -539,19 +739,48 @@ const Reader = forwardRef(function Reader(
     setNoteTab('edit');
   }
 
-  function scrollToOutlineItem(lineNumber) {
-    const textarea = notesTextareaRef.current;
-    if (!textarea) return;
-    
-    const lines = notes.split('\n');
-    let charCount = 0;
-    for (let i = 0; i < lineNumber && i < lines.length; i++) {
-      charCount += lines[i].length + 1;
+  function handleNotesEditorMouseMove(event) {
+    const panel = notesEditPanelRef.current;
+    if (!panel || !event.target.closest?.('.readxiv-mdx-editor')) {
+      setMathHoverPreview(null);
+      return;
     }
-    
-    textarea.focus();
-    textarea.setSelectionRange(charCount, charCount);
-    requestAnimationFrame(() => scrollTextareaCaretIntoView(textarea));
+
+    const range = getCaretRangeFromPoint(event.clientX, event.clientY);
+    const node = range?.startContainer;
+    if (!node || node.nodeType !== Node.TEXT_NODE) {
+      setMathHoverPreview(null);
+      return;
+    }
+
+    const source = extractTexTokenAtOffset(node.textContent || '', range.startOffset);
+    if (!source) {
+      setMathHoverPreview(null);
+      return;
+    }
+
+    const rect = panel.getBoundingClientRect();
+    const x = Math.min(rect.width - 24, Math.max(16, event.clientX - rect.left + 14));
+    const y = Math.min(rect.height - 88, Math.max(16, event.clientY - rect.top + 16));
+    setMathHoverPreview((prev) => {
+      if (prev?.source === source && Math.abs(prev.x - x) < 4 && Math.abs(prev.y - y) < 4) {
+        return prev;
+      }
+      return { source, x, y };
+    });
+  }
+
+  function scrollToOutlineItem(lineNumber) {
+    setNoteTab('edit');
+    requestAnimationFrame(() => {
+      mdxEditorRef.current?.focus?.();
+      const headingText = notes.split('\n')[lineNumber]?.replace(/^#{1,6}\s+/, '').trim();
+      if (!headingText) return;
+      const editable = document.querySelector('.readxiv-mdx-editor [contenteditable="true"]');
+      const heading = Array.from(editable?.querySelectorAll('h1,h2,h3,h4,h5,h6') || [])
+        .find((el) => el.textContent?.trim() === headingText);
+      heading?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
   }
 
   function toggleSectionFold(lineNumber) {
@@ -567,6 +796,7 @@ const Reader = forwardRef(function Reader(
   }
 
   const displayNotes = useMemo(() => {
+    const startedAt = performance.now();
     if (foldedSections.size === 0) return notes;
     
     const lines = notes.split('\n');
@@ -593,7 +823,14 @@ const Reader = forwardRef(function Reader(
       result.push(line);
     });
     
-    return result.join('\n');
+    const folded = result.join('\n');
+    perfLog('displayNotes recomputed', {
+      notesLength: notes.length,
+      foldedLength: folded.length,
+      foldedSections: foldedSections.size,
+      ms: Number((performance.now() - startedAt).toFixed(2)),
+    });
+    return folded;
   }, [notes, foldedSections]);
 
 
@@ -652,9 +889,9 @@ const Reader = forwardRef(function Reader(
   };
 
   return (
-    <div className="p-6 w-full max-w-[1800px] mx-auto font-sans h-screen flex flex-col overflow-hidden animate-view-fade">
+    <div className="reader-workspace p-4 sm:p-5 w-full max-w-[1800px] mx-auto font-sans h-screen flex flex-col overflow-hidden animate-view-fade">
       {backgroundPdfLoading && (
-        <div className="mb-4 claude-card p-4 flex-shrink-0">
+        <div className="mb-4 reader-panel p-4 flex-shrink-0">
           <div className="mb-3 flex items-center justify-between text-sm font-medium">
             <span className="text-secondary">Initializing PDF stream...</span>
             <span className="text-muted/60">Status: Chunking</span>
@@ -665,13 +902,13 @@ const Reader = forwardRef(function Reader(
         </div>
       )}
 
-      <div ref={splitRootRef} className="flex gap-0 flex-1 min-h-0 relative">
+      <div ref={splitRootRef} className="reader-split-shell flex gap-0 flex-1 min-h-0 relative">
         {!pdfCollapsed && (
           <div
             ref={pdfPanelRef}
             tabIndex={0}
             style={{ width: notesCollapsed ? '100%' : `${leftWidth}%` }}
-            className={`claude-card overflow-hidden relative select-none ${notesCollapsed ? '' : 'border-r-0 rounded-r-none'} h-full min-h-0 transition-all outline-none focus:outline-none ${focusedPanel === 'pdf' ? 'focus-panel-glow' : ''}`}
+            className={`reader-panel reader-pdf-panel overflow-hidden relative ${notesCollapsed ? '' : 'rounded-r-none'} h-full min-h-0 transition-all outline-none focus:outline-none ${focusedPanel === 'pdf' ? 'reader-panel-focused' : ''}`}
             onClick={(e) => {
               setFocusedPanel('pdf');
               if (e.target.closest('[data-pdf-scroll]')) {
@@ -683,16 +920,22 @@ const Reader = forwardRef(function Reader(
             onFocus={() => setFocusedPanel('pdf')}
             onKeyDown={(e) => focusedPanel === 'pdf' && pdfViewerRef.current?.handleKeyDown(e)}
           >
-            <PdfViewer
-              ref={pdfViewerRef}
-              paperId={paperId}
-              paperTitle={readerPaper?.title}
-              continuousScroll={settings?.continuousScroll !== false}
-              onInsertQuote={insertQuoteFromHighlight}
-              onSendToCanvas={onSendToCanvas}
-              onToolbarState={handleToolbarState}
-            />
-            {readerToolbarExpanded && <ReaderPdfFloatingToolbar {...readerToolbarProps} />}
+            <Profiler id="Reader.PdfViewer" onRender={profileRender}>
+              <PdfViewer
+                ref={pdfViewerRef}
+                paperId={paperId}
+                paperTitle={readerPaper?.title}
+                continuousScroll={settings?.continuousScroll !== false}
+                onInsertQuote={insertQuoteFromHighlight}
+                onSendToCanvas={onSendToCanvas}
+                onToolbarState={handleToolbarState}
+              />
+            </Profiler>
+            {readerToolbarExpanded && (
+              <Profiler id="Reader.PdfToolbar" onRender={profileRender}>
+                <ReaderPdfFloatingToolbar {...readerToolbarProps} />
+              </Profiler>
+            )}
           </div>
         )}
 
@@ -704,43 +947,47 @@ const Reader = forwardRef(function Reader(
                 setPdfCollapsed(false);
                 setNotesCollapsed(false);
               }}
-              className="w-12 flex items-center justify-center bg-surface/50 hover:bg-surface border-r border-border transition-colors shrink-0"
+              className="reader-collapse-rail w-10 flex items-center justify-center transition-colors shrink-0"
               title="Expand PDF panel"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
             </button>
-            {readerToolbarExpanded && <ReaderPdfFloatingToolbar {...readerToolbarProps} />}
+            {readerToolbarExpanded && (
+              <Profiler id="Reader.PdfToolbar.CollapsedPdf" onRender={profileRender}>
+                <ReaderPdfFloatingToolbar {...readerToolbarProps} />
+              </Profiler>
+            )}
           </>
         )}
 
         {!pdfCollapsed && !notesCollapsed && (
           <div
-            className="w-4 cursor-col-resize hover:bg-secondary/20 active:bg-secondary/40 transition-colors flex items-center justify-center z-10 -ml-2 -mr-2 relative select-none"
+            className="reader-resize-seam w-3 cursor-col-resize flex items-center justify-center z-10 -ml-1.5 -mr-1.5 relative select-none"
             onMouseDown={startResize}
           >
-            <div className="w-1 h-8 rounded-full bg-border/50" />
+            <div className="reader-resize-grip w-px h-10 rounded-full" />
           </div>
         )}
 
         {!notesCollapsed && (
           <div
             style={{ width: pdfCollapsed ? '100%' : `${100 - leftWidth}%` }}
-            className={`flex flex-col claude-card overflow-hidden ${pdfCollapsed ? '' : 'border-l-0 rounded-l-none'} h-full min-h-0 transition-all ${focusedPanel === 'notes' ? 'focus-panel-glow' : ''} notes-editor-container`}
+            className={`reader-panel reader-notes-panel flex flex-col overflow-hidden ${pdfCollapsed ? '' : 'rounded-l-none'} h-full min-h-0 transition-all ${focusedPanel === 'notes' ? 'reader-panel-focused' : ''} notes-editor-container`}
             onClick={() => setFocusedPanel('notes')}
           >
-          <div className="flex-1 min-h-0 p-0 overflow-hidden flex flex-col bg-surface min-w-0">
-            <div className="flex items-stretch gap-1.5 px-2 sm:px-3 py-2 border-b border-border/50 shrink-0">
-              <div className="flex gap-0.5 flex-1 min-w-0">
+          <div className="flex-1 min-h-0 p-0 overflow-hidden flex flex-col min-w-0">
+            <div className="flex items-center justify-between gap-3 px-8 sm:px-12 py-3 border-b border-border/20 shrink-0 bg-background/10">
+              <div className="flex items-center gap-6 min-w-0">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setNoteTab('edit');
                   }}
-                  className={`flex-1 min-w-0 px-1.5 sm:px-2 py-1.5 text-[11px] sm:text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
+                  className={`relative flex items-center gap-1.5 py-1.5 text-sm font-medium transition-colors ${
                     noteTab === 'edit'
-                      ? 'bg-secondary/10 text-secondary border border-secondary/30'
-                      : 'text-muted hover:text-foreground hover:bg-surface/50 border border-transparent'
+                      ? 'text-foreground'
+                      : 'text-muted hover:text-foreground'
                   }`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
@@ -750,27 +997,12 @@ const Reader = forwardRef(function Reader(
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setNoteTab('preview');
-                  }}
-                  className={`flex-1 min-w-0 px-1.5 sm:px-2 py-1.5 text-[11px] sm:text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
-                    noteTab === 'preview'
-                      ? 'bg-secondary/10 text-secondary border border-secondary/30'
-                      : 'text-muted hover:text-foreground hover:bg-surface/50 border border-transparent'
-                  }`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                  <span className="truncate">Preview</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
                     setNoteTab('references');
                   }}
-                  className={`flex-1 min-w-0 px-1.5 sm:px-2 py-1.5 text-[11px] sm:text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
+                  className={`relative flex items-center gap-1.5 py-1.5 text-sm font-medium transition-colors ${
                     noteTab === 'references'
-                      ? 'bg-secondary/10 text-secondary border border-secondary/30'
-                      : 'text-muted hover:text-foreground hover:bg-surface/50 border border-transparent'
+                      ? 'text-foreground'
+                      : 'text-muted hover:text-foreground'
                   }`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M8 7h6"/><path d="M8 11h8"/></svg>
@@ -780,14 +1012,18 @@ const Reader = forwardRef(function Reader(
                   </span>
                 </button>
               </div>
-              <div className="flex gap-0.5 shrink-0 items-center border-l border-border/40 pl-1.5 ml-0.5">
+              <div className="flex shrink-0 items-center">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowOutline((v) => !v);
                   }}
-                  className={`p-1.5 rounded-md ${showOutline ? 'bg-secondary/20 text-secondary' : 'bg-surface/80 hover:bg-surface text-muted hover:text-foreground'} border border-border transition-colors`}
+                  className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors ${
+                    showOutline
+                      ? 'text-secondary bg-secondary/10'
+                      : 'text-muted hover:text-foreground'
+                  }`}
                   title="Toggle outline"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -847,7 +1083,7 @@ const Reader = forwardRef(function Reader(
                       : 'Wasn&apos;t able to extract anything'}
                   </p>
                 ) : (
-                  <ul className="space-y-4 max-w-[720px] mx-auto">
+                  <ul className="space-y-6 max-w-[720px] mx-auto">
                     {addablePaperReferences.map((ref, idx) => {
                       const rowKey = ref.label || `${ref.arxivId || ''}-${ref.doi || ''}-${idx}`;
                       const busy = addingReferenceKeys.has(rowKey);
@@ -856,7 +1092,7 @@ const Reader = forwardRef(function Reader(
                       return (
                         <li
                           key={rowKey}
-                          className="border-b border-border/40 pb-4 last:border-0 last:pb-0"
+                          className="pb-5 border-b border-border/25 last:border-0 last:pb-0"
                         >
                           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
                             <div className="flex-1 min-w-0">
@@ -871,7 +1107,7 @@ const Reader = forwardRef(function Reader(
                                   href={linkHref}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md border border-border/60 text-muted hover:text-foreground hover:bg-surface/60 transition-colors"
+                                  className="inline-flex items-center justify-center px-1 py-1 text-xs font-medium text-muted hover:text-foreground transition-colors"
                                 >
                                   Link
                                 </a>
@@ -880,7 +1116,7 @@ const Reader = forwardRef(function Reader(
                                 type="button"
                                 disabled={busy}
                                 onClick={() => addShelfReference(ref.arxivId.trim(), rowKey)}
-                                className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md bg-secondary/15 text-secondary border border-secondary/35 hover:bg-secondary/25 disabled:opacity-50 transition-colors"
+                                className="inline-flex items-center justify-center px-1 py-1 text-xs font-medium text-secondary hover:text-foreground disabled:opacity-50 transition-colors"
                               >
                                 {busy ? 'Adding…' : 'Add'}
                               </button>
@@ -892,27 +1128,53 @@ const Reader = forwardRef(function Reader(
                   </ul>
                 )}
               </div>
-            ) : noteTab === 'edit' ? (
-              <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden select-text">
-                <textarea
-                  ref={notesTextareaRef}
-                  className="markdown-editor flex-1 min-h-0 w-full overflow-y-auto bg-transparent px-12 pt-8 pb-20 resize-none outline-none text-base text-foreground placeholder:text-muted/30 select-text"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  onSelect={(e) => requestAnimationFrame(() => scrollTextareaCaretIntoView(e.target))}
-                  onClick={(e) => requestAnimationFrame(() => scrollTextareaCaretIntoView(e.target))}
-                  onKeyUp={(e) => requestAnimationFrame(() => scrollTextareaCaretIntoView(e.currentTarget))}
-                  onFocus={() => setFocusedPanel('notes')}
-                  placeholder="Start writing your thoughts..."
-                  spellCheck="true"
-                />
+            ) : (
+              <div
+                ref={notesEditPanelRef}
+                className="flex-1 min-h-0 flex flex-col relative overflow-hidden select-text"
+                onFocusCapture={() => setFocusedPanel('notes')}
+                onMouseMove={handleNotesEditorMouseMove}
+                onMouseLeave={() => setMathHoverPreview(null)}
+              >
+                <Profiler id="Reader.MDXEditor" onRender={profileRender}>
+                  <MDXEditor
+                    ref={mdxEditorRef}
+                    markdown={notes}
+                    plugins={mdxPlugins}
+                    className="readxiv-mdx-editor markdown-editor flex-1 min-h-0 w-full overflow-y-auto bg-transparent px-8 sm:px-12 pt-7 pb-8 text-base text-foreground select-text"
+                    contentEditableClassName="readxiv-mdx-content markdown-preview max-w-[750px] mx-auto min-h-full outline-none"
+                    placeholder="Start writing your thoughts..."
+                    onChange={(markdown) => {
+                      perfLog('MDXEditor onChange', {
+                        previousLength: notes.length,
+                        nextLength: markdown.length,
+                      });
+                      setNotes(markdown);
+                    }}
+                    onError={(payload) => {
+                      console.warn('MDXEditor markdown parse error', payload);
+                    }}
+                  />
+                </Profiler>
+                {mathHoverPreview && (
+                  <div
+                    ref={mathHoverPreviewRef}
+                    className="latex-hover-preview markdown-preview"
+                    style={{
+                      left: `${mathHoverPreview.x}px`,
+                      top: `${mathHoverPreview.y}px`,
+                    }}
+                  >
+                    {mathHoverPreview.source}
+                  </div>
+                )}
                 {foldedSections.size > 0 && (
                   <div className="absolute top-4 right-4 text-xs text-muted bg-surface/80 px-2 py-1 rounded border border-border">
                     {foldedSections.size} section(s) folded
                   </div>
                 )}
-                <div className="editor-status-bar absolute bottom-0 left-0 right-0 flex items-center justify-between px-12 py-2 border-t border-border/30">
-                  <div className="flex items-center gap-4 text-xs text-muted/60">
+                <div className="editor-status-bar shrink-0 flex flex-wrap items-center justify-between gap-2 px-8 sm:px-12 py-2 border-t border-border/20">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted/60">
                     <span className="flex items-center gap-1.5">
                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
                       {notes.split('\n').length} lines
@@ -950,19 +1212,6 @@ const Reader = forwardRef(function Reader(
                   </div>
                 </div>
               </div>
-            ) : (
-              <div
-                ref={notesPreviewRef}
-                tabIndex={0}
-                className="flex-1 markdown-preview overflow-auto px-12 py-8 bg-transparent text-foreground outline-none focus:outline-none select-text"
-                onFocus={() => setFocusedPanel('notes')}
-              >
-                <div
-                  ref={mathPreviewContentRef}
-                  className="max-w-[750px] mx-auto"
-                  dangerouslySetInnerHTML={{ __html: previewHtml }}
-                />
-              </div>
             )}
           </div>
         </div>
@@ -975,7 +1224,7 @@ const Reader = forwardRef(function Reader(
               setNotesCollapsed(false);
               setPdfCollapsed(false);
             }}
-            className="w-12 flex items-center justify-center bg-surface/50 hover:bg-surface border-l border-border transition-colors"
+            className="reader-collapse-rail w-10 flex items-center justify-center transition-colors"
             title="Expand notes panel"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
