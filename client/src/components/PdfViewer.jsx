@@ -22,13 +22,18 @@ GlobalWorkerOptions.workerSrc = pdfWorker;
 const SCALE_MIN = 0.5;
 const SCALE_MAX = 4;
 const SCALE_STEP = 1.12;
+const VALID_ZOOM_PRESETS = new Set(['actual', 'page-width', 'page-fit', 'auto']);
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function normalizeZoomPreset(value) {
+  return VALID_ZOOM_PRESETS.has(value) ? value : 'actual';
+}
+
 const PdfViewer = forwardRef(function PdfViewer(
-  { paperId, paperTitle, continuousScroll = true, onSendToCanvas, onToolbarState },
+  { paperId, paperTitle, continuousScroll = true, defaultZoom = 'actual', onSendToCanvas, onToolbarState },
   ref
 ) {
   const rootRef = useRef(null);
@@ -41,6 +46,7 @@ const PdfViewer = forwardRef(function PdfViewer(
   const findControllerRef = useRef(null);
   const eventBusRef = useRef(null);
   const findQueryRef = useRef('');
+  const defaultZoomRef = useRef(normalizeZoomPreset(defaultZoom));
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -57,6 +63,10 @@ const PdfViewer = forwardRef(function PdfViewer(
   useEffect(() => {
     findQueryRef.current = findQuery;
   }, [findQuery]);
+
+  useEffect(() => {
+    defaultZoomRef.current = normalizeZoomPreset(defaultZoom);
+  }, [defaultZoom]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -86,10 +96,14 @@ const PdfViewer = forwardRef(function PdfViewer(
     pdfViewerRef.current = pdfViewer;
     linkService.setViewer(pdfViewer);
 
+    const applyDefaultZoom = () => {
+      pdfViewer.currentScaleValue = defaultZoomRef.current;
+      setScale(pdfViewer.currentScale || 1);
+    };
+
     const onPagesInit = () => {
       pdfViewer.scrollMode = continuousScroll ? ScrollMode.VERTICAL : ScrollMode.PAGE;
-      pdfViewer.currentScaleValue = continuousScroll ? 'page-width' : 'page-fit';
-      setScale(pdfViewer.currentScale || 1);
+      applyDefaultZoom();
     };
     const onPageChanging = ({ pageNumber }) => setPage(pageNumber);
     const onScaleChanging = ({ scale: nextScale }) => setScale(nextScale || pdfViewer.currentScale || 1);
@@ -299,7 +313,7 @@ const PdfViewer = forwardRef(function PdfViewer(
       } else if ((event.ctrlKey || event.metaKey) && event.key === '0') {
         event.preventDefault();
         if (pdfViewerRef.current) {
-          pdfViewerRef.current.currentScaleValue = continuousScroll ? 'page-width' : 'page-fit';
+          pdfViewerRef.current.currentScaleValue = defaultZoomRef.current;
           setScale(pdfViewerRef.current.currentScale || 1);
         }
       } else if (event.key === 'G' && event.shiftKey) {

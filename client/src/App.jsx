@@ -3,13 +3,11 @@ import axios from 'axios'
 import GlobalSearchPalette from './components/GlobalSearchPalette'
 import RecentPapersFinder from './components/RecentPapersFinder'
 import GlobalCanvas from './components/GlobalCanvas'
-import CommandStatusBar from './components/CommandStatusBar'
-import CommandBar from './components/CommandBar'
 import Home from './pages/Home'
-import Shelf from './pages/Shelf'
 import Settings from './pages/Settings'
 import Help from './pages/Help'
 const Reader = lazy(() => import('./pages/Reader'))
+const SearchWorkbench = lazy(() => import('./pages/SearchWorkbench'))
 
 // Settings button: kept in code but not in use. User will specify placement later.
 // See Settings page and setPage('settings') - accessible via Ctrl+P > "settings" for now.
@@ -28,6 +26,10 @@ function readerPathForPaperId(id) {
   return `/p/${encodeURIComponent(id)}`
 }
 
+function isSearchPath(pathname) {
+  return pathname === '/search' || pathname === '/search/'
+}
+
 function getTabTitle(url) {
   try {
     const u = new URL(url)
@@ -41,11 +43,11 @@ function getTabTitle(url) {
 function App() {
   const [page, setPage] = useState('home')
   const [selectedPaper, setSelectedPaper] = useState(null)
-  const [shelfQuery, setShelfQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [homeFocusNonce, setHomeFocusNonce] = useState(0)
+  const [searchFocusNonce, setSearchFocusNonce] = useState(0)
   const [readerInitialTab, setReaderInitialTab] = useState('edit')
   const [toasts, setToasts] = useState([])
-  const [commandBarOpen, setCommandBarOpen] = useState(false)
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [recentsOpen, setRecentsOpen] = useState(false)
   const [canvasOpen, setCanvasOpen] = useState(false)
@@ -53,7 +55,6 @@ function App() {
   const [pendingB, setPendingB] = useState(false)
   const [pendingK, setPendingK] = useState(false)
   const [pendingF, setPendingF] = useState(false)
-  const [openSearchNonce, setOpenSearchNonce] = useState(0)
   const readerRef = useRef(null)
   /** Mirror chord flags so the next key is recognized before React re-renders (fixes Space then o). */
   const pendingGRef = useRef(false)
@@ -81,12 +82,22 @@ function App() {
   const [externalTabs, setExternalTabs] = useState([])
   const [activeExternalTabId, setActiveExternalTabId] = useState(null)
   const DEFAULT_THEME = 'mist'
+  const DEFAULT_PDF_ZOOM = 'actual'
+  const DEFAULT_READER_VIEW = 'split'
   const VALID_THEMES = ['monochrome', 'blue', 'noir', 'olive', 'mist', 'plum', 'periwinkle', 'lichen', 'cinder']
-  const VALID_LAYOUTS = ['list', 'split']
+  const VALID_PDF_ZOOMS = ['actual', 'page-width', 'page-fit', 'auto']
+  const VALID_READER_VIEWS = ['split', 'pdf', 'notes']
   const [settings, setSettings] = useState(() => {
     const raw = localStorage.getItem('papyrus-settings')
     if (!raw)
-      return { continuousScroll: true, theme: DEFAULT_THEME, fontFamily: 'brutalist', homeLayout: 'list' }
+      return {
+        continuousScroll: true,
+        theme: DEFAULT_THEME,
+        fontFamily: 'brutalist',
+        homeLayout: 'list',
+        defaultPdfZoom: DEFAULT_PDF_ZOOM,
+        defaultReaderView: DEFAULT_READER_VIEW,
+      }
     try {
       const parsed = JSON.parse(raw)
       let rawTheme =
@@ -96,14 +107,53 @@ function App() {
             ? 'periwinkle'
             : parsed.theme
       const theme = VALID_THEMES.includes(rawTheme) ? rawTheme : DEFAULT_THEME
-      const homeLayout = VALID_LAYOUTS.includes(parsed.homeLayout) ? parsed.homeLayout : 'list'
       const currentSettings = { ...parsed }
+      const defaultPdfZoom = VALID_PDF_ZOOMS.includes(currentSettings.defaultPdfZoom)
+        ? currentSettings.defaultPdfZoom
+        : DEFAULT_PDF_ZOOM
+      const defaultReaderView = VALID_READER_VIEWS.includes(currentSettings.defaultReaderView)
+        ? currentSettings.defaultReaderView
+        : DEFAULT_READER_VIEW
       delete currentSettings['live' + 'MarkdownPreview']
-      return { continuousScroll: true, fontFamily: 'brutalist', ...currentSettings, theme, homeLayout }
+      return {
+        continuousScroll: true,
+        fontFamily: 'brutalist',
+        ...currentSettings,
+        theme,
+        defaultPdfZoom,
+        defaultReaderView,
+      }
     } catch {
-      return { continuousScroll: true, theme: DEFAULT_THEME, fontFamily: 'brutalist', homeLayout: 'list' }
+      return {
+        continuousScroll: true,
+        theme: DEFAULT_THEME,
+        fontFamily: 'brutalist',
+        homeLayout: 'list',
+        defaultPdfZoom: DEFAULT_PDF_ZOOM,
+        defaultReaderView: DEFAULT_READER_VIEW,
+      }
     }
   })
+  const supportsViewTransitions =
+    typeof document !== 'undefined' && typeof document.startViewTransition === 'function'
+
+  const runWithViewTransition = useCallback((update) => {
+    const startViewTransition = document.startViewTransition?.bind(document)
+    if (!startViewTransition) {
+      update()
+      return Promise.resolve()
+    }
+
+    try {
+      const transition = startViewTransition(() => {
+        update()
+      })
+      return transition.finished.catch(() => {})
+    } catch {
+      update()
+      return Promise.resolve()
+    }
+  }, [])
 
   useEffect(() => {
     localStorage.setItem('papyrus-settings', JSON.stringify(settings))
@@ -127,18 +177,47 @@ function App() {
     setActiveExternalTabId((current) => (current === id ? null : current))
   }
 
-  const navigateTo = useCallback((target) => {
-    if (target === 'home') {
-      setPage('home')
-      setHomeFocusNonce((n) => n + 1)
-    } else if (target === 'shelf') {
-      setPage('shelf')
-    } else if (target === 'settings') {
-      setPage('settings')
-    } else if (target === 'help') {
-      setPage('help')
-    }
-  }, [])
+  const navigateTo = useCallback(
+    (target) => {
+      runWithViewTransition(() => {
+        if (target === 'home') {
+          setPage('home')
+          setHomeFocusNonce((n) => n + 1)
+        } else if (target === 'search') {
+          setPage('search')
+          setSearchFocusNonce((n) => n + 1)
+        } else if (target === 'settings') {
+          setPage('settings')
+        } else if (target === 'help') {
+          setPage('help')
+        }
+      })
+    },
+    [runWithViewTransition]
+  )
+
+  const openSearch = useCallback(
+    (query = '') => {
+      runWithViewTransition(() => {
+        setSearchQuery(query)
+        setPage('search')
+        setSearchFocusNonce((n) => n + 1)
+      })
+    },
+    [runWithViewTransition]
+  )
+
+  const openPaper = useCallback(
+    (paper, { initialTab = 'edit' } = {}) => {
+      if (!paper) return
+      runWithViewTransition(() => {
+        setSelectedPaper(paper)
+        setReaderInitialTab(initialTab)
+        setPage('reader')
+      })
+    },
+    [runWithViewTransition]
+  )
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -194,7 +273,7 @@ function App() {
           setPendingG(false)
         } else if (k === 's') {
           event.preventDefault()
-          navigateTo('shelf')
+          navigateTo('search')
           pendingGRef.current = false
           setPendingG(false)
         } else if (page === 'reader' && k === 'q') {
@@ -273,9 +352,7 @@ function App() {
           event.preventDefault()
           pendingFRef.current = false
           setPendingF(false)
-          setPage('home')
-          setHomeFocusNonce((n) => n + 1)
-          setOpenSearchNonce((n) => n + 1)
+          navigateTo('search')
         } else {
           pendingFRef.current = false
           setPendingF(false)
@@ -293,17 +370,12 @@ function App() {
 
       if ((event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'k') || (event.ctrlKey && event.key.toLowerCase() === 'k')) {
         event.preventDefault()
-        navigateTo('home')
+        navigateTo('search')
         return
       }
       if (event.ctrlKey && event.key.toLowerCase() === 'p') {
         event.preventDefault()
         setQuickSearchOpen(true)
-        return
-      }
-      if (event.key === ':' && !event.ctrlKey && !event.metaKey && !event.altKey && !isInputFocused) {
-        event.preventDefault()
-        setCommandBarOpen(true)
         return
       }
     }
@@ -323,9 +395,7 @@ function App() {
     async (id) => {
       try {
         const { data } = await axios.get(`/api/papers/${encodeURIComponent(id)}`)
-        setSelectedPaper(data)
-        setReaderInitialTab('edit')
-        setPage('reader')
+        openPaper(data)
         return true
       } catch (e) {
         addToast(e.response?.status === 404 ? 'Paper not found' : 'Could not open paper', 'error')
@@ -335,62 +405,41 @@ function App() {
         return false
       }
     },
-    [addToast]
+    [addToast, openPaper]
   )
-
-  const openPaper = useCallback((paper) => {
-    setSelectedPaper(paper)
-    setReaderInitialTab('edit')
-    setPage('reader')
-  }, [])
-
-  const addPaperFromCommand = useCallback(
-    async (input) => {
-      try {
-        const { data } = await axios.post('/api/arxiv/add', { input })
-        addToast(data?.alreadyExists ? 'Paper already in shelf' : 'Added paper', 'success')
-        if (data?.id) {
-          setSelectedPaper(data)
-          setReaderInitialTab('edit')
-          setPage('reader')
-        }
-      } catch (error) {
-        addToast(error.response?.data?.error || 'Could not add paper', 'error')
-      }
-    },
-    [addToast]
-  )
-
-  const runReaderAction = useCallback((action) => {
-    if (action === 'references') {
-      readerRef.current?.setNoteTab?.('references')
-      readerRef.current?.setReaderView?.('notes')
-    } else if (action === 'page') {
-      readerRef.current?.openPdfPageJumpMenu?.()
-    } else if (action === 'toolbar') {
-      readerRef.current?.toggleReaderToolbarExpanded?.()
-    } else {
-      readerRef.current?.setReaderView?.(action)
-    }
-  }, [])
 
   useEffect(() => {
     const fromPath = parsePaperDeepLink(window.location.pathname)
-    if (fromPath) openPaperById(fromPath)
+    if (fromPath) {
+      openPaperById(fromPath)
+      return
+    }
+    if (isSearchPath(window.location.pathname)) {
+      setPage('search')
+      setSearchFocusNonce((n) => n + 1)
+    }
   }, [openPaperById])
 
   useEffect(() => {
     const onPop = () => {
       const id = parsePaperDeepLink(window.location.pathname)
       if (id) openPaperById(id)
-      else {
-        setPage('home')
-        setSelectedPaper(null)
+      else if (isSearchPath(window.location.pathname)) {
+        runWithViewTransition(() => {
+          setPage('search')
+          setSelectedPaper(null)
+          setSearchFocusNonce((n) => n + 1)
+        })
+      } else {
+        runWithViewTransition(() => {
+          setPage('home')
+          setSelectedPaper(null)
+        })
       }
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
-  }, [openPaperById])
+  }, [openPaperById, runWithViewTransition])
 
   useEffect(() => {
     if (page === 'reader' && selectedPaper?.id) {
@@ -403,29 +452,65 @@ function App() {
           window.history.pushState({ readxiv: 'reader', id: selectedPaper.id }, '', target)
         }
       }
+    } else if (page === 'search') {
+      if (!isSearchPath(window.location.pathname)) {
+        window.history.pushState({ readxiv: 'search' }, '', '/search')
+      }
     } else if (page !== 'reader' && window.location.pathname.startsWith('/p/')) {
+      window.history.replaceState(null, '', '/')
+    } else if (page !== 'search' && isSearchPath(window.location.pathname)) {
       window.history.replaceState(null, '', '/')
     }
   }, [page, selectedPaper?.id])
 
+  const chordHint = pendingB
+    ? 'h toggle PDF dark mode'
+    : pendingK
+      ? 'a open canvas'
+      : pendingF
+        ? 'b browse library | any other key recent papers'
+        : pendingG
+          ? page === 'reader'
+            ? 'h home | s search | c settings | e help | q/w/e views | b dark mode | k canvas'
+            : 'h home | s search | c settings | e help | f recent papers'
+          : null
+
   return (
     <div className="flex min-h-screen text-foreground font-sans">
-      <div className="fixed bottom-6 left-1/2 z-50 flex w-[min(92vw,22rem)] -translate-x-1/2 flex-col-reverse gap-2 pointer-events-none">
+      <div className="fixed bottom-5 right-5 z-50 flex w-[min(92vw,20rem)] flex-col-reverse gap-2 pointer-events-none">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto rounded-xl border px-4 py-3 text-sm shadow-xl animate-toast-in ${
-              toast.type === 'success'
-                ? 'border-secondary/50 bg-secondary/10 text-secondary'
-                : toast.type === 'error'
-                  ? 'border-red-900/50 bg-red-500/10 text-red-300'
-                  : 'border-border bg-surface text-foreground'
-            }`}
+            className="pointer-events-auto rounded-xl shadow-2xl animate-toast-in overflow-hidden"
+            style={{ background: 'var(--foreground)', color: 'var(--background)' }}
           >
-            {toast.message}
+            <div className="flex items-center gap-2.5 px-4 py-3">
+              <span className="text-sm shrink-0" style={{ opacity: 0.5 }}>
+                {toast.type === 'success' ? '✓' : toast.type === 'error' ? '✕' : '·'}
+              </span>
+              <span className="text-sm font-medium leading-snug">{toast.message}</span>
+            </div>
+            <div
+              className="h-[2px] w-full animate-toast-progress origin-left"
+              style={{ background: 'var(--background)', opacity: 0.15 }}
+            />
           </div>
         ))}
       </div>
+      {chordHint && (
+        <div className="pointer-events-none fixed bottom-5 left-5 z-50">
+          <div
+            className="rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-foreground/80 shadow-2xl"
+            style={{
+              borderColor: 'color-mix(in srgb, var(--secondary) 24%, var(--border))',
+              background: 'color-mix(in srgb, var(--surface) 74%, transparent)',
+              backdropFilter: 'blur(20px)',
+            }}
+          >
+            Space -&gt; {chordHint}
+          </div>
+        </div>
+      )}
 
       <main className={`app-main flex-1 overflow-auto relative flex flex-col min-w-0 ${page === 'reader' ? 'group' : ''}`}>
         {externalTabs.length > 0 && (
@@ -463,34 +548,35 @@ function App() {
           </div>
         )}
         <div className={`flex-1 overflow-auto ${activeExternalTabId ? 'hidden' : ''}`}>
-          <div className={`relative z-10 ${
-            page === 'reader' ? '' : 'brutalist-container pl-6 pr-6 pt-6 pb-16'
-          }`}>
+          <div key={supportsViewTransitions ? 'app-page-shell' : page} className={`relative z-10 ${
+            page === 'reader' || page === 'search' ? '' : 'brutalist-container pl-6 pr-6 pt-6 pb-16'
+          } ${supportsViewTransitions ? '' : 'animate-view-fade'}`}>
           {page === 'home' && (
-            <div key="home" className="animate-view-fade">
             <Home
-              setPage={setPage}
-              setSelectedPaper={setSelectedPaper}
+              setPage={navigateTo}
+              openPaper={openPaper}
               focusNonce={homeFocusNonce}
-              openSearchNonce={openSearchNonce}
               addToast={addToast}
-              settings={settings}
-              onSearchQuery={(query) => {
-                setShelfQuery(query)
-                setPage('shelf')
-              }}
+              onSearchQuery={openSearch}
             />
-            </div>
           )}
-          {page === 'shelf' && (
-            <div key="shelf" className="animate-view-fade">
-            <Shelf
-              setPage={setPage}
-              setSelectedPaper={setSelectedPaper}
-              initialQuery={shelfQuery}
-              addToast={addToast}
-            />
-            </div>
+          {page === 'search' && (
+            <Suspense fallback={
+              <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 animate-fade-in">
+                <div className="h-2 w-48 rounded-full overflow-hidden bg-surface">
+                  <div className="h-full w-1/3 skeleton-shimmer" />
+                </div>
+                <span className="text-sm text-muted uppercase tracking-widest">Loading search...</span>
+              </div>
+            }>
+              <SearchWorkbench
+                initialQuery={searchQuery}
+                focusNonce={searchFocusNonce}
+                setPage={navigateTo}
+                openPaper={openPaper}
+                addToast={addToast}
+              />
+            </Suspense>
           )}
           {page === 'reader' && (
             <Suspense fallback={
@@ -516,14 +602,10 @@ function App() {
             </Suspense>
           )}
           {page === 'settings' && (
-            <div key="settings" className="animate-view-fade">
-              <Settings settings={settings} setSettings={setSettings} setPage={setPage} addToast={addToast} />
-            </div>
+            <Settings settings={settings} setSettings={setSettings} setPage={setPage} addToast={addToast} />
           )}
           {page === 'help' && (
-            <div key="help" className="animate-view-fade">
-              <Help setPage={setPage} />
-            </div>
+            <Help setPage={setPage} />
           )}
           </div>
         </div>
@@ -545,21 +627,9 @@ function App() {
         open={recentsOpen}
         onClose={() => setRecentsOpen(false)}
         onSelectPaper={(paper) => {
-          setSelectedPaper(paper)
-          setReaderInitialTab('edit')
-          setPage('reader')
+          openPaper(paper)
           setRecentsOpen(false)
         }}
-      />
-      <CommandBar
-        open={commandBarOpen}
-        currentPage={page}
-        onClose={() => setCommandBarOpen(false)}
-        onSearch={() => setQuickSearchOpen(true)}
-        onAddPaper={addPaperFromCommand}
-        onNavigate={navigateTo}
-        onRecent={() => setRecentsOpen(true)}
-        onReaderAction={runReaderAction}
       />
       <GlobalSearchPalette
         open={quickSearchOpen}
@@ -570,7 +640,7 @@ function App() {
           setQuickSearchOpen(false)
         }}
         onCommand={(cmd) => {
-          if (['home', 'shelf', 'settings', 'help'].includes(cmd.id)) {
+          if (['home', 'search', 'settings', 'help'].includes(cmd.id)) {
             navigateTo(cmd.id)
           }
           setQuickSearchOpen(false)
@@ -579,16 +649,6 @@ function App() {
       <GlobalCanvas
         open={canvasOpen}
         onClose={() => setCanvasOpen(false)}
-      />
-      <CommandStatusBar
-        page={page}
-        pendingG={pendingG}
-        pendingB={pendingB}
-        pendingK={pendingK}
-        pendingF={pendingF}
-        onNavigate={navigateTo}
-        onCommand={() => setCommandBarOpen(true)}
-        onRecents={() => setRecentsOpen(true)}
       />
     </div>
   )

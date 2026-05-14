@@ -41,6 +41,14 @@ export default {
           '0%': { opacity: '0', transform: 'translateY(-12px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+        'actions-in': {
+          '0%': { opacity: '0', transform: 'translateX(8px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        'toast-progress': {
+          '0%':   { transform: 'scaleX(0)' },
+          '100%': { transform: 'scaleX(1)' },
+        },
       },
       animation: {
         'view-fade': 'view-fade 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
@@ -51,6 +59,8 @@ export default {
         'shimmer': 'shimmer 1.5s ease-in-out infinite',
         'stagger-fade': 'stagger-fade 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards',
         'lip-in': 'lip-in 0.25s linear forwards',
+        'actions-in': 'actions-in .22s cubic-bezier(0.16, 1, 0.3, 1)',
+        'toast-progress': 'toast-progress 2.6s linear forwards',
       },
       colors: {
         background: 'var(--background)',

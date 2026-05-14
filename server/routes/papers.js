@@ -7,6 +7,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import multer from 'multer';
 import { PAPYRUS_DIR } from '../db.js';
+import Fuse from 'fuse.js';
 
 const router = express.Router();
 const upload = multer({ dest: path.join(PAPYRUS_DIR, 'tmp') });
@@ -67,12 +68,50 @@ router.get('/', async (req, res) => {
   try {
     const db = await getDB();
     const result = db.exec('SELECT * FROM papers ORDER BY created_at DESC');
-    if (result.length === 0) {
-      return res.json([]);
+    const columns = result.length > 0 ? result[0].columns : [];
+    const papers = result.length > 0 ? result[0].values.map(row => rowToObject(row, columns)) : [];
+
+    const wantsPaginated =
+      Object.prototype.hasOwnProperty.call(req.query, 'q') ||
+      Object.prototype.hasOwnProperty.call(req.query, 'page') ||
+      Object.prototype.hasOwnProperty.call(req.query, 'pageSize') ||
+      req.query.paginate === '1';
+
+    if (!wantsPaginated) {
+      return res.json(papers);
     }
-    const columns = result[0].columns;
-    const papers = result[0].values.map(row => rowToObject(row, columns));
-    res.json(papers);
+
+    const query = String(req.query.q || '').trim();
+    const pageSizeRaw = Number.parseInt(req.query.pageSize, 10);
+    const requestedPageSize = Number.isFinite(pageSizeRaw) ? pageSizeRaw : 10;
+    const pageSize = Math.max(1, Math.min(requestedPageSize, 50));
+
+    let filtered = papers;
+    if (query) {
+      const fuse = new Fuse(papers, {
+        keys: ['title', 'authors', 'abstract'],
+        threshold: 0.3,
+        includeScore: true,
+      });
+      filtered = fuse.search(query).map((match) => match.item);
+    }
+
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const pageRaw = Number.parseInt(req.query.page, 10);
+    const requestedPage = Number.isFinite(pageRaw) ? pageRaw : 1;
+    const page = Math.max(1, Math.min(requestedPage, totalPages));
+    const pageStart = (page - 1) * pageSize;
+    const items = filtered.slice(pageStart, pageStart + pageSize);
+
+    return res.json({
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages,
+      query,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

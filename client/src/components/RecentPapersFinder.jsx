@@ -76,11 +76,17 @@ export default function RecentPapersFinder({ open, onClose, onSelectPaper }) {
 
   return (
     <div
-      className="fixed inset-0 z-[80] bg-foreground/80 backdrop-blur-sm flex items-start justify-center pt-[8vh] px-6 animate-backdrop-in"
+      className="fixed inset-0 z-[80] bg-foreground/80 backdrop-blur-md flex items-start justify-center pt-[8vh] px-6 animate-backdrop-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[720px] border border-border bg-surface rounded-xl shadow-2xl overflow-hidden animate-modal-in"
+        className="w-full max-w-[720px] rounded-xl shadow-2xl overflow-hidden animate-modal-in"
+        style={{
+          border: '1px solid color-mix(in srgb, var(--secondary) 16%, var(--border))',
+          background: 'color-mix(in srgb, var(--surface) 76%, transparent)',
+          backdropFilter: 'blur(22px)',
+          boxShadow: '0 28px 72px -24px rgba(0, 0, 0, 0.62)',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
@@ -88,7 +94,7 @@ export default function RecentPapersFinder({ open, onClose, onSelectPaper }) {
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
           </span>
           <span className="text-sm font-medium text-foreground">Recent papers</span>
-          <span className="text-[10px] text-muted/70 shrink-0 ml-auto">Space F</span>
+          <kbd className="ml-auto shrink-0 rounded border border-border/80 bg-foreground/5 px-1.5 py-0.5 text-[10px] font-mono text-muted/80">Space F</kbd>
         </div>
 
         <div ref={listRef} className="max-h-[480px] overflow-auto py-2">
@@ -115,11 +121,12 @@ export default function RecentPapersFinder({ open, onClose, onSelectPaper }) {
                   onSelectPaper?.(paper)
                   onClose?.()
                 }}
-                className={`w-full flex flex-col gap-0.5 px-4 py-2.5 text-left transition-colors ${
+                className={`w-full flex flex-col gap-0.5 px-4 py-2.5 text-left transition-colors animate-stagger-fade ${
                   idx === activeIndex
                     ? 'bg-secondary/15 text-secondary'
                     : 'text-foreground hover:bg-foreground/5'
                 }`}
+                style={{ animationDelay: `${Math.min(idx, 7) * 30}ms` }}
               >
                 <span className="text-sm font-medium line-clamp-2">{paper.title}</span>
                 <span className="text-[11px] text-muted truncate">

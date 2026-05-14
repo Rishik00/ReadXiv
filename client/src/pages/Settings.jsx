@@ -194,6 +194,19 @@ export default function Settings({ settings, setSettings, setPage }) {
     { id: 'split', name: 'Split View' },
   ]
 
+  const pdfZoomOptions = [
+    { id: 'actual', name: '100% (Actual size)' },
+    { id: 'page-width', name: 'Page width' },
+    { id: 'page-fit', name: 'Page fit' },
+    { id: 'auto', name: 'Auto' },
+  ]
+
+  const readerViewOptions = [
+    { id: 'split', name: 'Split view' },
+    { id: 'pdf', name: 'PDF only' },
+    { id: 'notes', name: 'Notes only' },
+  ]
+
   return (
     <div className="mx-auto max-w-[800px] p-12 font-sans">
       <h1 className="mb-2 text-4xl font-serif text-foreground">Settings</h1>
@@ -202,7 +215,7 @@ export default function Settings({ settings, setSettings, setPage }) {
       <div className="claude-card p-8 mb-8">
         <h2 className="text-lg font-semibold text-foreground mb-1">Todoist</h2>
         <p className="text-sm text-muted mb-6">
-          Add papers from the Shelf as tasks. Your API token is stored only in{' '}
+          Add papers from search as tasks. Your API token is stored only in{' '}
           <code className="text-xs font-mono px-1 rounded bg-surface border border-border">
             ~/.papyrus/config.json
           </code>{' '}
@@ -434,6 +447,56 @@ export default function Settings({ settings, setSettings, setPage }) {
                 {layouts.map((layout) => (
                   <option key={layout.id} value={layout.id}>
                     {layout.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all">
+              <div>
+                <div className="text-sm font-semibold text-foreground">Default PDF zoom</div>
+                <div className="text-sm text-muted mt-1">Controls the initial PDF scale and Ctrl+0 reset</div>
+              </div>
+              <select
+                value={settings.defaultPdfZoom || 'actual'}
+                onChange={(e) => setSettings((prev) => ({ ...prev, defaultPdfZoom: e.target.value }))}
+                className="w-44 pl-3 pr-8 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer appearance-none shrink-0"
+                style={{
+                  backgroundImage:
+                    'url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'292.4\' height=\'292.4\'%3E%3Cpath fill=\'%23737373\' d=\'M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.5-12.8z\'/%3E%3C/svg%3E")',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 0.5rem top 50%',
+                  backgroundSize: '0.5rem auto',
+                }}
+              >
+                {pdfZoomOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all">
+              <div>
+                <div className="text-sm font-semibold text-foreground">Default reader view</div>
+                <div className="text-sm text-muted mt-1">How each paper opens when you enter the reader</div>
+              </div>
+              <select
+                value={settings.defaultReaderView || 'split'}
+                onChange={(e) => setSettings((prev) => ({ ...prev, defaultReaderView: e.target.value }))}
+                className="w-40 pl-3 pr-8 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer appearance-none shrink-0"
+                style={{
+                  backgroundImage:
+                    'url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'292.4\' height=\'292.4\'%3E%3Cpath fill=\'%23737373\' d=\'M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.5-12.8z\'/%3E%3C/svg%3E")',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 0.5rem top 50%',
+                  backgroundSize: '0.5rem auto',
+                }}
+              >
+                {readerViewOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.name}
                   </option>
                 ))}
               </select>

@@ -3,8 +3,8 @@ import axios from 'axios'
 
 const COMMAND_PREFIXES = ['>', ':', '/']
 const APP_COMMANDS = [
-  { id: 'home', label: 'Go to Search', shortcut: 'Space h', keywords: ['home', 'search', 'h'] },
-  { id: 'shelf', label: 'Go to Paper Shelf', shortcut: 'Space s', keywords: ['shelf', 'papers', 'library', 's'] },
+  { id: 'home', label: 'Go Home', shortcut: 'Space h', keywords: ['home', 'landing', 'h'] },
+  { id: 'search', label: 'Open Search', shortcut: 'Space s', keywords: ['search', 'library', 'papers', 's'] },
   { id: 'settings', label: 'Go to Settings', shortcut: 'Space c', keywords: ['settings', 'config', 'preferences', 'c'] },
   { id: 'help', label: 'Help (keyboard shortcuts)', shortcut: 'Space e', keywords: ['help', 'shortcuts', 'keys', 'e'] },
 ]
@@ -160,16 +160,22 @@ export default function GlobalSearchPalette({
   if (!open) return null
 
   const placeholder = isCommandMode
-    ? 'Search commands... (e.g. shelf, settings)'
+    ? 'Search commands... (e.g. search, settings)'
     : 'Search papers by title, author, abstract... (type > for commands)'
 
   return (
     <div
-      className="fixed inset-0 z-[80] bg-foreground/80 backdrop-blur-sm flex items-start justify-center pt-[8vh] px-6 animate-backdrop-in"
+      className="fixed inset-0 z-[80] bg-foreground/80 backdrop-blur-md flex items-start justify-center pt-[8vh] px-6 animate-backdrop-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[720px] border border-border bg-surface rounded-xl shadow-2xl overflow-hidden animate-modal-in"
+        className="w-full max-w-[720px] rounded-xl shadow-2xl overflow-hidden animate-modal-in"
+        style={{
+          border: '1px solid color-mix(in srgb, var(--secondary) 16%, var(--border))',
+          background: 'color-mix(in srgb, var(--surface) 76%, transparent)',
+          backdropFilter: 'blur(22px)',
+          boxShadow: '0 28px 72px -24px rgba(0, 0, 0, 0.62)',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
@@ -185,7 +191,7 @@ export default function GlobalSearchPalette({
             placeholder={placeholder}
             className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
           />
-          <span className="text-[10px] text-muted/70 shrink-0">Esc</span>
+          <kbd className="shrink-0 rounded border border-border/80 bg-foreground/5 px-1.5 py-0.5 text-[10px] font-mono text-muted/80">Esc</kbd>
         </div>
 
         <div ref={listRef} className="max-h-[480px] overflow-auto py-2">
@@ -193,7 +199,7 @@ export default function GlobalSearchPalette({
             <>
               {commandResults.length === 0 ? (
                 <div className="px-4 py-8 text-center text-xs text-muted">
-                  No matches. Try: home, shelf, settings
+                  No matches. Try: home, search, settings
                 </div>
               ) : (
                 commandResults.map((cmd, idx) => (
@@ -205,11 +211,12 @@ export default function GlobalSearchPalette({
                       onCommand?.(cmd)
                       onClose?.()
                     }}
-                    className={`w-full flex items-center justify-between px-4 py-2.5 text-left text-sm transition-colors ${
+                    className={`w-full flex items-center justify-between px-4 py-2.5 text-left text-sm transition-colors animate-stagger-fade ${
                       idx === activeIndex
                         ? 'bg-secondary/15 text-secondary'
                         : 'text-foreground hover:bg-foreground/5'
                     }`}
+                    style={{ animationDelay: `${Math.min(idx, 7) * 30}ms` }}
                   >
                     <span>{cmd.label}</span>
                     <kbd className="text-[10px] text-muted font-mono">{cmd.shortcut}</kbd>
@@ -240,11 +247,12 @@ export default function GlobalSearchPalette({
                       onSelectPaper?.(paper)
                       onClose?.()
                     }}
-                    className={`w-full flex flex-col gap-0.5 px-4 py-2.5 text-left transition-colors ${
+                    className={`w-full flex flex-col gap-0.5 px-4 py-2.5 text-left transition-colors animate-stagger-fade ${
                       idx === activeIndex
                         ? 'bg-secondary/15 text-secondary'
                         : 'text-foreground hover:bg-foreground/5'
                     }`}
+                    style={{ animationDelay: `${Math.min(idx, 7) * 30}ms` }}
                   >
                     <span className="text-sm font-medium line-clamp-1">{paper.title}</span>
                     <span className="text-[11px] text-muted truncate">

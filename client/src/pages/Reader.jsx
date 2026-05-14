@@ -253,6 +253,10 @@ function extractTexTokenAtOffset(text, offset) {
   return null;
 }
 
+function normalizeReaderView(value) {
+  return value === 'pdf' || value === 'notes' ? value : 'split';
+}
+
 const Reader = forwardRef(function Reader(
   { paper, setSelectedPaper, setPage, settings, initialTab = 'edit', addToast, onSendToCanvas },
   ref
@@ -270,8 +274,9 @@ const Reader = forwardRef(function Reader(
   const [leftWidth, setLeftWidth] = useState(DEFAULT_SPLIT);
   const [backgroundPdfLoading, setBackgroundPdfLoading] = useState(false);
   const [focusedPanel, setFocusedPanel] = useState('pdf');
-  const [pdfCollapsed, setPdfCollapsed] = useState(false);
-  const [notesCollapsed, setNotesCollapsed] = useState(false);
+  const initialReaderView = normalizeReaderView(settings?.defaultReaderView);
+  const [pdfCollapsed, setPdfCollapsed] = useState(initialReaderView === 'notes');
+  const [notesCollapsed, setNotesCollapsed] = useState(initialReaderView === 'pdf');
   const [showOutline, setShowOutline] = useState(false);
   const [foldedSections, setFoldedSections] = useState(new Set());
   const [pdfToolbarMetrics, setPdfToolbarMetrics] = useState(null);
@@ -355,6 +360,8 @@ const Reader = forwardRef(function Reader(
   }, []);
 
   const paperId = useMemo(() => readerPaper?.id || paper?.id, [readerPaper?.id, paper?.id]);
+  const readerView = pdfCollapsed ? 'notes' : notesCollapsed ? 'pdf' : 'split';
+  const pdfSolo = readerView === 'pdf';
 
   const addShelfReference = useCallback(
     async (arxivId, dedupeKey) => {
@@ -362,7 +369,7 @@ const Reader = forwardRef(function Reader(
       setAddingReferenceKeys((prev) => new Set(prev).add(dedupeKey));
       try {
         await axios.post('/api/arxiv/add', { input: `https://arxiv.org/abs/${arxivId}` });
-        addToast?.('Added to shelf', 'success');
+        addToast?.('Added to library', 'success');
       } catch {
         /* intentional: no user-visible error */
       } finally {
@@ -434,6 +441,11 @@ const Reader = forwardRef(function Reader(
   useEffect(() => {
     setNoteTab(normalizedInitialTab);
   }, [normalizedInitialTab, paperId]);
+
+  useEffect(() => {
+    setReaderView(normalizeReaderView(settings?.defaultReaderView));
+    setLeftWidth(DEFAULT_SPLIT);
+  }, [paperId, settings?.defaultReaderView, setReaderView]);
 
   useEffect(() => {
     setPaperReferences([]);
@@ -700,6 +712,12 @@ const Reader = forwardRef(function Reader(
     window.addEventListener('mouseup', onUp);
   }
 
+  function resetSplit() {
+    setLeftWidth(DEFAULT_SPLIT);
+    setPdfCollapsed(false);
+    setNotesCollapsed(false);
+  }
+
   function wrapSelection(prefix, suffix = '') {
     const selected = mdxEditorRef.current?.getSelectionMarkdown?.();
     if (!selected) return;
@@ -838,7 +856,7 @@ const Reader = forwardRef(function Reader(
   if (!paperId) {
     return (
       <div className="p-8 max-w-[980px] mx-auto flex flex-col items-center justify-center min-h-[50vh]">
-        <p className="text-muted text-sm">Select a paper from the shelf or use <kbd className="px-1.5 py-0.5 rounded bg-border text-sm font-mono">Ctrl+P</kbd> to search.</p>
+        <p className="text-muted text-sm">Select a paper from search or use <kbd className="px-1.5 py-0.5 rounded bg-border text-sm font-mono">Ctrl+P</kbd> to search.</p>
       </div>
     );
   }
@@ -884,13 +902,15 @@ const Reader = forwardRef(function Reader(
     pdfViewerRef,
     pdfPanelRef,
     toolbarMetrics: pdfToolbarMetrics,
-    viewMode: pdfCollapsed ? 'notes' : notesCollapsed ? 'pdf' : 'split',
+    viewMode: readerView,
     onSetView: setReaderView,
     pageJumpMenuNonce,
   };
 
   return (
-    <div className="reader-workspace p-4 sm:p-5 w-full max-w-[1800px] mx-auto font-sans h-screen flex flex-col overflow-hidden animate-view-fade">
+    <div className={`reader-workspace w-full mx-auto font-sans h-screen flex flex-col overflow-hidden animate-view-fade ${
+      pdfSolo ? 'reader-workspace-pdf-solo max-w-none p-0' : 'max-w-[1800px] p-4 sm:p-5'
+    }`}>
       {backgroundPdfLoading && (
         <div className="mb-4 reader-panel p-4 flex-shrink-0">
           <div className="mb-3 flex items-center justify-between text-sm font-medium">
@@ -903,13 +923,13 @@ const Reader = forwardRef(function Reader(
         </div>
       )}
 
-      <div ref={splitRootRef} className="reader-split-shell flex gap-0 flex-1 min-h-0 relative">
+      <div ref={splitRootRef} className={`reader-split-shell flex gap-0 flex-1 min-h-0 relative ${pdfSolo ? 'reader-split-shell-solo' : ''}`}>
         {!pdfCollapsed && (
           <div
             ref={pdfPanelRef}
             tabIndex={0}
             style={{ width: notesCollapsed ? '100%' : `${leftWidth}%` }}
-            className={`reader-panel reader-pdf-panel overflow-hidden relative ${notesCollapsed ? '' : 'rounded-r-none'} h-full min-h-0 transition-all outline-none focus:outline-none ${focusedPanel === 'pdf' ? 'reader-panel-focused' : ''}`}
+            className={`reader-panel reader-pdf-panel overflow-hidden relative ${notesCollapsed ? 'reader-pdf-panel--solo' : ''} ${notesCollapsed ? '' : 'rounded-r-none'} h-full min-h-0 transition-all outline-none focus:outline-none ${focusedPanel === 'pdf' ? 'reader-panel-focused' : ''}`}
             onClick={(e) => {
               setFocusedPanel('pdf');
               if (e.target.closest('[data-pdf-scroll]')) {
@@ -927,6 +947,7 @@ const Reader = forwardRef(function Reader(
                 paperId={paperId}
                 paperTitle={readerPaper?.title}
                 continuousScroll={settings?.continuousScroll !== false}
+                defaultZoom={settings?.defaultPdfZoom ?? 'actual'}
                 onInsertQuote={insertQuoteFromHighlight}
                 onSendToCanvas={onSendToCanvas}
                 onToolbarState={handleToolbarState}
@@ -965,6 +986,8 @@ const Reader = forwardRef(function Reader(
           <div
             className="reader-resize-seam w-3 cursor-col-resize flex items-center justify-center z-10 -ml-1.5 -mr-1.5 relative select-none"
             onMouseDown={startResize}
+            onDoubleClick={resetSplit}
+            title="Drag to resize. Double-click to reset."
           >
             <div className="reader-resize-grip w-px h-10 rounded-full" />
           </div>
@@ -1080,7 +1103,7 @@ const Reader = forwardRef(function Reader(
                 ) : addablePaperReferences.length === 0 ? (
                   <p className="text-sm text-muted/80 max-w-[720px] mx-auto">
                     {paperReferences.length > 0
-                      ? 'No references with an arXiv ID we can add to your shelf.'
+                      ? 'No references with an arXiv ID we can add to your library.'
                       : 'Wasn&apos;t able to extract anything'}
                   </p>
                 ) : (

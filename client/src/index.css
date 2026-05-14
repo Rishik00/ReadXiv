@@ -26,6 +26,8 @@
   --border: #2e313b;
   --muted: #8b909e;
   --foreground: #e4e5ea;
+  --pdf-canvas-bg: #f7f7f8;
+  --pdf-canvas-bg-dark: #15171c;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -164,6 +166,109 @@ body {
   min-height: 100vh;
   background-color: var(--background);
   color: var(--foreground);
+}
+
+@keyframes readxiv-page-old {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+    filter: blur(6px);
+  }
+}
+
+@keyframes readxiv-page-new {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.992);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@supports (view-transition-name: none) {
+  ::view-transition-old(root) {
+    animation: readxiv-page-old 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  ::view-transition-new(root) {
+    animation: readxiv-page-new 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+@keyframes readxiv-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes preview-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes commands-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-preview-fade-in {
+  animation: preview-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.commands-panel {
+  animation: commands-slide-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.preview-modal .katex,
+.preview-modal .katex * {
+  color: inherit !important;
+  font-size: 1em !important;
+}
+
+.preview-abstract .katex {
+  display: inline;
+}
+
+.preview-abstract .katex-display {
+  margin: 0.75em 0;
+  overflow-x: auto;
 }
 
 h1, h2, h3 {
@@ -601,11 +706,22 @@ mjx-container[display="true"] {
   background: var(--background);
 }
 
+.reader-workspace-pdf-solo {
+  background: var(--pdf-canvas-bg);
+}
+
 .reader-split-shell {
   border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 72%, var(--background));
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
+}
+
+.reader-split-shell-solo {
+  border: 0;
+  border-radius: 0;
+  background: var(--pdf-canvas-bg);
+  box-shadow: none;
 }
 
 .reader-panel {
@@ -616,6 +732,11 @@ mjx-container[display="true"] {
 
 .reader-pdf-panel {
   background: color-mix(in srgb, var(--background) 72%, var(--surface));
+}
+
+.reader-pdf-panel--solo {
+  border-radius: 0;
+  background: var(--pdf-canvas-bg);
 }
 
 .reader-notes-panel {
@@ -685,6 +806,16 @@ mjx-container[display="true"] {
 /* Better focus states for accessibility */
 .markdown-editor:focus {
   outline: none;
+}
+
+.readxiv-mdx-editor,
+.markdown-editor {
+  transition: box-shadow 0.18s ease;
+}
+
+.readxiv-mdx-editor:focus-within,
+.markdown-editor:focus-within {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--secondary) 28%, transparent);
 }
 
 /* Subtle cursor line effect */
@@ -801,229 +932,13 @@ mjx-container[display="true"] {
   pointer-events: auto;
 }
 
-.command-status-bar {
-  position: fixed;
-  left: 50%;
-  top: 0.75rem;
-  z-index: 45;
-  display: flex;
-  min-height: 2rem;
-  transform: translateX(-50%);
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--background) 90%, transparent);
-  padding: 0.25rem 0.55rem;
-  color: var(--muted);
-  opacity: 1;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(12px);
-  animation: command-hints-in 90ms ease-out;
-}
-
-.command-status-hints {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.command-status-mode,
-.command-status-hint {
-  display: inline-flex;
-  align-items: center;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-}
-
-.command-status-mode {
-  height: 1.45rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  padding: 0 0.55rem;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: color-mix(in srgb, var(--foreground) 82%, transparent);
-}
-
-.command-status-mode.is-active {
-  background: color-mix(in srgb, var(--secondary) 18%, transparent);
-  color: var(--secondary);
-}
-
-.command-status-hint {
-  gap: 0.3rem;
-  border-radius: 999px;
-  padding: 0.15rem 0.35rem;
-  font-size: 0.7rem;
-  cursor: pointer;
-  transition: color 0.16s ease, background-color 0.16s ease;
-}
-
-.command-status-hint:hover {
-  background: color-mix(in srgb, var(--surface) 78%, transparent);
-  color: var(--foreground);
-}
-
-.command-status-hint kbd {
-  font-family: var(--font-mono), monospace;
-  font-size: 0.68rem;
-  color: color-mix(in srgb, var(--foreground) 78%, transparent);
-}
-
-.command-status-hint span {
-  color: color-mix(in srgb, var(--muted) 88%, transparent);
-}
-
-.global-command-bar {
-  position: fixed;
-  left: 50%;
-  top: 0.85rem;
-  z-index: 90;
-  width: min(calc(100vw - 2rem), 760px);
-  transform: translateX(-50%);
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--background) 82%, transparent);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(16px);
-  animation: command-hints-in 90ms ease-out;
-}
-
-.global-command-input-row {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.8rem 1rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
-}
-
-.global-command-prefix {
-  font-family: var(--font-mono), monospace;
-  font-size: 1rem;
-  color: var(--secondary);
-}
-
-.global-command-input {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: var(--foreground);
-  font-family: var(--font-mono), monospace;
-  font-size: 0.95rem;
-}
-
-.global-command-input::placeholder {
-  color: color-mix(in srgb, var(--muted) 58%, transparent);
-}
-
-.global-command-esc {
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--surface) 75%, transparent);
-  padding: 0.12rem 0.4rem;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.68rem;
-  color: var(--muted);
-}
-
-.global-command-results {
-  max-height: min(46vh, 420px);
-  overflow: auto;
-  padding: 0.35rem;
-}
-
-.global-command-empty {
-  padding: 1.4rem 1rem;
-  text-align: center;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-.global-command-result {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  padding: 0.65rem 0.75rem;
-  text-align: left;
-  color: var(--foreground);
-  transition: background-color 0.12s ease, color 0.12s ease;
-}
-
-.global-command-result.is-active {
-  background: color-mix(in srgb, var(--secondary) 13%, transparent);
-  color: var(--foreground);
-}
-
-.global-command-result-main {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.86rem;
-  font-weight: 600;
-}
-
-.global-command-result-meta {
-  min-width: 8rem;
-  max-width: 45%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: right;
-  font-size: 0.72rem;
-  color: var(--muted);
-}
-
-.global-command-result kbd {
-  flex: 0 0 auto;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.68rem;
-  color: var(--muted);
-}
-
-@media (max-width: 760px) {
-  .command-status-bar {
-    width: min(calc(100vw - 1rem), 100%);
-    border-radius: 12px;
-  }
-
-  .command-status-hints {
-    overflow-x: auto;
-  }
-}
-
-@keyframes command-hints-in {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
 .readxiv-pdfjs-root {
   position: relative;
   width: 100%;
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: transparent;
+  background: var(--pdf-canvas-bg);
 }
 
 .readxiv-pdfjs-container {
@@ -1031,11 +946,16 @@ mjx-container[display="true"] {
   inset: 0;
   overflow: auto;
   outline: none;
+  background: var(--pdf-canvas-bg);
 }
 
 .readxiv-pdfjs-container .pdfViewer {
   --page-border: none;
   padding: 1rem 0 5rem;
+}
+
+.reader-pdf-panel--solo .readxiv-pdfjs-container .pdfViewer {
+  padding: 0.35rem 0 3rem;
 }
 
 .readxiv-pdfjs-container .pdfViewer .page {
@@ -1057,6 +977,11 @@ mjx-container[display="true"] {
 
 .readxiv-pdfjs-dark .pdfViewer .page canvas {
   filter: invert(0.92) hue-rotate(180deg) contrast(0.9) brightness(0.9);
+}
+
+.readxiv-pdfjs-dark,
+.readxiv-pdfjs-dark .readxiv-pdfjs-container {
+  background: var(--pdf-canvas-bg-dark);
 }
 
 .readxiv-pdfjs-find {
