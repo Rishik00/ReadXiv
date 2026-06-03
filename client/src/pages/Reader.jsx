@@ -26,6 +26,15 @@ import PdfViewer from '../components/PdfViewer';
 import ReaderPdfFloatingToolbar from '../components/ReaderPdfFloatingToolbar';
 import { Card, CardContent } from '../components/ui/card';
 import { ensureMathJax } from '../utils/mathjax';
+import {
+  captureAction,
+  captureAppError,
+  captureEvent,
+  captureTiming,
+  elapsedSince,
+  getInstrumentationSessionId,
+  startTimer,
+} from '../lib/instrumentation';
 
 const DEFAULT_SPLIT = 68;
 const PERF_FLAG = 'readxiv-perf';
@@ -257,6 +266,26 @@ function normalizeReaderView(value) {
   return value === 'pdf' || value === 'notes' ? value : 'split';
 }
 
+function extractMarkdownTitle(markdown) {
+  if (!markdown || typeof markdown !== 'string') return null;
+  const lines = markdown.split('\n');
+  for (const line of lines) {
+    const match = line.match(/^#\s+(.+?)\s*$/);
+    if (!match) continue;
+    const title = match[1]
+      .replace(/[`*_~]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return title || null;
+  }
+  return null;
+}
+
+function isPlaceholderPaperTitle(paper) {
+  if (!paper?.id || !paper?.title) return false;
+  return String(paper.title).trim() === `arXiv:${paper.id}`;
+}
+
 const Reader = forwardRef(function Reader(
   { paper, setSelectedPaper, setPage, settings, initialTab = 'edit', addToast, onSendToCanvas },
   ref
@@ -286,6 +315,7 @@ const Reader = forwardRef(function Reader(
   const [referencesLoading, setReferencesLoading] = useState(false);
   const [referencesLoadedForPaperId, setReferencesLoadedForPaperId] = useState(null);
   const [addingReferenceKeys, setAddingReferenceKeys] = useState(() => new Set());
+  const [addedReferenceKeys, setAddedReferenceKeys] = useState(() => new Set());
   const [mathHoverPreview, setMathHoverPreview] = useState(null);
   const splitRootRef = useRef(null);
   const saveTimerRef = useRef(null);
@@ -296,6 +326,8 @@ const Reader = forwardRef(function Reader(
   const pdfViewerRef = useRef(null);
   const benchmarkRanRef = useRef(false);
   const benchmarkActiveRef = useRef(false);
+  const notesTitleSyncRef = useRef(new Set());
+  const paperId = useMemo(() => readerPaper?.id || paper?.id, [readerPaper?.id, paper?.id]);
 
   useEffect(() => {
     perfLog('Reader commit', {
@@ -323,6 +355,7 @@ const Reader = forwardRef(function Reader(
   );
 
   const setReaderView = useCallback((mode) => {
+    captureAction('reader_view_change', { route: 'reader', paperId, mode });
     if (mode === 'split') {
       setPdfCollapsed(false);
       setNotesCollapsed(false);
@@ -333,7 +366,7 @@ const Reader = forwardRef(function Reader(
       setPdfCollapsed(true);
       setNotesCollapsed(false);
     }
-  }, []);
+  }, [paperId]);
 
   useImperativeHandle(
     ref,
@@ -359,7 +392,6 @@ const Reader = forwardRef(function Reader(
     setPdfToolbarMetrics(metrics);
   }, []);
 
-  const paperId = useMemo(() => readerPaper?.id || paper?.id, [readerPaper?.id, paper?.id]);
   const readerView = pdfCollapsed ? 'notes' : notesCollapsed ? 'pdf' : 'split';
   const pdfSolo = readerView === 'pdf';
 
@@ -369,6 +401,7 @@ const Reader = forwardRef(function Reader(
       setAddingReferenceKeys((prev) => new Set(prev).add(dedupeKey));
       try {
         await axios.post('/api/arxiv/add', { input: `https://arxiv.org/abs/${arxivId}` });
+        setAddedReferenceKeys((prev) => new Set(prev).add(dedupeKey));
         addToast?.('Added to library', 'success');
       } catch {
         /* intentional: no user-visible error */
@@ -450,6 +483,8 @@ const Reader = forwardRef(function Reader(
   useEffect(() => {
     setPaperReferences([]);
     setReferencesLoadedForPaperId(null);
+    setAddingReferenceKeys(new Set());
+    setAddedReferenceKeys(new Set());
   }, [paperId]);
 
   useEffect(() => {
@@ -487,6 +522,7 @@ const Reader = forwardRef(function Reader(
     let pollTimer = null;
     async function loadReaderData() {
       if (!paperId) return;
+      const startedAt = startTimer();
       setNotes('');
       setServerNotes('');
       setNotesStatus('saved');
@@ -524,9 +560,23 @@ const Reader = forwardRef(function Reader(
             }
           }, 2000);
         }
+        captureTiming('paper_load', elapsedSince(startedAt), {
+          route: 'reader',
+          paperId,
+          paperTitle: data.title,
+          hasPdf: Boolean(data.hasPdf),
+          status: data.status,
+        });
       } catch (err) {
         if (!mounted) return;
-        setError(err.response?.data?.error || 'Failed to load reader data');
+        const message = err.response?.data?.error || 'Failed to load reader data';
+        setError(message);
+        captureAppError(err, {
+          route: 'reader',
+          source: 'reader_data_load',
+          paperId,
+          message,
+        });
       } finally {
         if (mounted) setLoading(false);
       }
@@ -540,10 +590,37 @@ const Reader = forwardRef(function Reader(
 
   useEffect(() => {
     if (!paperId) return;
-    axios.post(`/api/papers/${paperId}/access`).catch(() => {
+    captureEvent('paper_view', {
+      route: 'reader',
+      paperId,
+      paperTitle: readerPaper?.title || paper?.title,
+    });
+    axios.post(`/api/papers/${paperId}/access`, {
+      sessionId: getInstrumentationSessionId(),
+      source: 'reader',
+    }).catch(() => {
       // Best-effort analytics update for recents; ignore failures.
     });
   }, [paperId]);
+
+  useEffect(() => {
+    if (!paperId || !notes || !isPlaceholderPaperTitle(readerPaper)) return;
+    const nextTitle = extractMarkdownTitle(notes);
+    if (!nextTitle || nextTitle === readerPaper.title || nextTitle === `arXiv:${paperId}`) return;
+    const syncKey = `${paperId}:${nextTitle}`;
+    if (notesTitleSyncRef.current.has(syncKey)) return;
+    notesTitleSyncRef.current.add(syncKey);
+    axios
+      .patch(`/api/papers/${paperId}`, { title: nextTitle })
+      .then(({ data }) => {
+        setReaderPaper((prev) => ({ ...prev, ...data }));
+        setSelectedPaper?.((prev) => (prev?.id === paperId ? { ...prev, ...data } : prev));
+        addToast?.('Paper title updated from notes', 'success');
+      })
+      .catch(() => {
+        notesTitleSyncRef.current.delete(syncKey);
+      });
+  }, [paperId, notes, readerPaper?.title, setSelectedPaper, addToast]);
 
   useEffect(() => {
     if (benchmarkActiveRef.current) return undefined;
@@ -942,16 +1019,22 @@ const Reader = forwardRef(function Reader(
             onKeyDown={(e) => focusedPanel === 'pdf' && pdfViewerRef.current?.handleKeyDown(e)}
           >
             <Profiler id="Reader.PdfViewer" onRender={profileRender}>
-              <PdfViewer
-                ref={pdfViewerRef}
-                paperId={paperId}
-                paperTitle={readerPaper?.title}
-                continuousScroll={settings?.continuousScroll !== false}
-                defaultZoom={settings?.defaultPdfZoom ?? 'actual'}
-                onInsertQuote={insertQuoteFromHighlight}
-                onSendToCanvas={onSendToCanvas}
-                onToolbarState={handleToolbarState}
-              />
+              {readerPaper?.hasPdf ? (
+                <PdfViewer
+                  ref={pdfViewerRef}
+                  paperId={paperId}
+                  paperTitle={readerPaper?.title}
+                  continuousScroll={settings?.continuousScroll !== false}
+                  defaultZoom={settings?.defaultPdfZoom ?? 'actual'}
+                  onInsertQuote={insertQuoteFromHighlight}
+                  onSendToCanvas={onSendToCanvas}
+                  onToolbarState={handleToolbarState}
+                />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-[var(--pdf-canvas-bg)] text-sm text-muted">
+                  {readerPaper?.status === 'error' ? 'PDF download failed' : 'Preparing PDF...'}
+                </div>
+              )}
             </Profiler>
             {readerToolbarExpanded && (
               <Profiler id="Reader.PdfToolbar" onRender={profileRender}>
@@ -1015,7 +1098,7 @@ const Reader = forwardRef(function Reader(
                   }`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                  <span className="truncate">Edit</span>
+                  <span className="truncate">Notes</span>
                 </button>
                 <button
                   type="button"
@@ -1095,7 +1178,7 @@ const Reader = forwardRef(function Reader(
                 className="flex-1 min-h-0 overflow-y-auto px-8 sm:px-10 py-6 text-foreground outline-none focus:outline-none select-text"
                 onFocus={() => setFocusedPanel('notes')}
               >
-                <h2 className="text-lg font-semibold tracking-tight text-foreground mb-4 max-w-[720px] mx-auto">
+                <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground mb-5 max-w-[720px] mx-auto">
                   References
                 </h2>
                 {referencesLoading ? (
@@ -1111,6 +1194,7 @@ const Reader = forwardRef(function Reader(
                     {addablePaperReferences.map((ref, idx) => {
                       const rowKey = ref.label || `${ref.arxivId || ''}-${ref.doi || ''}-${idx}`;
                       const busy = addingReferenceKeys.has(rowKey);
+                      const added = addedReferenceKeys.has(rowKey);
                       const linkHref = referenceExternalLinkHref(ref);
                       const authorsShort = formatReferenceAuthorsEtAl(ref.authors, 5);
                       return (
@@ -1138,11 +1222,15 @@ const Reader = forwardRef(function Reader(
                               ) : null}
                               <button
                                 type="button"
-                                disabled={busy}
+                                disabled={busy || added}
                                 onClick={() => addShelfReference(ref.arxivId.trim(), rowKey)}
-                                className="inline-flex items-center justify-center px-1 py-1 text-xs font-medium text-secondary hover:text-foreground disabled:opacity-50 transition-colors"
+                                className={`inline-flex items-center justify-center px-1 py-1 text-xs font-medium transition-colors ${
+                                  added
+                                    ? 'text-muted cursor-default'
+                                    : 'text-secondary hover:text-foreground disabled:opacity-50'
+                                }`}
                               >
-                                {busy ? 'Adding…' : 'Add'}
+                                {added ? 'Added' : busy ? 'Adding...' : 'Add'}
                               </button>
                             </div>
                           </div>

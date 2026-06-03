@@ -224,9 +224,9 @@ readxiv/
 ## CLI & Config
 
 **Entry:** `bin/readxiv.mjs`  
-**Commands:** `readxiv init`, `start:client`, `add`, `remove`, `show_db`, `exportdb`, `start_project`, `config get/set`
+**Commands:** `readxiv init`, `start:client`, `add`, `remove`, `exportdb`, `stop`
 
-**Config:** `~/.papyrus/config.json` – CLI keys: `serverPort`, `clientPort`, `autoStartServer`, `defaultBrowser`, `exportDir`. Todoist keys (`todoistApiToken`, `todoistProjectId`) are written from **Settings** in the client, not `readxiv config set`.
+**Config:** `~/.papyrus/config.json` – app/server config including ports, browser/export preferences, Todoist, and Semantic Scholar settings.
 
 ---
 

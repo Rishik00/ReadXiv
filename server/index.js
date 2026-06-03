@@ -9,6 +9,7 @@ import readerRouter from './routes/reader.js';
 import canvasRouter from './routes/canvas.js';
 import todoistRouter from './routes/todoist.js';
 import semanticScholarSettingsRouter from './routes/semanticScholarSettings.js';
+import analyticsRouter from './routes/analytics.js';
 const app = express();
 // Todoist & Semantic Scholar keys: ~/.papyrus/config.json from Settings UI; env vars override (see Help).
 const PORT = process.env.PORT || 7474;
@@ -42,6 +43,7 @@ app.use('/api/reader', readerRouter);
 app.use('/api/canvas', canvasRouter);
 app.use('/api/todoist', todoistRouter);
 app.use('/api/semantic-scholar', semanticScholarSettingsRouter);
+app.use('/api/instrumentation', analyticsRouter);
 
 // Health check
 app.get('/health', (req, res) => {

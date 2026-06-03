@@ -268,11 +268,11 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', ad
   const getStatusColor = (status) => {
     switch (status) {
       case 'done':
-        return 'border-green-500/50 text-green-400 bg-green-500/10'
+        return 'border-red-500/50 text-red-400 bg-red-500/10'
       case 'reading':
-        return 'border-secondary/50 text-secondary bg-secondary/10'
+        return 'border-green-500/50 text-green-400 bg-green-500/10'
       default:
-        return 'border-border text-muted bg-surface'
+        return 'border-white/40 text-white bg-white/10'
     }
   }
 

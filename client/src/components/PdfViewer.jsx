@@ -16,6 +16,7 @@ import {
   ScrollMode,
 } from 'pdfjs-dist/web/pdf_viewer.mjs';
 import 'pdfjs-dist/web/pdf_viewer.css';
+import { captureAction, captureAppError, captureTiming, elapsedSince, startTimer } from '../lib/instrumentation';
 
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -124,6 +125,7 @@ const PdfViewer = forwardRef(function PdfViewer(
     eventBus._on('updatefindmatchescount', onFindState);
 
     async function loadPdf() {
+      const startedAt = startTimer();
       setLoading(true);
       setError(null);
       setNumPages(0);
@@ -147,8 +149,23 @@ const PdfViewer = forwardRef(function PdfViewer(
         findController.setDocument(pdfDocument);
         pdfViewer.setDocument(pdfDocument);
         setNumPages(pdfDocument.numPages);
+        captureTiming('pdf_load', elapsedSince(startedAt), {
+          route: 'reader',
+          paperId,
+          paperTitle,
+          numPages: pdfDocument.numPages,
+        });
       } catch (err) {
-        if (!cancelled) setError(err?.message || 'Failed to load PDF');
+        if (!cancelled) {
+          setError(err?.message || 'Failed to load PDF');
+          captureAppError(err, {
+            route: 'reader',
+            source: 'pdf_load',
+            paperId,
+            paperTitle,
+            pdfUrl,
+          });
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -228,16 +245,34 @@ const PdfViewer = forwardRef(function PdfViewer(
     if (!viewer) return;
     viewer.currentScale = clamp(nextScale, SCALE_MIN, SCALE_MAX);
     setScale(viewer.currentScale);
+    captureAction('pdf_zoom', {
+      route: 'reader',
+      paperId,
+      scale: Number(viewer.currentScale.toFixed(3)),
+    });
   }
 
   function jumpToPage(nextPage) {
     const viewer = pdfViewerRef.current;
     if (!viewer || !numPages) return;
-    viewer.currentPageNumber = clamp(Number(nextPage) || 1, 1, numPages);
+    const targetPage = clamp(Number(nextPage) || 1, 1, numPages);
+    viewer.currentPageNumber = targetPage;
+    captureAction('pdf_jump_to_page', {
+      route: 'reader',
+      paperId,
+      page: targetPage,
+      numPages,
+    });
   }
 
   function runFind(findPrevious = false) {
     if (!findQuery.trim()) return;
+    captureAction('pdf_find', {
+      route: 'reader',
+      paperId,
+      queryLength: findQuery.trim().length,
+      direction: findPrevious ? 'previous' : 'next',
+    });
     eventBusRef.current?.dispatch('find', {
       source: rootRef.current,
       type: 'again',
@@ -253,8 +288,8 @@ const PdfViewer = forwardRef(function PdfViewer(
 
   async function copyPageToClipboard() {
     const pdfDocument = pdfDocumentRef.current;
-    if (!pdfDocument) return;
-    try {
+      if (!pdfDocument) return;
+      try {
       const currentPage = await pdfDocument.getPage(page);
       const viewport = currentPage.getViewport({ scale: 2 });
       const canvas = document.createElement('canvas');
@@ -266,8 +301,15 @@ const PdfViewer = forwardRef(function PdfViewer(
         if (!blob) return;
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
         onSendToCanvas?.({ page });
+        captureAction('copy_pdf_page_to_clipboard', { route: 'reader', paperId, page });
       }, 'image/png');
-    } catch {
+    } catch (error) {
+      captureAppError(error, {
+        route: 'reader',
+        source: 'copy_pdf_page_to_clipboard',
+        paperId,
+        page,
+      });
       // Clipboard/image APIs are best-effort and vary by browser/Electron version.
     }
   }

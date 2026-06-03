@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
+import { captureAction } from '../lib/instrumentation'
 
 const COMMAND_PREFIXES = ['>', ':', '/']
 const APP_COMMANDS = [
@@ -125,12 +126,24 @@ export default function GlobalSearchPalette({
         if (isCommandMode) {
           const c = commandResults[activeIndex]
           if (c && onCommand) {
+            captureAction('command_palette_command_select', {
+              route: currentPage,
+              command: c.id,
+              source: 'keyboard',
+            })
             onCommand(c)
             onClose?.()
           }
         } else {
           const paper = results[activeIndex]
           if (paper && onSelectPaper) {
+            captureAction('command_palette_paper_select', {
+              route: currentPage,
+              paperId: paper.id,
+              paperTitle: paper.title,
+              source: 'keyboard',
+              queryLength: query.trim().length,
+            })
             onSelectPaper(paper)
             onClose?.()
           }
@@ -139,6 +152,11 @@ export default function GlobalSearchPalette({
       }
       if (event.key === 'Tab') {
         event.preventDefault()
+        captureAction('command_palette_mode_toggle', {
+          route: currentPage,
+          fromMode: isCommandMode ? 'command' : 'paper',
+          queryLength: query.trim().length,
+        })
         if (hasQuery && !isCommandMode) {
           setQuery((q) => (COMMAND_PREFIXES.includes(q[0]) ? q : '>' + q))
         } else if (isCommandMode && commandQuery) {
@@ -154,7 +172,7 @@ export default function GlobalSearchPalette({
   useEffect(() => {
     if (!open || !listRef.current) return
     const el = listRef.current.querySelector(`[data-index="${activeIndex}"]`)
-    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    el?.scrollIntoView({ block: 'nearest', behavior: 'auto' })
   }, [activeIndex, open])
 
   if (!open) return null
@@ -208,6 +226,11 @@ export default function GlobalSearchPalette({
                     type="button"
                     data-index={idx}
                     onClick={() => {
+                      captureAction('command_palette_command_select', {
+                        route: currentPage,
+                        command: cmd.id,
+                        source: 'click',
+                      })
                       onCommand?.(cmd)
                       onClose?.()
                     }}
@@ -244,6 +267,13 @@ export default function GlobalSearchPalette({
                     type="button"
                     data-index={idx}
                     onClick={() => {
+                      captureAction('command_palette_paper_select', {
+                        route: currentPage,
+                        paperId: paper.id,
+                        paperTitle: paper.title,
+                        source: 'click',
+                        queryLength: query.trim().length,
+                      })
                       onSelectPaper?.(paper)
                       onClose?.()
                     }}
@@ -258,6 +288,11 @@ export default function GlobalSearchPalette({
                     <span className="text-[11px] text-muted truncate">
                       {[paper.year, paper.authors].filter(Boolean).join(' · ') || paper.id}
                     </span>
+                    {paper.abstract ? (
+                      <span className="text-[11px] text-muted/80 line-clamp-2">
+                        {paper.abstract}
+                      </span>
+                    ) : null}
                   </button>
                 ))}
             </>

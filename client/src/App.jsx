@@ -6,6 +6,14 @@ import GlobalCanvas from './components/GlobalCanvas'
 import Home from './pages/Home'
 import Settings from './pages/Settings'
 import Help from './pages/Help'
+import {
+  captureAction,
+  capturePageView,
+  captureTiming,
+  elapsedSince,
+  markCurrentRoute,
+  startTimer,
+} from './lib/instrumentation'
 const Reader = lazy(() => import('./pages/Reader'))
 const SearchWorkbench = lazy(() => import('./pages/SearchWorkbench'))
 
@@ -20,6 +28,12 @@ function parsePaperDeepLink(pathname) {
   } catch {
     return m[1]
   }
+}
+
+function parseArxivDeepLink(pathname) {
+  const m = pathname.match(/^\/(?:abs|pdf)\/(\d{4}\.\d{4,5}(?:v\d+)?)\/?$/i)
+  if (!m) return null
+  return m[1]
 }
 
 function readerPathForPaperId(id) {
@@ -40,11 +54,20 @@ function getTabTitle(url) {
   }
 }
 
+function createClientId() {
+  return (
+    globalThis.crypto?.randomUUID?.() ||
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  )
+}
+
 function App() {
   const [page, setPage] = useState('home')
   const [selectedPaper, setSelectedPaper] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [homeFocusNonce, setHomeFocusNonce] = useState(0)
+  const [homeArxivInput, setHomeArxivInput] = useState(null)
+  const [initialRouteResolved, setInitialRouteResolved] = useState(false)
   const [searchFocusNonce, setSearchFocusNonce] = useState(0)
   const [readerInitialTab, setReaderInitialTab] = useState('edit')
   const [toasts, setToasts] = useState([])
@@ -61,6 +84,7 @@ function App() {
   const pendingBRef = useRef(false)
   const pendingKRef = useRef(false)
   const pendingFRef = useRef(false)
+  const pageRef = useRef(page)
 
   useEffect(() => {
     if (!pendingG && !pendingB && !pendingK && !pendingF) return
@@ -136,6 +160,11 @@ function App() {
   })
   const supportsViewTransitions =
     typeof document !== 'undefined' && typeof document.startViewTransition === 'function'
+  const pageTimerRef = useRef(startTimer())
+
+  useEffect(() => {
+    pageRef.current = page
+  }, [page])
 
   const runWithViewTransition = useCallback((update) => {
     const startViewTransition = document.startViewTransition?.bind(document)
@@ -165,7 +194,7 @@ function App() {
   useEffect(() => {
     if (!window.electron?.onOpenExternalTab) return
     const unsubscribe = window.electron.onOpenExternalTab((url) => {
-      const id = crypto.randomUUID()
+      const id = createClientId()
       setExternalTabs((prev) => [...prev, { id, url, title: getTabTitle(url) }])
       setActiveExternalTabId(id)
     })
@@ -181,14 +210,18 @@ function App() {
     (target) => {
       runWithViewTransition(() => {
         if (target === 'home') {
+          captureAction('navigate', { route: pageRef.current, target: 'home', source: 'navigateTo' })
           setPage('home')
           setHomeFocusNonce((n) => n + 1)
         } else if (target === 'search') {
+          captureAction('navigate', { route: pageRef.current, target: 'search', source: 'navigateTo' })
           setPage('search')
           setSearchFocusNonce((n) => n + 1)
         } else if (target === 'settings') {
+          captureAction('navigate', { route: pageRef.current, target: 'settings', source: 'navigateTo' })
           setPage('settings')
         } else if (target === 'help') {
+          captureAction('navigate', { route: pageRef.current, target: 'help', source: 'navigateTo' })
           setPage('help')
         }
       })
@@ -199,6 +232,11 @@ function App() {
   const openSearch = useCallback(
     (query = '') => {
       runWithViewTransition(() => {
+        captureAction('open_search', {
+          route: pageRef.current,
+          queryLength: query.length,
+          source: 'openSearch',
+        })
         setSearchQuery(query)
         setPage('search')
         setSearchFocusNonce((n) => n + 1)
@@ -211,6 +249,12 @@ function App() {
     (paper, { initialTab = 'edit' } = {}) => {
       if (!paper) return
       runWithViewTransition(() => {
+        captureAction('open_paper', {
+          route: pageRef.current,
+          paperId: paper.id,
+          paperTitle: paper.title,
+          initialTab,
+        })
         setSelectedPaper(paper)
         setReaderInitialTab(initialTab)
         setPage('reader')
@@ -384,7 +428,7 @@ function App() {
   }, [navigateTo, page])
 
   const addToast = useCallback((message, type = 'info') => {
-    const id = crypto.randomUUID()
+    const id = createClientId()
     setToasts((prev) => [...prev, { id, message, type }])
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id))
@@ -409,14 +453,30 @@ function App() {
   )
 
   useEffect(() => {
-    const fromPath = parsePaperDeepLink(window.location.pathname)
-    if (fromPath) {
-      openPaperById(fromPath)
-      return
+    let cancelled = false
+    const resolveInitialRoute = async () => {
+      const fromPath = parsePaperDeepLink(window.location.pathname)
+      if (fromPath) {
+        await openPaperById(fromPath)
+        if (!cancelled) setInitialRouteResolved(true)
+        return
+      }
+      const arxivId = parseArxivDeepLink(window.location.pathname)
+      if (arxivId) {
+        setHomeArxivInput(`https://arxiv.org/abs/${arxivId}`)
+        setPage('home')
+        setInitialRouteResolved(true)
+        return
+      }
+      if (isSearchPath(window.location.pathname)) {
+        setPage('search')
+        setSearchFocusNonce((n) => n + 1)
+      }
+      setInitialRouteResolved(true)
     }
-    if (isSearchPath(window.location.pathname)) {
-      setPage('search')
-      setSearchFocusNonce((n) => n + 1)
+    resolveInitialRoute()
+    return () => {
+      cancelled = true
     }
   }, [openPaperById])
 
@@ -424,17 +484,26 @@ function App() {
     const onPop = () => {
       const id = parsePaperDeepLink(window.location.pathname)
       if (id) openPaperById(id)
-      else if (isSearchPath(window.location.pathname)) {
-        runWithViewTransition(() => {
-          setPage('search')
-          setSelectedPaper(null)
-          setSearchFocusNonce((n) => n + 1)
-        })
-      } else {
-        runWithViewTransition(() => {
-          setPage('home')
-          setSelectedPaper(null)
-        })
+      else {
+        const arxivId = parseArxivDeepLink(window.location.pathname)
+        if (arxivId) {
+          runWithViewTransition(() => {
+            setHomeArxivInput(`https://arxiv.org/abs/${arxivId}`)
+            setPage('home')
+            setSelectedPaper(null)
+          })
+        } else if (isSearchPath(window.location.pathname)) {
+          runWithViewTransition(() => {
+            setPage('search')
+            setSelectedPaper(null)
+            setSearchFocusNonce((n) => n + 1)
+          })
+        } else {
+          runWithViewTransition(() => {
+            setPage('home')
+            setSelectedPaper(null)
+          })
+        }
       }
     }
     window.addEventListener('popstate', onPop)
@@ -456,12 +525,40 @@ function App() {
       if (!isSearchPath(window.location.pathname)) {
         window.history.pushState({ readxiv: 'search' }, '', '/search')
       }
+    } else if (page === 'home' && parseArxivDeepLink(window.location.pathname)) {
+      window.history.replaceState(null, '', '/')
     } else if (page !== 'reader' && window.location.pathname.startsWith('/p/')) {
       window.history.replaceState(null, '', '/')
     } else if (page !== 'search' && isSearchPath(window.location.pathname)) {
       window.history.replaceState(null, '', '/')
     }
   }, [page, selectedPaper?.id])
+
+  useEffect(() => {
+    if (!initialRouteResolved) return
+    markCurrentRoute(page)
+    pageTimerRef.current = startTimer()
+    capturePageView(page, {
+      path: window.location.pathname,
+      paperId: page === 'reader' ? selectedPaper?.id : null,
+    })
+  }, [initialRouteResolved, page, selectedPaper?.id])
+
+  useEffect(() => {
+    if (!initialRouteResolved || page === 'canvas') return undefined
+    const startedAt = pageTimerRef.current
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        captureTiming('page_load', elapsedSince(startedAt), {
+          route: page,
+          path: window.location.pathname,
+          paperId: page === 'reader' ? selectedPaper?.id : null,
+          marker: 'first_two_frames',
+        })
+      })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [initialRouteResolved, page, selectedPaper?.id])
 
   const chordHint = pendingB
     ? 'h toggle PDF dark mode'
@@ -556,6 +653,8 @@ function App() {
               setPage={navigateTo}
               openPaper={openPaper}
               focusNonce={homeFocusNonce}
+              initialArxivInput={homeArxivInput}
+              onInitialArxivInputConsumed={() => setHomeArxivInput(null)}
               addToast={addToast}
               onSearchQuery={openSearch}
             />

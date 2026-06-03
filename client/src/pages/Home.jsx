@@ -1,26 +1,42 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import LatexText from '../components/LatexText'
+import { captureAction, captureAppError, captureTiming, elapsedSince, startTimer } from '../lib/instrumentation'
 
 function isArxivInput(val) {
   if (!val?.trim()) return false
-  return val.includes('arxiv.org') || /^\d{4}\.\d+/.test(val.trim())
+  const trimmed = val.trim()
+  return /arxiv\.org\/(?:abs|pdf)\/\d{4}\.\d{4,5}(?:v\d+)?/i.test(trimmed) || /^\d{4}\.\d{4,5}(?:v\d+)?$/i.test(trimmed)
+}
+
+function getArxivPreviewKey(val) {
+  const trimmed = val?.trim() || ''
+  const urlMatch = trimmed.match(/arxiv\.org\/(?:abs|pdf)\/(\d{4}\.\d{4,5})(?:v\d+)?/i)
+  if (urlMatch) return urlMatch[1]
+  const idMatch = trimmed.match(/^(\d{4}\.\d{4,5})(?:v\d+)?$/i)
+  return idMatch?.[1] || null
 }
 
 const SLASH_COMMANDS = [
   { id: 'search', slug: 'search', label: 'Search library', desc: 'Open the library search page', prefix: '/search ' },
   { id: 'add', slug: 'add', label: 'Add from arXiv', desc: 'Fetch paper by URL or ID', prefix: '/add ' },
-  { id: 'preview', slug: 'preview', label: 'Preview paper', desc: 'Title and abstract without adding', prefix: '/preview ' },
   { id: 'upload', slug: 'upload', label: 'Upload PDF', desc: 'Add a local PDF file', prefix: null },
   { id: 'help', slug: 'help', label: 'Help', desc: 'Keyboard shortcuts and bindings', prefix: null },
   { id: 'howto', slug: 'howto', label: 'Supported inputs', desc: 'Command reference', prefix: null },
 ]
 
-export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, addToast }) {
+export default function Home({
+  setPage,
+  openPaper,
+  focusNonce,
+  initialArxivInput,
+  onInitialArxivInputConsumed,
+  onSearchQuery,
+  addToast,
+}) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [preview, setPreview] = useState(null)
   const [previewData, setPreviewData] = useState(null)
   const [showHowtoModal, setShowHowtoModal] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
@@ -33,6 +49,8 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
   const fileInputRef = useRef(null)
   const slashMenuRef = useRef(null)
   const pollingRef = useRef(null)
+  const previewCacheRef = useRef(new Map())
+  const handledInitialArxivInputRef = useRef(null)
 
   const GREETINGS = [
     <>What <em>papers</em> are we conquering today?</>,
@@ -64,6 +82,17 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
   }, [focusNonce])
 
   useEffect(() => {
+    if (!initialArxivInput) return
+    if (handledInitialArxivInputRef.current === initialArxivInput) return
+    handledInitialArxivInputRef.current = initialArxivInput
+    setInput(initialArxivInput)
+    inputRef.current?.focus()
+    handleArxivAdd(initialArxivInput).finally(() => {
+      onInitialArxivInputConsumed?.()
+    })
+  }, [initialArxivInput])
+
+  useEffect(() => {
     const val = input.trim()
     if (val.startsWith('/search ')) {
       setCurrentMode('search')
@@ -93,35 +122,25 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
   }, [input])
 
   useEffect(() => {
-    if (currentMode !== 'add' || !isArxivInput(addQuery)) {
-      setPreview(null)
+    const previewKey = getArxivPreviewKey(previewQuery)
+    if (currentMode !== 'preview' || !previewKey) {
+      setPreviewData(null)
       return
     }
-    let cancelled = false
-    const timer = setTimeout(async () => {
-      try {
-        const { data } = await axios.get('/api/arxiv/preview', { params: { input: addQuery } })
-        if (!cancelled) setPreview({ title: data.title, authors: data.authors })
-      } catch {
-        if (!cancelled) setPreview(null)
-      }
-    }, 350)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [addQuery, currentMode])
-
-  useEffect(() => {
-    if (currentMode !== 'preview' || !isArxivInput(previewQuery)) {
-      setPreviewData(null)
+    const cached = previewCacheRef.current.get(previewKey)
+    if (cached) {
+      setPreviewData(cached)
       return
     }
     let cancelled = false
     const timer = setTimeout(async () => {
       try {
         const { data } = await axios.get('/api/arxiv/preview', { params: { input: previewQuery } })
-        if (!cancelled) setPreviewData({ title: data.title, abstract: data.abstract || '' })
+        if (!cancelled) {
+          const nextPreview = { title: data.title, abstract: data.abstract || '' }
+          previewCacheRef.current.set(previewKey, nextPreview)
+          setPreviewData(nextPreview)
+        }
       } catch {
         if (!cancelled) setPreviewData(null)
       }
@@ -159,7 +178,7 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
   useEffect(() => {
     if (!showSlashMenu || filteredSlashCommands.length === 0) return
     const el = slashMenuRef.current?.querySelector(`[data-slash-index="${slashSelectedIndex}"]`)
-    el?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+    el?.scrollIntoView?.({ block: 'nearest', behavior: 'auto' })
   }, [slashSelectedIndex, showSlashMenu, filteredSlashCommands.length])
 
   useEffect(() => {
@@ -172,6 +191,7 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
   }, [showHowtoModal])
 
   const applySlashCommand = (cmd) => {
+    captureAction('home_slash_command', { route: 'home', command: cmd.id })
     if (cmd.id === 'upload') {
       fileInputRef.current?.click()
       setInput('')
@@ -191,6 +211,10 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
   }
 
   const handleSearchLaunch = (query) => {
+    captureAction('home_search_launch', {
+      route: 'home',
+      queryLength: query.trim().length,
+    })
     onSearchQuery(query.trim())
     setInput('')
     setSearchQuery('')
@@ -199,10 +223,24 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
   }
 
   const handleArxivAdd = async (query) => {
+    const startedAt = startTimer()
     setLoading(true)
     setError(null)
     try {
       const response = await axios.post('/api/arxiv/add', { input: query.trim() })
+      captureTiming('paper_load', elapsedSince(startedAt), {
+        route: 'home',
+        source: 'arxiv_add',
+        paperId: response.data?.id,
+        paperTitle: response.data?.title,
+        loadingInBackground: Boolean(response.data?.loadingInBackground),
+      })
+      captureAction('add_paper', {
+        route: 'home',
+        source: 'arxiv',
+        paperId: response.data?.id,
+        paperTitle: response.data?.title,
+      })
       addToast?.('Paper added', 'success')
       window.electron?.showNotification?.('ReadXiv', 'Paper added')
 
@@ -236,6 +274,11 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
       openPaper?.(response.data)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to add paper')
+      captureAppError(err, {
+        route: 'home',
+        source: 'arxiv_add',
+        inputKind: isArxivInput(query) ? 'arxiv' : 'unknown',
+      })
       console.error('Error adding paper:', err)
     } finally {
       setLoading(false)
@@ -298,6 +341,11 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
   const handlePdfUpload = async (event) => {
     const file = event.target.files?.[0]
     if (!file) return
+    const startedAt = startTimer()
+    captureAction('upload_pdf_start', {
+      route: 'home',
+      fileSize: file.size,
+    })
     setLoading(true)
     setError(null)
     try {
@@ -305,6 +353,18 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
       formData.append('pdf', file)
       const response = await axios.post('/api/papers/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      captureTiming('paper_load', elapsedSince(startedAt), {
+        route: 'home',
+        source: 'pdf_upload',
+        paperId: response.data?.id,
+        paperTitle: response.data?.title,
+        fileSize: file.size,
+      })
+      captureAction('upload_pdf_complete', {
+        route: 'home',
+        paperId: response.data?.id,
+        alreadyExists: Boolean(response.data?.alreadyExists),
       })
       if (response.data?.alreadyExists) {
         addToast?.('Paper already found, moving to the reader', 'success')
@@ -314,6 +374,11 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
       openPaper?.(response.data)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to upload PDF')
+      captureAppError(err, {
+        route: 'home',
+        source: 'pdf_upload',
+        fileSize: file.size,
+      })
     } finally {
       setLoading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -543,33 +608,6 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
         )}
       </div>
 
-      {currentMode === 'add' && preview?.title && (
-        <div
-          className="animate-preview-fade-in"
-          style={{
-            position: 'absolute',
-            bottom: '100px',
-            left: '2rem',
-            right: '2rem',
-            padding: '0.75rem 1.25rem',
-            background: 'color-mix(in srgb, var(--surface) 76%, transparent)',
-            border: '1px solid color-mix(in srgb, var(--secondary) 14%, var(--border))',
-            borderRadius: '8px',
-            fontSize: '0.95rem',
-            fontFamily: 'var(--font-sans)',
-            color: 'var(--foreground)',
-            lineHeight: 1.4,
-            backdropFilter: 'blur(18px)',
-            boxShadow: '0 18px 52px rgba(0, 0, 0, 0.22)',
-            zIndex: 15,
-            maxWidth: '75%',
-            margin: '0 auto'
-          }}
-        >
-          {preview.title}
-        </div>
-      )}
-
       {currentMode === 'preview' && previewData && isFocused && (
         <div
           className="preview-modal"
@@ -683,7 +721,6 @@ export default function Home({ setPage, openPaper, focusNonce, onSearchQuery, ad
             <div style={{ display: 'grid', gap: '0.75rem', fontSize: '0.95rem', lineHeight: 1.7 }}>
               <div><code>/search [query]</code> - open the search page</div>
               <div><code>/add [arXiv id or URL]</code> - fetch and add a paper</div>
-              <div><code>/preview [arXiv id or URL]</code> - preview title and abstract without adding</div>
               <div><code>/upload</code> - upload a local PDF</div>
               <div><code>/help</code> - open keyboard shortcuts</div>
               <div><code>plain text</code> - search your library</div>

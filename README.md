@@ -28,9 +28,6 @@ readxiv start:client
 readxiv add:https://arxiv.org/abs/2301.07041
 readxiv add:2301.07041
 
-# Show database stats
-readxiv show_db
-
 # Export database to Excel
 readxiv exportdb
 
@@ -59,32 +56,8 @@ readxiv remove:2301.07041
 - `readxiv remove:<arxiv_link_or_id>` or `readxiv remove <arxiv_link_or_id>`  
   Removes paper from DB and deletes matching local PDF/notes files.
 
-### Database
-
-- `readxiv show_db`  
-  Prints database location, counts, status distribution, storage usage, and recent papers.
-
 - `readxiv exportdb [output_path]`  
   Exports all papers to an `.xlsx` file. Default output is your Downloads folder.
-
-### Projects (scaffold)
-
-- `readxiv start_project:<project_name>` or `readxiv start_project <project_name>`  
-  Creates a project scaffold under `~/.papyrus/projects/<project_name>/`.
-
-### Config
-
-- `readxiv config get [key]`
-- `readxiv config set <key> <value>`
-
-Supported keys:
-- `serverPort`
-- `clientPort`
-- `autoStartServer`
-- `defaultBrowser`
-- `exportDir`
-
-Todoist credentials are configured in the app (**Settings**), not via `readxiv config`; they are stored in `config.json` under `todoistApiToken` / `todoistProjectId`.
 
 ## Data Storage
 
@@ -94,8 +67,7 @@ ReadXiv stores data in `~/.papyrus/`:
 - `pdfs/` - downloaded PDF files
 - `notes/` - Markdown notes
 - `canvas/` - canvas data
-- `projects/` - project scaffolds
-- `config.json` - CLI configuration
+- `config.json` - local app/server configuration
 
 ## Publish Checklist
 

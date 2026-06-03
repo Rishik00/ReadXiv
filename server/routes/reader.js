@@ -58,6 +58,36 @@ router.get('/:id/references', async (req, res) => {
   }
 });
 
+router.get('/:id/pdf', async (req, res) => {
+  try {
+    const paper = await getPaperById(req.params.id);
+    if (!paper) return res.status(404).json({ error: 'Paper not found' });
+    const resolvedPath = await resolvePdfPathForPaper(paper);
+    if (!resolvedPath) return res.status(404).json({ error: 'PDF file not found' });
+    const stat = await fs.stat(resolvedPath);
+    const fileSize = stat.size;
+    const range = req.headers.range;
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Type', 'application/pdf');
+
+    if (range) {
+      const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
+      const start = Number(startStr);
+      const end = endStr ? Number(endStr) : fileSize - 1;
+      const chunkSize = end - start + 1;
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+      res.setHeader('Content-Length', chunkSize);
+      return fs.createReadStream(resolvedPath, { start, end }).pipe(res);
+    }
+
+    res.setHeader('Content-Length', fileSize);
+    return fs.createReadStream(resolvedPath).pipe(res);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const paper = await getPaperById(req.params.id);
@@ -89,36 +119,6 @@ router.get('/:id', async (req, res) => {
       hasPdf: Boolean(pdfPath),
       offline_pinned: Number(paper.offline_pinned) === 1 ? 1 : 0,
     });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/:id/pdf', async (req, res) => {
-  try {
-    const paper = await getPaperById(req.params.id);
-    if (!paper) return res.status(404).json({ error: 'Paper not found' });
-    const resolvedPath = await resolvePdfPathForPaper(paper);
-    if (!resolvedPath) return res.status(404).json({ error: 'PDF file not found' });
-    const stat = await fs.stat(resolvedPath);
-    const fileSize = stat.size;
-    const range = req.headers.range;
-    res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Content-Type', 'application/pdf');
-
-    if (range) {
-      const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
-      const start = Number(startStr);
-      const end = endStr ? Number(endStr) : fileSize - 1;
-      const chunkSize = end - start + 1;
-      res.status(206);
-      res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
-      res.setHeader('Content-Length', chunkSize);
-      return fs.createReadStream(resolvedPath, { start, end }).pipe(res);
-    }
-
-    res.setHeader('Content-Length', fileSize);
-    return fs.createReadStream(resolvedPath).pipe(res);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

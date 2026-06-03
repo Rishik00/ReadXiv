@@ -68,9 +68,24 @@ export async function initDB() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id TEXT PRIMARY KEY,
+      event_name TEXT NOT NULL,
+      route TEXT,
+      paper_id TEXT,
+      paper_title TEXT,
+      session_id TEXT,
+      metadata_json TEXT DEFAULT '{}',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_papers_status ON papers(status);
     CREATE INDEX IF NOT EXISTS idx_papers_created ON papers(created_at);
     CREATE INDEX IF NOT EXISTS idx_highlights_paper ON highlights(paper_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_event_name ON analytics_events(event_name);
+    CREATE INDEX IF NOT EXISTS idx_analytics_route ON analytics_events(route);
+    CREATE INDEX IF NOT EXISTS idx_analytics_paper ON analytics_events(paper_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at);
   `);
 
   // Lightweight migration for existing DBs that were created before

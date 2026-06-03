@@ -6,10 +6,18 @@
 6. You can remove the 'notes' bit, like that text doesnt have to be there. (Done)
 7. You can remove the 'New Search' bar. (Done)
 
-
 More bugs/things that need fixing: 
 1. The typography looks very uneven and bad. (Done)
 2. We can simplify the color scheme options and just keep Black and Orange, Black and white and Black and blue (Done)
 3. The modals for presenting the keyboard bindings can be unified. (Done)
 4. The amount of keyboard bindings is staggering and growing. Need to consolidate it into a `help` page with good typography and formatting for hotkeys. (Done) 
-5. The bar above the reader can be made shorter or removed altoggether. And the font sizes can be made consistent. They're very uneven. 
+5. The bar above the reader can be made shorter or removed altoggether. And the font sizes can be made consistent. They're very uneven. (Done)
+
+more more bugs that need fixing: 
+1. References heading should be bigger. (Done)
+2. Edit replaced with "notes" or a different flow should be tried. (Done)
+3. Add to library ffrom references shouldd change state when add is clicked on. (Done)
+4. Scroll is not smooth. Have to perf test.
+5. we dont do a very good job maintaining state within the app. (Better now)
+6. The PDF reader breaks when I enter the paper link from the /add (Solved for the most part)
+7. Titles and abstracts are not appearing in the search bar. (needs some problem solving)

@@ -3,11 +3,29 @@ import axios from 'axios';
 import fs from 'fs-extra';
 import path from 'path';
 import { getDB, saveDB, PAPYRUS_DIR } from '../db.js';
+import { getSemanticScholarApiKey } from '../todoistConfig.js';
 
 const router = express.Router();
 
 const ARXIV_UA =
   'ReadXiv/1.0 (arxiv metadata; +https://github.com/readxiv; contact: local-app)';
+const METADATA_CACHE_TTL_MS = 30 * 60 * 1000;
+const ARXIV_API_MIN_INTERVAL_MS = 6000;
+const ARXIV_RATE_LIMIT_COOLDOWN_MS = 10 * 60 * 1000;
+const S2_BASE = 'https://api.semanticscholar.org/graph/v1';
+const metadataCache = new Map();
+const metadataRequests = new Map();
+let lastArxivApiRequestAt = 0;
+let arxivRateLimitedUntil = 0;
+let arxivApiQueue = Promise.resolve();
+
+class ArxivRateLimitError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ArxivRateLimitError';
+    this.status = 429;
+  }
+}
 
 function isRetryableArxivError(error) {
   if (!error) return false;
@@ -16,9 +34,84 @@ function isRetryableArxivError(error) {
   }
   if (error.response) {
     const s = error.response.status;
-    return s === 429 || s === 502 || s === 503 || s === 504;
+    return s === 502 || s === 503 || s === 504;
   }
   return Boolean(error.request);
+}
+
+function isArxivRateLimitError(error) {
+  return error?.status === 429 || error?.response?.status === 429;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runSerializedArxivApiRequest(fn) {
+  const run = arxivApiQueue
+    .catch(() => {})
+    .then(async () => {
+      if (Date.now() < arxivRateLimitedUntil) {
+        throw new ArxivRateLimitError('arXiv rate limit cooldown is active.');
+      }
+      const elapsed = Date.now() - lastArxivApiRequestAt;
+      if (elapsed < ARXIV_API_MIN_INTERVAL_MS) {
+        await sleep(ARXIV_API_MIN_INTERVAL_MS - elapsed);
+      }
+      lastArxivApiRequestAt = Date.now();
+      return fn();
+    });
+  arxivApiQueue = run.catch(() => {});
+  return run;
+}
+
+function normalizeSemanticScholarMetadata(data, arxivId) {
+  if (!data || typeof data !== 'object') return null;
+  const title = typeof data.title === 'string' ? data.title.trim() : '';
+  if (!title) return null;
+  const authors = Array.isArray(data.authors)
+    ? data.authors
+        .map((author) => (typeof author?.name === 'string' ? author.name.trim() : ''))
+        .filter(Boolean)
+        .join(', ')
+    : '';
+  return {
+    title,
+    authors: authors || 'Unknown',
+    abstract: typeof data.abstract === 'string' ? data.abstract.trim() : '',
+    year: Number.isFinite(data.year) ? data.year : null,
+    arxivId,
+  };
+}
+
+async function fetchFallbackMetadata(arxivId, cause) {
+  try {
+    const fallback = await fetchSemanticScholarMetadata(arxivId);
+    if (fallback) return fallback;
+  } catch (fallbackError) {
+    console.warn(
+      `${cause} Semantic Scholar metadata fallback failed:`,
+      fallbackError?.response?.status || fallbackError?.message || fallbackError
+    );
+  }
+  return null;
+}
+
+async function fetchSemanticScholarMetadata(arxivId) {
+  const fields = 'title,abstract,authors,year,externalIds';
+  const headers = {};
+  const apiKey = getSemanticScholarApiKey();
+  if (apiKey) headers['x-api-key'] = apiKey;
+  const response = await axios.get(
+    `${S2_BASE}/paper/${encodeURIComponent(`ARXIV:${arxivId}`)}`,
+    {
+      params: { fields },
+      headers,
+      timeout: 18000,
+      maxRedirects: 5,
+    }
+  );
+  return normalizeSemanticScholarMetadata(response.data, arxivId);
 }
 
 // Extract arxiv ID from URL or string
@@ -36,16 +129,40 @@ function extractArxivId(input) {
 
 // Fetch paper metadata from arxiv API with retry on rate limit / flaky network
 async function fetchArxivMetadata(arxivId, retries = 4) {
+  const cached = metadataCache.get(arxivId);
+  if (cached && Date.now() - cached.createdAt < METADATA_CACHE_TTL_MS) {
+    return cached.metadata;
+  }
+
+  const inFlight = metadataRequests.get(arxivId);
+  if (inFlight) return inFlight;
+
+  const request = fetchArxivMetadataUncached(arxivId, retries)
+    .then((metadata) => {
+      metadataCache.set(arxivId, { metadata, createdAt: Date.now() });
+      return metadata;
+    })
+    .finally(() => {
+      metadataRequests.delete(arxivId);
+    });
+
+  metadataRequests.set(arxivId, request);
+  return request;
+}
+
+async function fetchArxivMetadataUncached(arxivId, retries = 4) {
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      const response = await axios.get(`https://export.arxiv.org/api/query?id_list=${arxivId}`, {
-        headers: {
-          Accept: 'application/atom+xml',
-          'User-Agent': ARXIV_UA,
-        },
-        timeout: 28000,
-        maxRedirects: 5,
-      });
+      const response = await runSerializedArxivApiRequest(() =>
+        axios.get(`https://export.arxiv.org/api/query?id_list=${arxivId}`, {
+          headers: {
+            Accept: 'application/atom+xml',
+            'User-Agent': ARXIV_UA,
+          },
+          timeout: 28000,
+          maxRedirects: 5,
+        })
+      );
       
       // Parse XML response (simplified - in production use proper XML parser)
       const xml = response.data;
@@ -79,6 +196,16 @@ async function fetchArxivMetadata(arxivId, retries = 4) {
     
       return { title, authors, abstract, year, arxivId };
     } catch (error) {
+      if (isArxivRateLimitError(error)) {
+        arxivRateLimitedUntil = Date.now() + ARXIV_RATE_LIMIT_COOLDOWN_MS;
+        const fallback = await fetchFallbackMetadata(arxivId, 'arXiv rate limit.');
+        if (fallback) return fallback;
+        const retryAfter = error.response?.headers?.['retry-after'];
+        const message = retryAfter
+          ? `arXiv rate limit exceeded. Try again after ${retryAfter} seconds.`
+          : 'arXiv rate limit exceeded. Please wait before trying again.';
+        throw new ArxivRateLimitError(message);
+      }
       if (attempt < retries - 1 && isRetryableArxivError(error)) {
         const delayMs = Math.min(1500 * Math.pow(2, attempt), 12000);
         console.warn(
@@ -87,7 +214,7 @@ async function fetchArxivMetadata(arxivId, retries = 4) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
         continue;
       }
-      console.error('Error fetching arxiv metadata:', error);
+      console.error('Error fetching arxiv metadata:', error?.message || error);
       throw new Error(`Failed to fetch arxiv metadata: ${error.message}`);
     }
   }
@@ -132,18 +259,10 @@ function rowToObject(row, columns) {
 
 // Preview metadata only (no DB write) - for search bar lip
 router.get('/preview', async (req, res) => {
-  try {
-    const input = req.query.input || req.query.q || '';
-    const arxivId = extractArxivId(input.trim());
-    if (!arxivId) {
-      return res.status(400).json({ error: 'Invalid arxiv URL or ID' });
-    }
-    const metadata = await fetchArxivMetadata(arxivId);
-    return res.json({ title: metadata.title, authors: metadata.authors, abstract: metadata.abstract });
-  } catch (error) {
-    console.error('Error fetching arxiv preview:', error);
-    return res.status(500).json({ error: error.message });
-  }
+  return res.status(503).json({
+    error: 'Metadata preview is disabled because arXiv and fallback metadata APIs are rate-limiting this client.',
+    code: 'metadata_disabled',
+  });
 });
 
 // Add paper from arxiv URL/ID
@@ -170,14 +289,20 @@ router.post('/add', async (req, res) => {
       return res.json({ ...existing, alreadyExists: true });
     }
     
-    // Fetch metadata
-    const metadata = await fetchArxivMetadata(arxivId);
+    const metadata = {
+      title: `arXiv:${arxivId}`,
+      authors: 'Unknown',
+      abstract: '',
+      year: Number(`20${arxivId.slice(0, 2)}`),
+      arxivId,
+    };
     
     // Create notes file
     const notesPath = path.join(PAPYRUS_DIR, 'notes', `${arxivId}.md`);
     await fs.writeFile(notesPath, `# ${metadata.title}\n\n`);
     
-    // Insert lightweight paper shell first so UI can transition immediately.
+    // Insert immediately without metadata lookup. Metadata fetches are rate
+    // limited hard enough that they should be explicit, not part of /add.
     const now = new Date().toISOString();
     const plannedPdfPath = path.join(PAPYRUS_DIR, 'pdfs', `${arxivId}.pdf`);
     const plannedPdfUrl = `https://arxiv.org/pdf/${arxivId}.pdf`;
@@ -204,7 +329,8 @@ router.post('/add', async (req, res) => {
     const result = database.exec('SELECT * FROM papers WHERE id = ?', [arxivId]);
     const paper = rowToObject(result[0].values[0], result[0].columns);
 
-    // Fire-and-forget download in the background.
+    // Fire-and-forget PDF download in the background. Metadata is already
+    // committed above, so PDF failures do not corrupt list/search data.
     void (async () => {
       try {
         const { pdfPath, pdfUrl } = await downloadPDF(arxivId);
@@ -228,7 +354,7 @@ router.post('/add', async (req, res) => {
     res.status(202).json({ ...paper, loadingInBackground: true });
   } catch (error) {
     console.error('Error adding paper:', error);
-    res.status(500).json({ error: error.message });
+    res.status(error.status || 500).json({ error: error.message });
   }
 });
 

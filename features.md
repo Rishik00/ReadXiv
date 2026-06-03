@@ -31,7 +31,7 @@ Do note that I don't want to over complicate this, just want to have a similar e
 
 Note: this feature should be enabled via a `enable-vim-navigation` for the first one and `enable-vim-keybindings` for the second one. Both of them will be settings when enabled will aid in the above behaviours. 
 
-# Better structuring for the PDF reader and notes editor (Small, Immediate)
+# Better structuring for the PDF reader and notes editor (Small, Immediate) - Implemented
 For the PDF reader: 
 1. Allow annotation/marking highlighted text for me to quote inside the markdown editor. 
 
@@ -41,7 +41,7 @@ For the notes editor:
     1. First - Quotes from the paper that I have highlighted in the PDF. 
     2. Second - My own opinions and questions. Also questions can be framed as a quote in markdown with the white bar behind them and everything.  
 
-# Bugs/Things that need fixing (small/medium, immediate)
+# Bugs/Things that need fixing (small/medium, immediate) - Implemented
 
 1. The PDF reader is wayy too small and low dimensional in terms of resolution. 
 2. Notes now use the rendered MDX editor as the canonical writing surface; autosave should stay clear and visible. 

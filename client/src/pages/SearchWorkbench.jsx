@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import TodoistTaskModal, { paperHasTodoistTask } from '../components/TodoistTaskModal'
+import { captureAction, captureAppError, captureTiming, elapsedSince, startTimer } from '../lib/instrumentation'
 
 function formatTodoistPriority(p) {
   if (typeof p !== 'number') return '-'
@@ -19,11 +20,11 @@ function formatTodoistDue(due) {
 function getStatusColor(status) {
   switch (status) {
     case 'done':
-      return 'border-green-500/50 text-green-400 bg-green-500/10'
+      return 'border-red-500/50 text-red-400 bg-red-500/10'
     case 'reading':
-      return 'border-secondary/50 text-secondary bg-secondary/10'
+      return 'border-green-500/50 text-green-400 bg-green-500/10'
     default:
-      return 'border-border text-muted bg-surface'
+      return 'border-white/40 text-white bg-white/10'
   }
 }
 
@@ -54,6 +55,9 @@ export default function SearchWorkbench({
   const [todoistEntry, setTodoistEntry] = useState(null)
   const [todoistLoading, setTodoistLoading] = useState(false)
   const [deletingPaperId, setDeletingPaperId] = useState(null)
+  const [metadataEditPaper, setMetadataEditPaper] = useState(null)
+  const [metadataDraft, setMetadataDraft] = useState({ title: '', authors: '', abstract: '' })
+  const [metadataSaving, setMetadataSaving] = useState(false)
   const inputRef = useRef(null)
   const listRef = useRef(null)
   const stackPaneRef = useRef(null)
@@ -79,6 +83,7 @@ export default function SearchWorkbench({
   useEffect(() => {
     let cancelled = false
     const timer = setTimeout(async () => {
+      const startedAt = startTimer()
       setLoading(true)
       try {
         const { data } = await axios.get('/api/papers', {
@@ -98,9 +103,23 @@ export default function SearchWorkbench({
           if (items.length === 0) return 0
           return Math.min(prev, items.length - 1)
         })
+        captureTiming('page_load', elapsedSince(startedAt), {
+          route: 'search',
+          source: 'search_results',
+          queryLength: query.trim().length,
+          page: currentPage,
+          resultCount: items.length,
+          total: Number.isFinite(data?.total) ? data.total : items.length,
+        })
       } catch (error) {
         if (cancelled) return
         console.error('Error loading search page:', error)
+        captureAppError(error, {
+          route: 'search',
+          source: 'search_results',
+          queryLength: query.trim().length,
+          page: currentPage,
+        })
         setResults([])
         setTotal(0)
         setTotalPages(1)
@@ -153,7 +172,7 @@ export default function SearchWorkbench({
 
   useEffect(() => {
     const row = listRef.current?.querySelector(`[data-index="${selectedIndex}"]`)
-    row?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+    row?.scrollIntoView?.({ block: 'nearest', behavior: 'auto' })
   }, [selectedIndex])
 
   const totalLabel = useMemo(() => {
@@ -184,6 +203,12 @@ export default function SearchWorkbench({
 
   const handleOpenSelected = () => {
     if (!selectedPaper) return
+    captureAction('search_open_selected_paper', {
+      route: 'search',
+      paperId: selectedPaper.id,
+      paperTitle: selectedPaper.title,
+      index: selectedIndex,
+    })
     openPaper?.(selectedPaper)
   }
 
@@ -193,8 +218,15 @@ export default function SearchWorkbench({
     try {
       const { data } = await axios.patch(`/api/papers/${selectedPaper.id}`, { status: nextStatus })
       updateSelectedPaper(() => ({ ...selectedPaper, ...data }))
+      captureAction('paper_status_change', {
+        route: 'search',
+        paperId: selectedPaper.id,
+        fromStatus: selectedPaper.status || 'queued',
+        toStatus: nextStatus,
+      })
       addToast?.(`Status: ${nextStatus}`, 'success')
-    } catch {
+    } catch (error) {
+      captureAppError(error, { route: 'search', source: 'paper_status_change', paperId: selectedPaper.id })
       addToast?.('Could not update status', 'error')
     }
   }
@@ -205,6 +237,11 @@ export default function SearchWorkbench({
     try {
       const { data } = await axios.post(`/api/papers/${selectedPaper.id}/offline`, { enabled: next })
       updateSelectedPaper(() => ({ ...selectedPaper, ...data }))
+      captureAction('paper_offline_toggle', {
+        route: 'search',
+        paperId: selectedPaper.id,
+        enabled: next,
+      })
       addToast?.(next ? 'Offline copy ready' : 'Offline copy removed', 'success')
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'Offline update failed'
@@ -219,6 +256,11 @@ export default function SearchWorkbench({
     setDeletingPaperId(selectedPaper.id)
     try {
       await axios.delete(`/api/papers/${selectedPaper.id}`)
+      captureAction('paper_delete', {
+        route: 'search',
+        paperId: selectedPaper.id,
+        paperTitle: selectedPaper.title,
+      })
       addToast?.('Paper deleted', 'success')
       if (results.length === 1 && currentPage > 1) {
         setCurrentPage((p) => Math.max(1, p - 1))
@@ -227,7 +269,8 @@ export default function SearchWorkbench({
         setTotal((prev) => Math.max(0, prev - 1))
         setSelectedIndex((prev) => Math.max(0, Math.min(prev, results.length - 2)))
       }
-    } catch {
+    } catch (error) {
+      captureAppError(error, { route: 'search', source: 'paper_delete', paperId: selectedPaper.id })
       addToast?.('Could not delete paper', 'error')
     } finally {
       setDeletingPaperId(null)
@@ -242,13 +285,61 @@ export default function SearchWorkbench({
           : null)
     if (!url) { addToast?.('No link available', 'error'); return }
     navigator.clipboard.writeText(url)
-      .then(() => addToast?.('Link copied', 'success'))
-      .catch(() => addToast?.('Could not copy', 'error'))
+      .then(() => {
+        captureAction('copy_paper_link', { route: 'search', paperId: selectedPaper.id })
+        addToast?.('Link copied', 'success')
+      })
+      .catch((error) => {
+        captureAppError(error, { route: 'search', source: 'copy_paper_link', paperId: selectedPaper.id })
+        addToast?.('Could not copy', 'error')
+      })
+  }
+
+  const openMetadataEditor = (paper = selectedPaper) => {
+    if (!paper) return
+    setMetadataEditPaper(paper)
+    setMetadataDraft({
+      title: paper.title || '',
+      authors: paper.authors || '',
+      abstract: paper.abstract || '',
+    })
+  }
+
+  const handleSaveMetadata = async (event) => {
+    event?.preventDefault?.()
+    if (!metadataEditPaper?.id || metadataSaving) return
+    const payload = {
+      title: metadataDraft.title.trim() || metadataEditPaper.title || metadataEditPaper.id,
+      authors: metadataDraft.authors.trim(),
+      abstract: metadataDraft.abstract.trim(),
+    }
+    setMetadataSaving(true)
+    try {
+      const { data } = await axios.patch(`/api/papers/${metadataEditPaper.id}`, payload)
+      setResults((prev) => prev.map((paper) => (paper.id === data.id ? { ...paper, ...data } : paper)))
+      setMetadataEditPaper(null)
+      captureAction('paper_metadata_save', {
+        route: 'search',
+        paperId: metadataEditPaper.id,
+      })
+      addToast?.('Paper details saved', 'success')
+    } catch (error) {
+      captureAppError(error, { route: 'search', source: 'paper_metadata_save', paperId: metadataEditPaper.id })
+      addToast?.('Could not save paper details', 'error')
+    } finally {
+      setMetadataSaving(false)
+    }
   }
 
   const changePage = (nextPage) => {
     const target = Math.max(1, Math.min(nextPage, totalPages))
     if (target === currentPage) return
+    captureAction('search_page_change', {
+      route: 'search',
+      fromPage: currentPage,
+      toPage: target,
+      totalPages,
+    })
     setCurrentPage(target)
     setSelectedIndex(0)
     setFocusPanel('stack')
@@ -258,7 +349,7 @@ export default function SearchWorkbench({
   useEffect(() => {
     const bar = pageBarRef.current
     if (!bar) return
-    bar.querySelector('[data-active="true"]')?.scrollIntoView({ inline: 'center', behavior: 'smooth', block: 'nearest' })
+    bar.querySelector('[data-active="true"]')?.scrollIntoView({ inline: 'center', behavior: 'auto', block: 'nearest' })
   }, [currentPage])
 
   // ── panel entrance animation on mount ────────────────────────────────────────
@@ -410,6 +501,11 @@ export default function SearchWorkbench({
         setFocusPanel('actions')
         return
       }
+      if (lower === 'e') {
+        event.preventDefault()
+        openMetadataEditor()
+        return
+      }
       if (lower === 'f') {
         event.preventDefault()
         handleOfflineToggle()
@@ -508,23 +604,28 @@ export default function SearchWorkbench({
     whiteSpace: 'nowrap',
     flexShrink: 0,
     fontWeight: 600,
-    ...(isActive
-      ? {
-          background: status === 'reading'
-            ? 'var(--secondary)'
-            : 'color-mix(in srgb, var(--foreground) 10%, transparent)',
-          color: status === 'reading'
-            ? 'var(--button-on-secondary)'
-            : 'color-mix(in srgb, var(--foreground) 72%, transparent)',
-          border: `1px solid ${status === 'reading'
-            ? 'transparent'
-            : 'color-mix(in srgb, var(--foreground) 14%, transparent)'}`,
+    ...(() => {
+      const normalized = status || 'queued'
+      if (normalized === 'reading') {
+        return {
+          background: isActive ? 'rgba(34, 197, 94, 0.18)' : 'rgba(34, 197, 94, 0.10)',
+          color: '#4ade80',
+          border: '1px solid rgba(34, 197, 94, 0.45)',
         }
-      : {
-          background: status === 'reading' ? 'color-mix(in srgb, var(--secondary) 12%, transparent)' : 'transparent',
-          color: status === 'reading' ? 'var(--secondary)' : 'var(--muted)',
-          border: `1px solid ${status === 'reading' ? 'color-mix(in srgb, var(--secondary) 32%, transparent)' : 'var(--border)'}`,
-        }),
+      }
+      if (normalized === 'done') {
+        return {
+          background: isActive ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.10)',
+          color: '#f87171',
+          border: '1px solid rgba(239, 68, 68, 0.45)',
+        }
+      }
+      return {
+        background: isActive ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.06)',
+        color: 'rgba(255, 255, 255, 0.88)',
+        border: '1px solid rgba(255, 255, 255, 0.34)',
+      }
+    })(),
   })
 
   return (
@@ -712,6 +813,7 @@ export default function SearchWorkbench({
             <div style={{ flex:1, overflowY:'auto', padding:'6px', display:'flex', flexDirection:'column', gap:'1px' }}>
               {[
                 { name:'Open in Reader', sub:'PDF + notes view', key:'Enter', onClick: handleOpenSelected },
+                { name:'Edit Details', sub:'Title, authors, abstract', key:'E', onClick: () => openMetadataEditor() },
                 { name:'Copy Link', sub: selectedPaper?.url ? 'arXiv URL' : 'Construct arxiv.org URL', key:'C', onClick: handleCopyLink },
                 { name:'Cycle Status', sub: selectedPaper ? `Currently: ${selectedPaper.status || 'queued'}` : 'Queued → Reading → Done', key:'S', onClick: handleCycleStatus },
                 { name: paperHasTodoistTask(selectedPaper) ? 'Edit Schedule' : 'Schedule in Todoist', sub:'Todoist due date + priority', key:'D', onClick: () => selectedPaper && setTodoistModalPaper(selectedPaper) },
@@ -755,6 +857,76 @@ export default function SearchWorkbench({
           onUpdated={refreshSelectedTodoist}
           onClose={() => setTodoistModalPaper(null)}
         />
+      )}
+      {metadataEditPaper && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4"
+          onClick={() => !metadataSaving && setMetadataEditPaper(null)}
+        >
+          <form
+            onSubmit={handleSaveMetadata}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl rounded-lg border border-border bg-surface shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted">Edit Paper Details</div>
+              <button
+                type="button"
+                onClick={() => setMetadataEditPaper(null)}
+                disabled={metadataSaving}
+                className="text-sm text-muted hover:text-foreground disabled:opacity-50"
+              >
+                Close
+              </button>
+            </div>
+            <div className="space-y-4 p-4">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted">Title</span>
+                <input
+                  value={metadataDraft.title}
+                  onChange={(e) => setMetadataDraft((prev) => ({ ...prev, title: e.target.value }))}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-secondary"
+                  autoFocus
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted">Authors</span>
+                <input
+                  value={metadataDraft.authors}
+                  onChange={(e) => setMetadataDraft((prev) => ({ ...prev, authors: e.target.value }))}
+                  placeholder="Comma-separated names"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-secondary"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted">Abstract</span>
+                <textarea
+                  value={metadataDraft.abstract}
+                  onChange={(e) => setMetadataDraft((prev) => ({ ...prev, abstract: e.target.value }))}
+                  rows={9}
+                  className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm leading-6 text-foreground outline-none focus:border-secondary"
+                />
+              </label>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setMetadataEditPaper(null)}
+                disabled={metadataSaving}
+                className="rounded-md border border-border px-3 py-2 text-sm text-muted hover:text-foreground disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={metadataSaving}
+                className="rounded-md bg-secondary px-3 py-2 text-sm font-medium text-button-on-secondary disabled:opacity-50"
+              >
+                {metadataSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   )

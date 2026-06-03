@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
+import { captureAction } from '../lib/instrumentation'
 
 export default function RecentPapersFinder({ open, onClose, onSelectPaper }) {
   const [papers, setPapers] = useState([])
@@ -57,6 +58,13 @@ export default function RecentPapersFinder({ open, onClose, onSelectPaper }) {
         event.preventDefault()
         const paper = papers[activeIndex]
         if (paper && onSelectPaper) {
+          captureAction('recent_paper_select', {
+            route: window.__readxivCurrentRoute || null,
+            paperId: paper.id,
+            paperTitle: paper.title,
+            source: 'keyboard',
+            index: activeIndex,
+          })
           onSelectPaper(paper)
           onClose?.()
         }
@@ -118,6 +126,13 @@ export default function RecentPapersFinder({ open, onClose, onSelectPaper }) {
                 type="button"
                 data-index={idx}
                 onClick={() => {
+                  captureAction('recent_paper_select', {
+                    route: window.__readxivCurrentRoute || null,
+                    paperId: paper.id,
+                    paperTitle: paper.title,
+                    source: 'click',
+                    index: idx,
+                  })
                   onSelectPaper?.(paper)
                   onClose?.()
                 }}
