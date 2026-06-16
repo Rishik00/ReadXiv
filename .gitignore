@@ -8,7 +8,7 @@ dist/
 client/dist/
 build/
 release/
-
+library design/
 # Environment
 .env
 .env.local

@@ -2,6 +2,8 @@ import express from 'express';
 import axios from 'axios';
 import fs from 'fs-extra';
 import path from 'path';
+import { randomUUID } from 'crypto';
+import { pipeline } from 'stream/promises';
 import { getDB, saveDB, PAPYRUS_DIR } from '../db.js';
 import { getSemanticScholarApiKey } from '../todoistConfig.js';
 
@@ -12,6 +14,7 @@ const ARXIV_UA =
 const METADATA_CACHE_TTL_MS = 30 * 60 * 1000;
 const ARXIV_API_MIN_INTERVAL_MS = 6000;
 const ARXIV_RATE_LIMIT_COOLDOWN_MS = 10 * 60 * 1000;
+const METADATA_CACHE_MAX_ENTRIES = 100;
 const S2_BASE = 'https://api.semanticscholar.org/graph/v1';
 const metadataCache = new Map();
 const metadataRequests = new Map();
@@ -115,7 +118,7 @@ async function fetchSemanticScholarMetadata(arxivId) {
 }
 
 // Extract arxiv ID from URL or string
-function extractArxivId(input) {
+export function extractArxivId(input) {
   // Match arxiv.org URLs
   const urlMatch = input.match(/arxiv\.org\/(?:abs|pdf)\/(\d{4}\.\d{4,5})(?:v\d+)?/);
   if (urlMatch) return urlMatch[1];
@@ -128,11 +131,12 @@ function extractArxivId(input) {
 }
 
 // Fetch paper metadata from arxiv API with retry on rate limit / flaky network
-async function fetchArxivMetadata(arxivId, retries = 4) {
+export async function fetchArxivMetadata(arxivId, retries = 4) {
   const cached = metadataCache.get(arxivId);
   if (cached && Date.now() - cached.createdAt < METADATA_CACHE_TTL_MS) {
     return cached.metadata;
   }
+  if (cached) metadataCache.delete(arxivId);
 
   const inFlight = metadataRequests.get(arxivId);
   if (inFlight) return inFlight;
@@ -140,6 +144,9 @@ async function fetchArxivMetadata(arxivId, retries = 4) {
   const request = fetchArxivMetadataUncached(arxivId, retries)
     .then((metadata) => {
       metadataCache.set(arxivId, { metadata, createdAt: Date.now() });
+      while (metadataCache.size > METADATA_CACHE_MAX_ENTRIES) {
+        metadataCache.delete(metadataCache.keys().next().value);
+      }
       return metadata;
     })
     .finally(() => {
@@ -227,16 +234,19 @@ async function downloadPDF(arxivId, retries = 3) {
   const pdfPath = path.join(PAPYRUS_DIR, 'pdfs', `${arxivId}.pdf`);
   
   for (let attempt = 0; attempt < retries; attempt++) {
+    const temporaryPath = `${pdfPath}.download-${randomUUID()}`;
     try {
       const response = await axios.get(pdfUrl, {
-        responseType: 'arraybuffer',
+        responseType: 'stream',
         timeout: 120000,
         maxRedirects: 5,
         headers: { 'User-Agent': ARXIV_UA },
       });
-      await fs.writeFile(pdfPath, response.data);
+      await pipeline(response.data, fs.createWriteStream(temporaryPath));
+      await fs.move(temporaryPath, pdfPath, { overwrite: true });
       return { pdfPath, pdfUrl };
     } catch (error) {
+      await fs.remove(temporaryPath).catch(() => {});
       if (attempt < retries - 1 && (error.response?.status === 429 || isRetryableArxivError(error))) {
         const delayMs = Math.min(2000 * Math.pow(2, attempt), 16000);
         console.warn(`arXiv PDF download retry in ${delayMs}ms (${attempt + 1}/${retries}): ${error.message}`);

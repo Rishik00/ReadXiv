@@ -9,6 +9,7 @@ const DB_PATH = path.join(PAPYRUS_DIR, 'papyrus.db');
 
 let db = null;
 let SQL = null;
+let scheduledSave = null;
 
 export async function getDB() {
   if (!db) {
@@ -138,10 +139,22 @@ export async function initDB() {
 
 export function saveDB() {
   if (db) {
+    if (scheduledSave) {
+      clearTimeout(scheduledSave);
+      scheduledSave = null;
+    }
     const data = db.export();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(DB_PATH, buffer);
+    fs.writeFileSync(DB_PATH, data);
   }
+}
+
+export function scheduleSaveDB(delayMs = 1000) {
+  if (!db || scheduledSave) return;
+  scheduledSave = setTimeout(() => {
+    scheduledSave = null;
+    saveDB();
+  }, delayMs);
+  scheduledSave.unref?.();
 }
 
 export { PAPYRUS_DIR, DB_PATH };

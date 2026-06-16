@@ -1,13 +1,14 @@
 import express from 'express';
 import axios from 'axios';
 import { getDB, saveDB } from '../db.js';
-import { randomUUID } from 'crypto';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
+import { pipeline } from 'stream/promises';
 import fs from 'fs-extra';
 import path from 'path';
 import multer from 'multer';
 import { PAPYRUS_DIR } from '../db.js';
 import Fuse from 'fuse.js';
+import { extractArxivId, fetchArxivMetadata } from './arxiv.js';
 
 const router = express.Router();
 const upload = multer({ dest: path.join(PAPYRUS_DIR, 'tmp') });
@@ -28,6 +29,54 @@ async function fetchPaperById(id) {
   return rowToObject(result[0].values[0], result[0].columns);
 }
 
+function isPlaceholderTitle(title, id) {
+  const value = String(title || '').trim();
+  if (!value) return true;
+  return /^arxiv:/i.test(value) || value === id;
+}
+
+function hasUsableMetadata(metadata, paper) {
+  if (!metadata || typeof metadata !== 'object') return false;
+  const hasTitle = metadata.title && !isPlaceholderTitle(metadata.title, paper.id);
+  const hasAbstract = Boolean(String(metadata.abstract || '').trim());
+  return hasTitle || hasAbstract;
+}
+
+function resolvePaperArxivId(paper) {
+  if (!paper) return null;
+  return (
+    extractArxivId(String(paper.id || '')) ||
+    extractArxivId(String(paper.url || '')) ||
+    extractArxivId(String(paper.pdf_url || '')) ||
+    null
+  );
+}
+
+async function downloadToFile(url, destination) {
+  const temporaryPath = `${destination}.download-${randomUUID()}`;
+  try {
+    const response = await axios.get(url, {
+      responseType: 'stream',
+      timeout: 120000,
+      maxRedirects: 5,
+      headers: { 'User-Agent': 'ReadXiv/1.0' },
+    });
+    await pipeline(response.data, fs.createWriteStream(temporaryPath));
+    await fs.move(temporaryPath, destination, { overwrite: true });
+  } catch (error) {
+    await fs.remove(temporaryPath).catch(() => {});
+    throw error;
+  }
+}
+
+async function hashFile(filePath) {
+  const hash = createHash('sha256');
+  for await (const chunk of fs.createReadStream(filePath)) {
+    hash.update(chunk);
+  }
+  return hash.digest('hex');
+}
+
 /** Ensure a non-empty PDF exists at paper.pdf_path (or default pdfs/{id}.pdf); download from pdf_url if needed. Updates DB when downloading. */
 async function ensurePaperPdfOnDisk(paper) {
   const db = await getDB();
@@ -46,13 +95,7 @@ async function ensurePaperPdfOnDisk(paper) {
       throw new Error('No local PDF and no download URL. Connect to the internet once to fetch this paper.');
     }
     await fs.ensureDir(path.dirname(pdfPath));
-    const response = await axios.get(pdfUrl, {
-      responseType: 'arraybuffer',
-      timeout: 120000,
-      maxRedirects: 5,
-      headers: { 'User-Agent': 'ReadXiv/1.0' },
-    });
-    await fs.writeFile(pdfPath, Buffer.from(response.data));
+    await downloadToFile(pdfUrl, pdfPath);
     db.run(
       "UPDATE papers SET pdf_path = ?, pdf_url = ?, status = 'queued', updated_at = datetime('now') WHERE id = ?",
       [pdfPath, pdfUrl, id]
@@ -67,24 +110,42 @@ async function ensurePaperPdfOnDisk(paper) {
 router.get('/', async (req, res) => {
   try {
     const db = await getDB();
-    const result = db.exec('SELECT * FROM papers ORDER BY created_at DESC');
-    const columns = result.length > 0 ? result[0].columns : [];
-    const papers = result.length > 0 ? result[0].values.map(row => rowToObject(row, columns)) : [];
-
     const wantsPaginated =
       Object.prototype.hasOwnProperty.call(req.query, 'q') ||
       Object.prototype.hasOwnProperty.call(req.query, 'page') ||
       Object.prototype.hasOwnProperty.call(req.query, 'pageSize') ||
       req.query.paginate === '1';
 
-    if (!wantsPaginated) {
-      return res.json(papers);
-    }
-
     const query = String(req.query.q || '').trim();
     const pageSizeRaw = Number.parseInt(req.query.pageSize, 10);
     const requestedPageSize = Number.isFinite(pageSizeRaw) ? pageSizeRaw : 10;
     const pageSize = Math.max(1, Math.min(requestedPageSize, 50));
+
+    if (wantsPaginated && !query) {
+      const countResult = db.exec('SELECT COUNT(*) AS total FROM papers');
+      const total = Number(countResult[0]?.values[0]?.[0] || 0);
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const pageRaw = Number.parseInt(req.query.page, 10);
+      const requestedPage = Number.isFinite(pageRaw) ? pageRaw : 1;
+      const page = Math.max(1, Math.min(requestedPage, totalPages));
+      const result = db.exec(
+        'SELECT * FROM papers ORDER BY created_at DESC LIMIT ? OFFSET ?',
+        [pageSize, (page - 1) * pageSize]
+      );
+      const columns = result.length > 0 ? result[0].columns : [];
+      const items = result.length > 0
+        ? result[0].values.map((row) => rowToObject(row, columns))
+        : [];
+      return res.json({ items, total, page, pageSize, totalPages, query });
+    }
+
+    const result = db.exec('SELECT * FROM papers ORDER BY created_at DESC');
+    const columns = result.length > 0 ? result[0].columns : [];
+    const papers = result.length > 0 ? result[0].values.map(row => rowToObject(row, columns)) : [];
+
+    if (!wantsPaginated) {
+      return res.json(papers);
+    }
 
     let filtered = papers;
     if (query) {
@@ -210,6 +271,46 @@ router.post('/:id/access', async (req, res) => {
   }
 });
 
+// Fetch arXiv metadata for placeholder or incomplete papers.
+router.post('/:id/fetch-metadata', async (req, res) => {
+  try {
+    const paper = await fetchPaperById(req.params.id);
+    if (!paper) return res.status(404).json({ error: 'Paper not found' });
+
+    const arxivId = resolvePaperArxivId(paper);
+    if (!arxivId) {
+      return res.status(400).json({ error: 'No arXiv ID available for this paper' });
+    }
+
+    const metadata = await fetchArxivMetadata(arxivId, 3);
+    if (!hasUsableMetadata(metadata, paper)) {
+      return res.status(502).json({ error: 'Metadata fetch returned no usable title or abstract' });
+    }
+
+    const nextTitle = metadata.title && !isPlaceholderTitle(metadata.title, paper.id)
+      ? metadata.title
+      : paper.title;
+    const nextAuthors = metadata.authors || paper.authors || null;
+    const nextAbstract = String(metadata.abstract || '').trim() || paper.abstract || null;
+    const nextYear = Number.isFinite(metadata.year) ? metadata.year : paper.year || null;
+    const db = await getDB();
+
+    db.run(
+      `UPDATE papers
+       SET title = ?, authors = ?, abstract = ?, year = ?, updated_at = datetime('now')
+       WHERE id = ?`,
+      [nextTitle, nextAuthors, nextAbstract, nextYear, paper.id]
+    );
+    saveDB();
+
+    const updated = await fetchPaperById(paper.id);
+    return res.json(updated);
+  } catch (error) {
+    console.error('Metadata fetch failed:', error);
+    return res.status(error.status || 500).json({ error: error.message || 'Metadata fetch failed' });
+  }
+});
+
 // Create paper
 router.post('/', async (req, res) => {
   try {
@@ -307,8 +408,7 @@ router.post('/upload', upload.single('pdf'), async (req, res) => {
     }
 
     const db = await getDB();
-    const fileBuffer = await fs.readFile(req.file.path);
-    const digest = createHash('sha256').update(fileBuffer).digest('hex');
+    const digest = await hashFile(req.file.path);
     const paperId = `local-${digest.slice(0, 16)}`;
 
     const existingResult = db.exec('SELECT * FROM papers WHERE id = ?', [paperId]);

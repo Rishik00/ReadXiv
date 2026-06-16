@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { captureAction } from '../lib/instrumentation'
 
+const RECENT_LIMIT = 10
+
 export default function RecentPapersFinder({ open, onClose, onSelectPaper }) {
   const [papers, setPapers] = useState([])
   const [loading, setLoading] = useState(false)
@@ -13,9 +15,10 @@ export default function RecentPapersFinder({ open, onClose, onSelectPaper }) {
     setActiveIndex(0)
     setLoading(true)
     axios
-      .get('/api/papers/recents', { params: { limit: 12 } })
+      .get('/api/papers/recents', { params: { limit: RECENT_LIMIT } })
       .then(({ data }) => {
-        setPapers(Array.isArray(data) ? data : [])
+        const nextPapers = Array.isArray(data) ? data.slice(0, RECENT_LIMIT) : []
+        setPapers(nextPapers)
         setActiveIndex(0)
       })
       .catch(() => setPapers([]))
@@ -36,43 +39,52 @@ export default function RecentPapersFinder({ open, onClose, onSelectPaper }) {
     })
   }
 
+  const openPaperAtIndex = (index, source = 'keyboard') => {
+    const paper = papers[index]
+    if (!paper || !onSelectPaper) return
+    captureAction('recent_paper_select', {
+      route: window.__readxivCurrentRoute || null,
+      paperId: paper.id,
+      paperTitle: paper.title,
+      source,
+      index,
+    })
+    onSelectPaper(paper)
+    onClose?.()
+  }
+
   useEffect(() => {
-    if (!open) return
+    if (!open) return undefined
     function onKeyDown(event) {
       if (event.key === 'Escape') {
         event.preventDefault()
         onClose?.()
         return
       }
-      if ((event.key === 'ArrowDown' || event.key === 'j') && papers.length > 0) {
+      if ((event.key === 'ArrowRight' || event.key === 'l' || event.key === 'ArrowDown' || event.key === 'j') && papers.length > 0) {
         event.preventDefault()
         moveSelection(1)
         return
       }
-      if ((event.key === 'ArrowUp' || event.key === 'k') && papers.length > 0) {
+      if ((event.key === 'ArrowLeft' || event.key === 'h' || event.key === 'ArrowUp' || event.key === 'k') && papers.length > 0) {
         event.preventDefault()
         moveSelection(-1)
         return
       }
       if (event.key === 'Enter' && papers.length > 0) {
         event.preventDefault()
-        const paper = papers[activeIndex]
-        if (paper && onSelectPaper) {
-          captureAction('recent_paper_select', {
-            route: window.__readxivCurrentRoute || null,
-            paperId: paper.id,
-            paperTitle: paper.title,
-            source: 'keyboard',
-            index: activeIndex,
-          })
-          onSelectPaper(paper)
-          onClose?.()
-        }
+        openPaperAtIndex(activeIndex)
+        return
+      }
+      if (/^[0-9]$/.test(event.key) && papers.length > 0) {
+        event.preventDefault()
+        const index = event.key === '0' ? 9 : Number(event.key) - 1
+        openPaperAtIndex(index)
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose, onSelectPaper, papers, activeIndex])
+  }, [open, onClose, papers, activeIndex])
 
   useEffect(() => {
     if (!open || !listRef.current) return
@@ -84,85 +96,74 @@ export default function RecentPapersFinder({ open, onClose, onSelectPaper }) {
 
   return (
     <div
-      className="fixed inset-0 z-[80] bg-foreground/80 backdrop-blur-md flex items-start justify-center pt-[8vh] px-6 animate-backdrop-in"
+      className="fixed inset-0 z-[80] flex items-center justify-center overflow-hidden bg-black/70 p-6 animate-backdrop-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[720px] rounded-xl shadow-2xl overflow-hidden animate-modal-in"
+        className="w-full max-w-[720px] overflow-hidden rounded-lg shadow-2xl animate-modal-in"
         style={{
-          border: '1px solid color-mix(in srgb, var(--secondary) 16%, var(--border))',
-          background: 'color-mix(in srgb, var(--surface) 76%, transparent)',
-          backdropFilter: 'blur(22px)',
-          boxShadow: '0 28px 72px -24px rgba(0, 0, 0, 0.62)',
+          border: '1px solid var(--border)',
+          background: 'var(--surface)',
+          boxShadow: '0 24px 60px rgba(0, 0, 0, 0.46)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-          <span className="text-muted shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
-          </span>
-          <span className="text-sm font-medium text-foreground">Recent papers</span>
-          <kbd className="ml-auto shrink-0 rounded border border-border/80 bg-foreground/5 px-1.5 py-0.5 text-[10px] font-mono text-muted/80">Space F</kbd>
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+          <span className="text-sm font-medium text-foreground">Recents</span>
         </div>
 
-        <div ref={listRef} className="max-h-[480px] overflow-auto py-2">
+        <div ref={listRef}>
           {loading && (
-            <div className="px-4 py-8 flex flex-col gap-3 animate-fade-in">
+            <div className="flex flex-col gap-3 px-3 py-6 animate-fade-in">
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex flex-col gap-1.5">
+                <div key={i} className="flex flex-col gap-1.5 rounded-md border border-border px-3 py-2.5">
                   <div className="h-4 w-[85%] rounded skeleton-shimmer" />
-                  <div className="h-2.5 w-1/3 rounded skeleton-shimmer" />
                 </div>
               ))}
             </div>
           )}
-          {!loading && papers.length === 0 && (
-            <div className="px-4 py-8 text-center text-xs text-muted">No recent papers</div>
-          )}
-          {!loading &&
-            papers.map((paper, idx) => (
-              <button
-                key={paper.id}
-                type="button"
-                data-index={idx}
-                onClick={() => {
-                  captureAction('recent_paper_select', {
-                    route: window.__readxivCurrentRoute || null,
-                    paperId: paper.id,
-                    paperTitle: paper.title,
-                    source: 'click',
-                    index: idx,
-                  })
-                  onSelectPaper?.(paper)
-                  onClose?.()
-                }}
-                className={`w-full flex flex-col gap-0.5 px-4 py-2.5 text-left transition-colors animate-stagger-fade ${
-                  idx === activeIndex
-                    ? 'bg-secondary/15 text-secondary'
-                    : 'text-foreground hover:bg-foreground/5'
-                }`}
-                style={{ animationDelay: `${Math.min(idx, 7) * 30}ms` }}
-              >
-                <span className="text-sm font-medium line-clamp-2">{paper.title}</span>
-                <span className="text-[11px] text-muted truncate">
-                  {[paper.year, paper.authors].filter(Boolean).join(' · ') || paper.id}
-                </span>
-              </button>
-            ))}
-        </div>
 
-        <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-background/50 text-[10px] text-muted">
-          <span>
-            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono">↑</kbd>
-            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">↓</kbd>
-            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">j</kbd>
-            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">k</kbd>
-            <span className="ml-2">navigate</span>
-          </span>
-          <span>
-            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono">Enter</kbd>
-            <span className="ml-1">open</span>
-          </span>
+          {!loading && papers.length === 0 && (
+            <div className="rx-empty-state !h-auto py-10">
+              <div className="rx-empty-state-inner">
+                <div className="rx-empty-state-title">No recent papers</div>
+                <div className="rx-empty-state-copy">Open a paper from Library and it will appear here.</div>
+              </div>
+            </div>
+          )}
+
+          {!loading &&
+            papers.map((paper, idx) => {
+              const active = idx === activeIndex
+              return (
+                <button
+                  key={paper.id}
+                  type="button"
+                  data-index={idx}
+                  onClick={() => openPaperAtIndex(idx, 'click')}
+                  className={`flex w-full items-start gap-3 px-6 py-2 text-left transition-colors animate-stagger-fade ${
+                    active ? 'bg-secondary/15 text-secondary' : 'text-foreground hover:bg-foreground/5'
+                  }`}
+                  style={{ animationDelay: `${Math.min(idx, 7) * 30}ms` }}
+                >
+                  <span
+                    className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border font-mono text-[10px]"
+                    style={{
+                      borderColor: active
+                        ? 'color-mix(in srgb, var(--secondary) 48%, var(--border))'
+                        : 'var(--border)',
+                    }}
+                  >
+                    {idx === 9 ? '0' : idx + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium leading-snug line-clamp-2">
+                      {paper.title}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
         </div>
       </div>
     </div>

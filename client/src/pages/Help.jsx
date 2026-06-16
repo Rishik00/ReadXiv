@@ -4,20 +4,21 @@ export default function Help() {
       title: 'Navigation',
       items: [
         ['Ctrl+P', 'Command palette - search papers and navigate'],
-        ['Ctrl+K', 'Open search'],
+        ['Ctrl+K', 'Open Library'],
         ['Space h', 'Go home'],
-        ['Space s', 'Open search'],
-        ['Space c', 'Go to Settings'],
-        ['Space f', 'Recent papers'],
-        ['Space f b', 'Open search and focus the query'],
+        ['Space l', 'Open Library'],
+        ['Space r', 'Recent papers'],
+        ['Space ,', 'Go to Settings'],
+        ['Space ?', 'Open Help'],
         ['/', 'On home: open the slash command menu'],
-        ['Esc', 'Blur or close the active search field'],
+        ['Esc', 'Close overlay or go back one surface'],
       ],
     },
     {
-      title: 'Search Workbench',
+      title: 'Library',
       items: [
-        ['Home: /search', 'Launch the dedicated search page'],
+        ['Home: /library', 'Launch Library with an optional query'],
+        ['Home: /search', 'Alias for Library'],
         ['j / k', 'Move result selection'],
         ['Arrow keys', 'Move selection or switch panels'],
         ['Enter / o', 'Open selected paper in the reader'],
@@ -31,11 +32,11 @@ export default function Help() {
       title: 'Reader',
       items: [
         ['Ctrl+Shift+M', 'Toggle PDF / notes panel'],
-        ['Space q / w / e', 'PDF only, split, notes only'],
+        ['Space 1 / 2 / 3', 'PDF only, split, notes only'],
         ['Space m / n', 'Maximize or minimize PDF panel'],
         ['Space o', 'Toggle reader floating toolbar'],
         ['Space t', 'Open PDF page jump menu'],
-        ['Space b h', 'Toggle PDF dark mode'],
+        ['Space b', 'Toggle PDF dark mode'],
         ['Ctrl+Shift+C', 'Copy paper link'],
         ['Ctrl+Shift+S', 'Copy current page to clipboard'],
       ],
@@ -55,7 +56,7 @@ export default function Help() {
         ['Up / Down / j / k', 'Navigate results'],
         ['Enter', 'Open selected result'],
         ['Tab', 'Switch between paper search and app commands'],
-        ['>', 'Search commands like home, search, settings'],
+        ['>', 'Search commands like home, library, settings'],
       ],
     },
   ]
@@ -93,14 +94,14 @@ export default function Help() {
           Todoist
         </h2>
         <p className="text-sm text-muted mb-3">
-          In search, Schedule / Edit schedule opens a short dialog to set due date and priority when adding a paper to Todoist, or to update an existing link.
+          In Library, Schedule / Edit schedule opens a short dialog to set due date and priority when adding a paper to Todoist, or to update an existing link.
           Complete tasks in Todoist when you are done. The server calls Todoist for you; your API token never goes to the browser.
         </p>
       </div>
 
       <p className="mt-12 text-sm text-muted">
-        From Home, Search, and other pages outside the reader, press{' '}
-        <kbd className="px-1.5 py-0.5 rounded bg-border font-mono text-sm">Space e</kbd> to open Help.
+        From Home, Library, and other pages outside the reader, press{' '}
+        <kbd className="px-1.5 py-0.5 rounded bg-border font-mono text-sm">Space ?</kbd> to open Help.
       </p>
     </div>
   )

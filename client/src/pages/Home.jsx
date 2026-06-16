@@ -18,7 +18,8 @@ function getArxivPreviewKey(val) {
 }
 
 const SLASH_COMMANDS = [
-  { id: 'search', slug: 'search', label: 'Search library', desc: 'Open the library search page', prefix: '/search ' },
+  { id: 'search', slug: 'library', label: 'Open Library', desc: 'Search and manage papers', prefix: '/library ' },
+  { id: 'search-alias', slug: 'search', label: 'Search library', desc: 'Alias for Library', prefix: '/search ' },
   { id: 'add', slug: 'add', label: 'Add from arXiv', desc: 'Fetch paper by URL or ID', prefix: '/add ' },
   { id: 'upload', slug: 'upload', label: 'Upload PDF', desc: 'Add a local PDF file', prefix: null },
   { id: 'help', slug: 'help', label: 'Help', desc: 'Keyboard shortcuts and bindings', prefix: null },
@@ -63,6 +64,32 @@ export default function Home({
     <>What&apos;s on the <em>arXiv menu</em> today?</>,
     <>Papers: long tweets with <em>footnotes</em>.</>,
     <>Your future self will thank you for <em>reading this</em>.</>,
+    <>Can we stop adding more papers?</>,
+    <>Really, you&apos;re back here again? What&apos;s wrong with you?</>,
+    <>Your unread pile called. It&apos;s <em>thriving</em>.</>,
+    <>Let&apos;s pretend this one won&apos;t become technical debt.</>,
+    <>One more PDF. As a <em>treat</em>.</>,
+    <>The backlog was lonely. Bring it a friend.</>,
+    <>Today&apos;s plan: skim boldly, understand eventually.</>,
+    <>Drop the paper. We&apos;ll judge it together.</>,
+    <>Another abstract to overestimate and under-read.</>,
+    <>Feed the library. Starve the delusion of free time.</>,
+    <>Sure, add it. Future you can handle the consequences.</>,
+    <>Welcome back to the citation treadmill.</>,
+    <>A clean inbox is temporary. PDFs are forever.</>,
+    <>Let&apos;s add the paper and call it progress.</>,
+    <>Your reading list has filed a complaint.</>,
+    <>Paste the arXiv link. Enable the problem.</>,
+    <>Research mode: maximum tabs, minimum closure.</>,
+    <>New paper? Bold of you to assume we finished the last one.</>,
+    <>Another paper enters. Your weekend leaves.</>,
+    <>Let&apos;s turn curiosity into a queue.</>,
+    <>The pile grows. The vibes remain peer-reviewed.</>,
+    <>Bold of you to open this instead of the last one.</>,
+    <>Add it now, panic about the <em>related work</em> later.</>,
+    <>Ctrl+F won&apos;t save you, but go off.</>,
+    <>Another <em>seminal</em> paper you&apos;ll cite but never finish.</>,
+    <>Hoarding PDFs is basically a personality now.</>,
   ]
 
   const [greeting] = useState(() => {
@@ -94,7 +121,13 @@ export default function Home({
 
   useEffect(() => {
     const val = input.trim()
-    if (val.startsWith('/search ')) {
+    if (val.startsWith('/library ')) {
+      setCurrentMode('search')
+      setSearchQuery(val.substring(9).trim())
+    } else if (val === '/library') {
+      setCurrentMode('search')
+      setSearchQuery('')
+    } else if (val.startsWith('/search ')) {
       setCurrentMode('search')
       setSearchQuery(val.substring(8).trim())
     } else if (val === '/search') {
@@ -241,7 +274,6 @@ export default function Home({
         paperId: response.data?.id,
         paperTitle: response.data?.title,
       })
-      addToast?.('Paper added', 'success')
       window.electron?.showNotification?.('ReadXiv', 'Paper added')
 
       if (response.data?.loadingInBackground && response.data?.id) {
@@ -392,7 +424,7 @@ export default function Home({
     input
 
   const modeTag =
-    currentMode === 'search' ? '/search' :
+    currentMode === 'search' ? '/library' :
     currentMode === 'add' ? '/add' :
     currentMode === 'preview' ? '/preview' :
     null
@@ -413,7 +445,8 @@ export default function Home({
 
   return (
     <div className="home-container" style={{
-      height: '100vh',
+      height: '100dvh',
+      boxSizing: 'border-box',
       display: 'flex',
       flexDirection: 'column',
       position: 'relative',
@@ -449,6 +482,8 @@ export default function Home({
         className={`command-area ${isFocused ? 'focused' : ''}`}
         style={{
           position: 'relative',
+          width: 'min(70%, 1280px)',
+          alignSelf: 'center',
           transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), margin-bottom 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
           transform: isFocused ? 'translateY(-6px)' : 'translateY(0)',
           height: '76px',
@@ -719,7 +754,8 @@ export default function Home({
           >
             <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>Supported inputs</h2>
             <div style={{ display: 'grid', gap: '0.75rem', fontSize: '0.95rem', lineHeight: 1.7 }}>
-              <div><code>/search [query]</code> - open the search page</div>
+              <div><code>/library [query]</code> - open the Library</div>
+              <div><code>/search [query]</code> - alias for Library</div>
               <div><code>/add [arXiv id or URL]</code> - fetch and add a paper</div>
               <div><code>/upload</code> - upload a local PDF</div>
               <div><code>/help</code> - open keyboard shortcuts</div>

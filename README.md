@@ -21,8 +21,8 @@ readxiv init
 ## Quick Start
 
 ```bash
-# Start web app (client + server)
-readxiv start:client
+# Start the web app from any terminal
+readxiv serve
 
 # Add papers
 readxiv add:https://arxiv.org/abs/2301.07041
@@ -45,8 +45,11 @@ readxiv remove:2301.07041
 - `readxiv start:client`  
   Starts backend and frontend in development mode and opens browser to `http://localhost:5173`.
 
+- `readxiv serve`
+  Starts the production web app in the background, opens `http://localhost:7474`, and can be run from any directory.
+
 - `readxiv stop`  
-  Stops a background ReadXiv server process started by CLI automation.
+  Stops the background ReadXiv server started by `readxiv serve` or CLI automation.
 
 ### Paper management
 
@@ -106,6 +109,7 @@ npm run cli -- --help
 Link globally for testing:
 
 ```bash
+npm run build
 npm link
-readxiv --help
+readxiv serve
 ```

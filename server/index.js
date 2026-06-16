@@ -1,6 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import os from 'os';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { initDB } from './db.js';
 import papersRouter from './routes/papers.js';
 import searchRouter from './routes/search.js';
@@ -11,6 +14,8 @@ import todoistRouter from './routes/todoist.js';
 import semanticScholarSettingsRouter from './routes/semanticScholarSettings.js';
 import analyticsRouter from './routes/analytics.js';
 const app = express();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDistPath = path.resolve(__dirname, '../client/dist');
 // Todoist & Semantic Scholar keys: ~/.papyrus/config.json from Settings UI; env vars override (see Help).
 const PORT = process.env.PORT || 7474;
 
@@ -50,6 +55,20 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    return res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+} else {
+  app.get('/', (_req, res) => {
+    res.status(503).send(
+      'ReadXiv client build is missing. Run "npm run build" from the ReadXiv package directory.'
+    );
+  });
+}
+
 function getLocalIP() {
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
@@ -63,8 +82,8 @@ function getLocalIP() {
 app.listen(PORT, '0.0.0.0', () => {
   const hostname = os.hostname();
   const localIP = getLocalIP();
-  console.log(`🚀 ReadXiv server running on http://localhost:${PORT}`);
-  console.log(`   iPad/LAN access:`);
-  console.log(`   • http://${hostname}:5173  (alias – rename PC to "readxiv" for http://readxiv:5173)`);
-  if (localIP) console.log(`   • http://${localIP}:5173`);
+  console.log(`ReadXiv running on http://localhost:${PORT}`);
+  console.log('LAN access:');
+  console.log(`- http://${hostname}:${PORT}`);
+  if (localIP) console.log(`- http://${localIP}:${PORT}`);
 });

@@ -1,8 +1,11 @@
 import express from 'express';
 import { randomUUID } from 'crypto';
-import { getDB, saveDB } from '../db.js';
+import { getDB, scheduleSaveDB } from '../db.js';
 
 const router = express.Router();
+const MAX_ANALYTICS_EVENTS = 10000;
+const ANALYTICS_PRUNE_INTERVAL = 100;
+let eventsSincePrune = 0;
 const KNOWN_ROUTES = ['home', 'search', 'reader', 'settings', 'help'];
 const ALLOWED_EVENTS = new Set([
   'page_view',
@@ -57,7 +60,20 @@ export async function recordAnalyticsEvent({
       safeMetadata(metadata),
     ]
   );
-  saveDB();
+  eventsSincePrune += 1;
+  if (eventsSincePrune >= ANALYTICS_PRUNE_INTERVAL) {
+    db.run(
+      `DELETE FROM analytics_events
+       WHERE id IN (
+         SELECT id FROM analytics_events
+         ORDER BY created_at DESC
+         LIMIT -1 OFFSET ?
+       )`,
+      [MAX_ANALYTICS_EVENTS]
+    );
+    eventsSincePrune = 0;
+  }
+  scheduleSaveDB();
   return { id };
 }
 

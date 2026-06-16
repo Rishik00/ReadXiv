@@ -5,9 +5,9 @@ import { captureAction } from '../lib/instrumentation'
 const COMMAND_PREFIXES = ['>', ':', '/']
 const APP_COMMANDS = [
   { id: 'home', label: 'Go Home', shortcut: 'Space h', keywords: ['home', 'landing', 'h'] },
-  { id: 'search', label: 'Open Search', shortcut: 'Space s', keywords: ['search', 'library', 'papers', 's'] },
-  { id: 'settings', label: 'Go to Settings', shortcut: 'Space c', keywords: ['settings', 'config', 'preferences', 'c'] },
-  { id: 'help', label: 'Help (keyboard shortcuts)', shortcut: 'Space e', keywords: ['help', 'shortcuts', 'keys', 'e'] },
+  { id: 'search', label: 'Open Library', shortcut: 'Space l', keywords: ['library', 'search', 'papers', 'l'] },
+  { id: 'settings', label: 'Go to Settings', shortcut: 'Space ,', keywords: ['settings', 'config', 'preferences', ','] },
+  { id: 'help', label: 'Help', shortcut: 'Space ?', keywords: ['help', 'shortcuts', 'keys', '?'] },
 ]
 
 function filterCommands(query) {
@@ -178,7 +178,7 @@ export default function GlobalSearchPalette({
   if (!open) return null
 
   const placeholder = isCommandMode
-    ? 'Search commands... (e.g. search, settings)'
+    ? 'Search commands... (e.g. library, settings)'
     : 'Search papers by title, author, abstract... (type > for commands)'
 
   return (
@@ -217,7 +217,7 @@ export default function GlobalSearchPalette({
             <>
               {commandResults.length === 0 ? (
                 <div className="px-4 py-8 text-center text-xs text-muted">
-                  No matches. Try: home, search, settings
+                  No matches. Try: home, library, settings
                 </div>
               ) : (
                 commandResults.map((cmd, idx) => (
@@ -308,8 +308,8 @@ export default function GlobalSearchPalette({
             <span className="ml-2">navigate</span>
             <span className="mx-2">·</span>
             <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono">Space h</kbd>
-            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">Space s</kbd>
-            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">Space c</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">Space l</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-foreground/10 font-mono ml-1">Space ,</kbd>
             <span className="ml-1">switch</span>
           </span>
           <span>

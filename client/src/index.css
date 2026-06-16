@@ -28,6 +28,10 @@
   --foreground: #e4e5ea;
   --pdf-canvas-bg: #f7f7f8;
   --pdf-canvas-bg-dark: #15171c;
+  --status-queued: #a7acb8;
+  --status-reading: #4ade80;
+  --status-done: #f87171;
+  --status-danger: #f87171;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -665,6 +669,224 @@ mjx-container[display="true"] {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
+.rx-workbench {
+  background: var(--background);
+}
+
+.rx-pane {
+  background: color-mix(in srgb, var(--surface) 94%, var(--background));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.rx-pane[data-active='true'] {
+  border-color: color-mix(in srgb, var(--secondary) 32%, var(--border));
+}
+
+.rx-pane-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.rx-label {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--muted) 92%, var(--foreground));
+}
+
+.rx-hint,
+.rx-meta {
+  color: color-mix(in srgb, var(--muted) 82%, var(--foreground));
+}
+
+.rx-kbd {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: color-mix(in srgb, var(--muted) 88%, var(--foreground));
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  user-select: none;
+}
+
+.rx-command-badge {
+  background: var(--secondary);
+  color: var(--button-on-secondary);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rx-status-pill {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  border-radius: 999px;
+  padding: 2px 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--status-queued) 34%, transparent);
+  background: color-mix(in srgb, var(--status-queued) 8%, transparent);
+  color: color-mix(in srgb, var(--status-queued) 92%, white);
+}
+
+.rx-status-pill[data-status='reading'] {
+  border-color: color-mix(in srgb, var(--status-reading) 46%, transparent);
+  background: color-mix(in srgb, var(--status-reading) 11%, transparent);
+  color: var(--status-reading);
+}
+
+.rx-status-pill[data-status='done'] {
+  border-color: color-mix(in srgb, var(--status-done) 46%, transparent);
+  background: color-mix(in srgb, var(--status-done) 11%, transparent);
+  color: color-mix(in srgb, var(--status-done) 92%, white);
+}
+
+.rx-status-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rx-status-mark[data-status='reading'] {
+  color: var(--status-reading);
+}
+
+.rx-status-mark[data-status='done'] {
+  color: var(--status-done);
+}
+
+.rx-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 13%, transparent);
+}
+
+.rx-property-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.rx-property-separator {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+
+.rx-property-item {
+  color: color-mix(in srgb, var(--foreground) 78%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rx-paper-row {
+  width: 100%;
+  text-align: left;
+  padding: 10px 11px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+
+.rx-paper-row:hover {
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  border-color: color-mix(in srgb, var(--border) 75%, transparent);
+}
+
+.rx-paper-row[data-active='true'] {
+  background: color-mix(in srgb, var(--secondary) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--secondary) 34%, var(--border));
+}
+
+.rx-paper-title {
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.32;
+  letter-spacing: 0;
+}
+
+.rx-paper-row-meta {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rx-empty-state {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+}
+
+.rx-empty-state-inner {
+  max-width: 22rem;
+}
+
+.rx-empty-state-title {
+  color: var(--foreground);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.rx-empty-state-copy {
+  margin-top: 0.45rem;
+  color: color-mix(in srgb, var(--muted) 86%, var(--foreground));
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+
+.rx-list-skeleton-row {
+  padding: 11px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 80%, var(--background));
+}
+
 /* App shell - theme applies everywhere, no dimmer/mismatched areas */
 #root,
 #root > div {
@@ -786,12 +1008,8 @@ mjx-container[display="true"] {
 
 /* Obsidian-like editor background with subtle texture */
 .notes-editor-container {
-  background-color: color-mix(in srgb, var(--surface) 90%, var(--background));
-  background-image: 
-    linear-gradient(rgba(255, 255, 255, 0.008) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.008) 1px, transparent 1px);
-  background-size: 24px 24px;
-  background-position: -1px -1px;
+  background-color: color-mix(in srgb, var(--surface) 92%, var(--background));
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--foreground) 1.4%, transparent), transparent 18rem);
 }
 
 /* Notes surface: smooth rendered content, instant editor scrolling. */

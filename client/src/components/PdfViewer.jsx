@@ -298,10 +298,22 @@ const PdfViewer = forwardRef(function PdfViewer(
       const context = canvas.getContext('2d');
       await currentPage.render({ canvasContext: context, viewport }).promise;
       canvas.toBlob(async (blob) => {
-        if (!blob) return;
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-        onSendToCanvas?.({ page });
-        captureAction('copy_pdf_page_to_clipboard', { route: 'reader', paperId, page });
+        try {
+          if (!blob) return;
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+          onSendToCanvas?.({ page });
+          captureAction('copy_pdf_page_to_clipboard', { route: 'reader', paperId, page });
+        } catch (error) {
+          captureAppError(error, {
+            route: 'reader',
+            source: 'copy_pdf_page_to_clipboard',
+            paperId,
+            page,
+          });
+        } finally {
+          canvas.width = 0;
+          canvas.height = 0;
+        }
       }, 'image/png');
     } catch (error) {
       captureAppError(error, {

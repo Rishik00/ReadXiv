@@ -221,9 +221,9 @@ export default function ReaderPdfFloatingToolbar({
             className={`${dropdownPanelClass} min-w-[10rem] ${viewMenuOpen ? dropdownOpenClass : dropdownClosedClass}`}
           >
             {[
-              { id: 'pdf', label: 'PDF Only', hint: 'Space q' },
-              { id: 'split', label: 'Split View', hint: 'Space w' },
-              { id: 'notes', label: 'Notes Only', hint: 'Space e' },
+              { id: 'pdf', label: 'PDF Only', hint: 'Space 1' },
+              { id: 'split', label: 'Split View', hint: 'Space 2' },
+              { id: 'notes', label: 'Notes Only', hint: 'Space 3' },
             ].map((opt) => (
               <button
                 key={opt.id}

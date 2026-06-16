@@ -1,8 +1,12 @@
+// Review: Lets rename anything from papyrus to readxiv
+// Review: always separate local imports from react imports with a comment. 
+// Review: bruh, there are barely any comments in this entire 600+ line file. Please lets have comments. 
+// Question: Is this file clean? I hardly think so. it looks like I wrote it and I am a beginner JS programmer. This looks....like garbage, is this how all JS code is? 
+
 import { Suspense, lazy, useEffect, useState, useCallback, useRef } from 'react'
 import axios from 'axios'
 import GlobalSearchPalette from './components/GlobalSearchPalette'
 import RecentPapersFinder from './components/RecentPapersFinder'
-import GlobalCanvas from './components/GlobalCanvas'
 import Home from './pages/Home'
 import Settings from './pages/Settings'
 import Help from './pages/Help'
@@ -16,10 +20,11 @@ import {
 } from './lib/instrumentation'
 const Reader = lazy(() => import('./pages/Reader'))
 const SearchWorkbench = lazy(() => import('./pages/SearchWorkbench'))
+const GlobalCanvas = lazy(() => import('./components/GlobalCanvas'))
 
+// Question: does this still apply? If not, explain
 // Settings button: kept in code but not in use. User will specify placement later.
 // See Settings page and setPage('settings') - accessible via Ctrl+P > "settings" for now.
-
 function parsePaperDeepLink(pathname) {
   const m = pathname.match(/^\/p\/([^/]+)\/?$/)
   if (!m) return null
@@ -36,12 +41,13 @@ function parseArxivDeepLink(pathname) {
   return m[1]
 }
 
+// Review: bruh, this is only being used once throughout the app. Why keep it like this. 
 function readerPathForPaperId(id) {
   return `/p/${encodeURIComponent(id)}`
 }
 
-function isSearchPath(pathname) {
-  return pathname === '/search' || pathname === '/search/'
+function isLibraryPath(pathname) {
+  return pathname === '/library' || pathname === '/library/' || pathname === '/search' || pathname === '/search/'
 }
 
 function getTabTitle(url) {
@@ -62,6 +68,8 @@ function createClientId() {
 }
 
 function App() {
+  // Question: This is....a lot of state that you're maintaining. Sure all of this is necessary? 
+  // Question: actually, are we using react router? What are we doing right now for routes?
   const [page, setPage] = useState('home')
   const [selectedPaper, setSelectedPaper] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -75,34 +83,22 @@ function App() {
   const [recentsOpen, setRecentsOpen] = useState(false)
   const [canvasOpen, setCanvasOpen] = useState(false)
   const [pendingG, setPendingG] = useState(false)
-  const [pendingB, setPendingB] = useState(false)
-  const [pendingK, setPendingK] = useState(false)
-  const [pendingF, setPendingF] = useState(false)
   const readerRef = useRef(null)
   /** Mirror chord flags so the next key is recognized before React re-renders (fixes Space then o). */
+  // Teach me: what is useRef() doing? 
   const pendingGRef = useRef(false)
-  const pendingBRef = useRef(false)
-  const pendingKRef = useRef(false)
-  const pendingFRef = useRef(false)
   const pageRef = useRef(page)
 
   useEffect(() => {
-    if (!pendingG && !pendingB && !pendingK && !pendingF) return
+    if (!pendingG) return
     const t = setTimeout(() => {
       pendingGRef.current = false
-      pendingBRef.current = false
-      pendingKRef.current = false
-      pendingFRef.current = false
       setPendingG(false)
-      setPendingB(false)
-      setPendingK(false)
-      if (pendingF) {
-        setPendingF(false)
-        setRecentsOpen(true)
-      }
-    }, pendingF ? 400 : 2000)
+    }, 2000)
     return () => clearTimeout(t)
-  }, [pendingG, pendingB, pendingK, pendingF])
+  }, [pendingG])
+
+  // Question: I feel uncomfortable having all of this here. Is there a better way of doing this? 
   const [externalTabs, setExternalTabs] = useState([])
   const [activeExternalTabId, setActiveExternalTabId] = useState(null)
   const DEFAULT_THEME = 'mist'
@@ -111,6 +107,9 @@ function App() {
   const VALID_THEMES = ['monochrome', 'blue', 'noir', 'olive', 'mist', 'plum', 'periwinkle', 'lichen', 'cinder']
   const VALID_PDF_ZOOMS = ['actual', 'page-width', 'page-fit', 'auto']
   const VALID_READER_VIEWS = ['split', 'pdf', 'notes']
+
+  // Teach Me: what does UseState do? 
+  // Question: why is this so big? What is this doing? because this is hardly readable for me. 
   const [settings, setSettings] = useState(() => {
     const raw = localStorage.getItem('papyrus-settings')
     if (!raw)
@@ -245,6 +244,7 @@ function App() {
     [runWithViewTransition]
   )
 
+  // Teach me: how does UseCallBack work? why do we have multiple callbacks doing these things and why do we not have a utils.js file or something or a callbacks.js to store all the callbacks throughout the app (assuming there are more)
   const openPaper = useCallback(
     (paper, { initialTab = 'edit' } = {}) => {
       if (!paper) return
@@ -263,6 +263,10 @@ function App() {
     [runWithViewTransition]
   )
 
+  // Review: holy fuck this is....a VERY LARGE effect call. Is this normal? Any way we can simplify this? 
+  // I think i see a way, everything inside every branch looks like it can be made into a function and then we can do switch case statements to make our lives easier. 
+
+  // Teach me: how does UseEffect work? How does anything in the hook system work? 
   useEffect(() => {
     const onKeyDown = (event) => {
       const tag = document.activeElement?.tagName?.toLowerCase()
@@ -270,40 +274,13 @@ function App() {
 
       if (event.key === 'Escape') {
         pendingGRef.current = false
-        pendingBRef.current = false
-        pendingKRef.current = false
-        pendingFRef.current = false
         setPendingG(false)
-        setPendingB(false)
-        setPendingK(false)
-        setPendingF(false)
-        return
-      }
-
-      if (pendingKRef.current) {
-        const k = event.key.toLowerCase()
-        if (k === 'a') {
+        if (!isInputFocused && page === 'reader') {
           event.preventDefault()
-          setCanvasOpen(true)
-          pendingKRef.current = false
-          setPendingK(false)
-        } else {
-          pendingKRef.current = false
-          setPendingK(false)
-        }
-        return
-      }
-
-      if (pendingBRef.current) {
-        const k = event.key.toLowerCase()
-        if (k === 'h') {
+          navigateTo('search')
+        } else if (!isInputFocused && (page === 'settings' || page === 'help')) {
           event.preventDefault()
-          readerRef.current?.togglePdfDarkMode?.()
-          pendingBRef.current = false
-          setPendingB(false)
-        } else {
-          pendingBRef.current = false
-          setPendingB(false)
+          navigateTo('home')
         }
         return
       }
@@ -315,54 +292,51 @@ function App() {
           navigateTo('home')
           pendingGRef.current = false
           setPendingG(false)
-        } else if (k === 's') {
+        } else if (k === 'l') {
           event.preventDefault()
           navigateTo('search')
           pendingGRef.current = false
           setPendingG(false)
-        } else if (page === 'reader' && k === 'q') {
+        } else if (k === 'r') {
+          event.preventDefault()
+          setRecentsOpen(true)
+          pendingGRef.current = false
+          setPendingG(false)
+        } else if (page === 'reader' && k === '1') {
           event.preventDefault()
           readerRef.current?.setReaderView?.('pdf')
           pendingGRef.current = false
           setPendingG(false)
-        } else if (page === 'reader' && k === 'w') {
+        } else if (page === 'reader' && k === '2') {
           event.preventDefault()
           readerRef.current?.setReaderView?.('split')
           pendingGRef.current = false
           setPendingG(false)
-        } else if (page === 'reader' && k === 'e') {
+        } else if (page === 'reader' && k === '3') {
           event.preventDefault()
           readerRef.current?.setReaderView?.('notes')
           pendingGRef.current = false
           setPendingG(false)
-        } else if (k === 'c') {
+        } else if (k === ',') {
           event.preventDefault()
           navigateTo('settings')
           pendingGRef.current = false
           setPendingG(false)
-        } else if (k === 'f') {
-          event.preventDefault()
-          pendingGRef.current = false
-          pendingFRef.current = true
-          setPendingG(false)
-          setPendingF(true)
-        } else if (k === 'e') {
+        } else if (k === '?' || (event.shiftKey && k === '/')) {
           event.preventDefault()
           setPage('help')
           pendingGRef.current = false
           setPendingG(false)
         } else if (k === 'b' && page === 'reader') {
           event.preventDefault()
+          readerRef.current?.togglePdfDarkMode?.()
           pendingGRef.current = false
-          pendingBRef.current = true
           setPendingG(false)
-          setPendingB(true)
-        } else if (k === 'k') {
+        } else if (k === 'a') {
           event.preventDefault()
+          setCanvasOpen(true)
           pendingGRef.current = false
-          pendingKRef.current = true
           setPendingG(false)
-          setPendingK(true)
         } else if (k === 'm' && page === 'reader') {
           event.preventDefault()
           readerRef.current?.maximizePdf?.()
@@ -390,21 +364,7 @@ function App() {
         return
       }
 
-      if (pendingFRef.current) {
-        const k = event.key.toLowerCase()
-        if (k === 'b') {
-          event.preventDefault()
-          pendingFRef.current = false
-          setPendingF(false)
-          navigateTo('search')
-        } else {
-          pendingFRef.current = false
-          setPendingF(false)
-          setRecentsOpen(true)
-        }
-        return
-      }
-
+      // Question: what is this doing? 
       if (event.key === ' ' && !event.ctrlKey && !event.metaKey && !event.altKey && !isInputFocused) {
         event.preventDefault()
         pendingGRef.current = true
@@ -427,6 +387,7 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [navigateTo, page])
 
+  // Question: again, why not store this in a callbacks.js? 
   const addToast = useCallback((message, type = 'info') => {
     const id = createClientId()
     setToasts((prev) => [...prev, { id, message, type }])
@@ -468,7 +429,7 @@ function App() {
         setInitialRouteResolved(true)
         return
       }
-      if (isSearchPath(window.location.pathname)) {
+      if (isLibraryPath(window.location.pathname)) {
         setPage('search')
         setSearchFocusNonce((n) => n + 1)
       }
@@ -492,7 +453,7 @@ function App() {
             setPage('home')
             setSelectedPaper(null)
           })
-        } else if (isSearchPath(window.location.pathname)) {
+        } else if (isLibraryPath(window.location.pathname)) {
           runWithViewTransition(() => {
             setPage('search')
             setSelectedPaper(null)
@@ -522,14 +483,16 @@ function App() {
         }
       }
     } else if (page === 'search') {
-      if (!isSearchPath(window.location.pathname)) {
-        window.history.pushState({ readxiv: 'search' }, '', '/search')
+      if (!isLibraryPath(window.location.pathname)) {
+        window.history.pushState({ readxiv: 'library' }, '', '/library')
+      } else if (window.location.pathname.startsWith('/search')) {
+        window.history.replaceState({ readxiv: 'library' }, '', '/library')
       }
     } else if (page === 'home' && parseArxivDeepLink(window.location.pathname)) {
       window.history.replaceState(null, '', '/')
     } else if (page !== 'reader' && window.location.pathname.startsWith('/p/')) {
       window.history.replaceState(null, '', '/')
-    } else if (page !== 'search' && isSearchPath(window.location.pathname)) {
+    } else if (page !== 'search' && isLibraryPath(window.location.pathname)) {
       window.history.replaceState(null, '', '/')
     }
   }, [page, selectedPaper?.id])
@@ -560,18 +523,30 @@ function App() {
     return () => cancelAnimationFrame(id)
   }, [initialRouteResolved, page, selectedPaper?.id])
 
-  const chordHint = pendingB
-    ? 'h toggle PDF dark mode'
-    : pendingK
-      ? 'a open canvas'
-      : pendingF
-        ? 'b browse library | any other key recent papers'
-        : pendingG
-          ? page === 'reader'
-            ? 'h home | s search | c settings | e help | q/w/e views | b dark mode | k canvas'
-            : 'h home | s search | c settings | e help | f recent papers'
-          : null
+  // Question: what is chordHint? 
+  const chordCommands = pendingG
+    ? page === 'reader'
+      ? [
+          ['h', 'Home'],
+          ['l', 'Library'],
+          ['r', 'Recent'],
+          [',', 'Settings'],
+          ['?', 'Help'],
+          ['1/2/3', 'Views'],
+          ['b', 'Dark'],
+          ['t', 'Page'],
+        ]
+      : [
+          ['h', 'Home'],
+          ['l', 'Library'],
+          ['r', 'Recent'],
+          [',', 'Settings'],
+          ['?', 'Help'],
+          ['a', 'Canvas'],
+        ]
+    : null
 
+  // Question: is this how good react codebases do? directly just return the HTML file? 
   return (
     <div className="flex min-h-screen text-foreground font-sans">
       <div className="fixed bottom-5 right-5 z-50 flex w-[min(92vw,20rem)] flex-col-reverse gap-2 pointer-events-none">
@@ -594,17 +569,43 @@ function App() {
           </div>
         ))}
       </div>
-      {chordHint && (
-        <div className="pointer-events-none fixed bottom-5 left-5 z-50">
+      {chordCommands && (
+        <div className="pointer-events-none fixed bottom-5 left-1/2 z-50 -translate-x-1/2">
           <div
-            className="rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-foreground/80 shadow-2xl"
+            className="flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-lg border px-2.5 py-2 shadow-2xl"
             style={{
-              borderColor: 'color-mix(in srgb, var(--secondary) 24%, var(--border))',
-              background: 'color-mix(in srgb, var(--surface) 74%, transparent)',
-              backdropFilter: 'blur(20px)',
+              borderColor: 'color-mix(in srgb, var(--foreground) 14%, var(--border))',
+              background: 'color-mix(in srgb, var(--surface) 96%, var(--background))',
             }}
           >
-            Space -&gt; {chordHint}
+            <span
+              className="rounded-md border px-2 py-1 text-[11px] font-bold uppercase tracking-[0.08em]"
+              style={{
+                borderColor: 'color-mix(in srgb, var(--secondary) 40%, var(--border))',
+                color: 'var(--foreground)',
+                background: 'color-mix(in srgb, var(--secondary) 9%, transparent)',
+              }}
+            >
+              Space
+            </span>
+            <span style={{ width:1, height:22, background:'var(--border)' }} />
+            <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
+              {chordCommands.map(([key, label]) => (
+                <span
+                  key={`${key}-${label}`}
+                  className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px]"
+                  style={{ color:'color-mix(in srgb, var(--foreground) 78%, transparent)' }}
+                >
+                  <span
+                    className="font-mono font-bold"
+                    style={{ color:'var(--foreground)' }}
+                  >
+                    {key}
+                  </span>
+                  <span>{label}</span>
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -646,7 +647,7 @@ function App() {
         )}
         <div className={`flex-1 overflow-auto ${activeExternalTabId ? 'hidden' : ''}`}>
           <div key={supportsViewTransitions ? 'app-page-shell' : page} className={`relative z-10 ${
-            page === 'reader' || page === 'search' ? '' : 'brutalist-container pl-6 pr-6 pt-6 pb-16'
+            page === 'reader' || page === 'search' || page === 'home' ? '' : 'brutalist-container pl-6 pr-6 pt-6 pb-16'
           } ${supportsViewTransitions ? '' : 'animate-view-fade'}`}>
           {page === 'home' && (
             <Home
@@ -665,7 +666,7 @@ function App() {
                 <div className="h-2 w-48 rounded-full overflow-hidden bg-surface">
                   <div className="h-full w-1/3 skeleton-shimmer" />
                 </div>
-                <span className="text-sm text-muted uppercase tracking-widest">Loading search...</span>
+                <span className="text-sm text-muted uppercase tracking-widest">Loading library...</span>
               </div>
             }>
               <SearchWorkbench
@@ -745,10 +746,14 @@ function App() {
           setQuickSearchOpen(false)
         }}
       />
-      <GlobalCanvas
-        open={canvasOpen}
-        onClose={() => setCanvasOpen(false)}
-      />
+      {canvasOpen && (
+        <Suspense fallback={null}>
+          <GlobalCanvas
+            open
+            onClose={() => setCanvasOpen(false)}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }

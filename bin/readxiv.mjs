@@ -5,6 +5,7 @@ import { addCommand } from '../lib/commands/add.mjs';
 import { removeCommand } from '../lib/commands/remove.mjs';
 import { exportDbCommand } from '../lib/commands/export-db.mjs';
 import { stopCommand } from '../lib/commands/stop.mjs';
+import { serveCommand } from '../lib/commands/serve.mjs';
 
 function printHelp() {
   console.log(`
@@ -12,6 +13,7 @@ readxiv - research CLI
 
 Usage:
   readxiv init
+  readxiv serve
   readxiv start:client
   readxiv add:<arxiv_link_or_id>
   readxiv add <arxiv_link_or_id>
@@ -42,6 +44,7 @@ async function main() {
   const colon = parseColonSyntax(first);
 
   if (first === 'init') return initCommand();
+  if (first === 'serve') return serveCommand();
   if (first === 'exportdb') return exportDbCommand(args[1]);
   if (first === 'stop') return stopCommand();
   if (first === 'add') return addCommand(args[1]);

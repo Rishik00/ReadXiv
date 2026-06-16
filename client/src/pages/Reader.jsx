@@ -169,6 +169,18 @@ function waitForFrames(count = 2) {
   });
 }
 
+function countNoteWords(value) {
+  let words = 0;
+  let insideWord = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const charCode = value.charCodeAt(index);
+    const whitespace = charCode <= 32;
+    if (!whitespace && !insideWord) words += 1;
+    insideWord = !whitespace;
+  }
+  return words;
+}
+
 function makeSyntheticMarkdown(targetKb) {
   const target = targetKb * 1024;
   const paragraphs = [];
@@ -438,6 +450,7 @@ const Reader = forwardRef(function Reader(
     });
     return outline;
   }, [notes]);
+  const notesWordCount = useMemo(() => countNoteWords(notes), [notes]);
 
   const addablePaperReferences = useMemo(
     () => paperReferences.filter(referenceIsAddableToShelf),
@@ -989,10 +1002,9 @@ const Reader = forwardRef(function Reader(
       pdfSolo ? 'reader-workspace-pdf-solo max-w-none p-0' : 'max-w-[1800px] p-4 sm:p-5'
     }`}>
       {backgroundPdfLoading && (
-        <div className="mb-4 reader-panel p-4 flex-shrink-0">
-          <div className="mb-3 flex items-center justify-between text-sm font-medium">
-            <span className="text-secondary">Initializing PDF stream...</span>
-            <span className="text-muted/60">Status: Chunking</span>
+        <div className="mb-4 flex-shrink-0 rounded-lg border border-border/60 bg-background/80 px-4 py-3 backdrop-blur">
+          <div className="mb-2 text-sm font-medium text-secondary">
+            The paper is being chunked and rendered for the panel, please wait
           </div>
           <div className="h-1.5 w-full overflow-hidden bg-foreground/20 rounded-full">
             <div className="loading-indicator h-full w-1/3 bg-secondary rounded-full" />
@@ -1031,12 +1043,21 @@ const Reader = forwardRef(function Reader(
                   onToolbarState={handleToolbarState}
                 />
               ) : (
-                <div className="h-full w-full flex items-center justify-center bg-[var(--pdf-canvas-bg)] text-sm text-muted">
-                  {readerPaper?.status === 'error' ? 'PDF download failed' : 'Preparing PDF...'}
+                <div className="h-full w-full flex items-center justify-center bg-[var(--pdf-canvas-bg)] px-6 text-center">
+                  <div className="max-w-sm rounded-lg border border-border/70 bg-background/85 px-5 py-4 shadow-xl">
+                    <div className="text-sm font-semibold text-foreground">
+                      {readerPaper?.status === 'error' ? 'PDF unavailable' : 'Preparing PDF'}
+                    </div>
+                    <div className="mt-1.5 text-xs leading-5 text-muted">
+                      {readerPaper?.status === 'error'
+                        ? 'The PDF download failed. You can keep notes here or try adding the paper again later.'
+                        : 'ReadXiv is fetching the document. Notes are ready while the PDF is being prepared.'}
+                    </div>
+                  </div>
                 </div>
               )}
             </Profiler>
-            {readerToolbarExpanded && (
+            {readerToolbarExpanded && readerPaper?.hasPdf && (
               <Profiler id="Reader.PdfToolbar" onRender={profileRender}>
                 <ReaderPdfFloatingToolbar {...readerToolbarProps} />
               </Profiler>
@@ -1057,7 +1078,7 @@ const Reader = forwardRef(function Reader(
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
             </button>
-            {readerToolbarExpanded && (
+            {readerToolbarExpanded && readerPaper?.hasPdf && (
               <Profiler id="Reader.PdfToolbar.CollapsedPdf" onRender={profileRender}>
                 <ReaderPdfFloatingToolbar {...readerToolbarProps} />
               </Profiler>
@@ -1182,13 +1203,24 @@ const Reader = forwardRef(function Reader(
                   References
                 </h2>
                 {referencesLoading ? (
-                  <p className="text-sm text-muted/70 max-w-[720px] mx-auto">Loading…</p>
+                  <div className="max-w-[720px] mx-auto rounded-lg border border-border/60 bg-surface/40 p-4">
+                    <div className="h-3 w-40 rounded skeleton-shimmer" />
+                    <div className="mt-3 h-2.5 w-5/6 rounded skeleton-shimmer" />
+                    <div className="mt-2 h-2.5 w-2/3 rounded skeleton-shimmer" />
+                  </div>
                 ) : addablePaperReferences.length === 0 ? (
-                  <p className="text-sm text-muted/80 max-w-[720px] mx-auto">
-                    {paperReferences.length > 0
-                      ? 'No references with an arXiv ID we can add to your library.'
-                      : 'Wasn&apos;t able to extract anything'}
-                  </p>
+                  <div className="rx-empty-state !h-auto max-w-[720px] mx-auto rounded-lg border border-border/60 bg-surface/35">
+                    <div className="rx-empty-state-inner">
+                      <div className="rx-empty-state-title">
+                        {paperReferences.length > 0 ? 'No addable arXiv references' : 'No references extracted'}
+                      </div>
+                      <div className="rx-empty-state-copy">
+                        {paperReferences.length > 0
+                          ? 'References were found, but none included an arXiv ID that can be added directly.'
+                          : 'This PDF may not expose references in a form ReadXiv can parse yet.'}
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <ul className="space-y-6 max-w-[720px] mx-auto">
                     {addablePaperReferences.map((ref, idx) => {
@@ -1288,16 +1320,8 @@ const Reader = forwardRef(function Reader(
                 <div className="editor-status-bar shrink-0 flex flex-wrap items-center justify-between gap-2 px-8 sm:px-12 py-2 border-t border-border/20">
                   <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted/60">
                     <span className="flex items-center gap-1.5">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
-                      {notes.split('\n').length} lines
-                    </span>
-                    <span className="flex items-center gap-1.5">
                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
-                      {notes.split(/\s+/).filter(w => w.length > 0).length} words
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M2 12h20"/></svg>
-                      {notes.length} chars
+                      {notesWordCount} words
                     </span>
                   </div>
                   <div className="flex items-center gap-2">

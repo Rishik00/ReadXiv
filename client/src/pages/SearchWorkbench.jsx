@@ -1,21 +1,10 @@
+// Review: again, lets separate local and lib imports. 
+// Question: tell me, why not do typescript for this to encode static types. 
+// Question: what does this page do? Why is it called SearchWorkBench? 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import TodoistTaskModal, { paperHasTodoistTask } from '../components/TodoistTaskModal'
 import { captureAction, captureAppError, captureTiming, elapsedSince, startTimer } from '../lib/instrumentation'
-
-function formatTodoistPriority(p) {
-  if (typeof p !== 'number') return '-'
-  const map = { 4: 'P1', 3: 'P2', 2: 'P3', 1: 'P4' }
-  return map[p] ?? `(${p})`
-}
-
-function formatTodoistDue(due) {
-  if (!due) return null
-  if (typeof due === 'string') return due
-  if (due.string) return due.string
-  if (due.date) return due.date
-  return null
-}
 
 function getStatusColor(status) {
   switch (status) {
@@ -34,6 +23,21 @@ function cycleStatus(status) {
   return 'queued'
 }
 
+// Review: this is a rule of thumb, if a function is not being used more than 3-4 times commonly across the file or many files I wouldn't be putting in a utility function 
+// But, at the same time if the function is being used for a purpose then it should be specified in a comment/docstring. 
+function isPlaceholderTitle(title, id) {
+  // Question: why do this? why not just do typescript? 
+  const value = String(title || '').trim()
+  if (!value) return true
+  return /^arxiv:/i.test(value) || value === id
+}
+
+function needsMetadataFetch(paper) {
+  if (!paper?.id || String(paper.id).startsWith('local-')) return false
+  return isPlaceholderTitle(paper.title, paper.id) || !String(paper.abstract || '').trim()
+}
+
+// Question: what is default? 
 export default function SearchWorkbench({
   initialQuery = '',
   focusNonce,
@@ -41,6 +45,7 @@ export default function SearchWorkbench({
   openPaper,
   addToast,
 }) {
+  // Question: Why do we have these many UseState calls? why are we going to track the state of all of these things? 
   const [query, setQuery] = useState(initialQuery)
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
@@ -55,6 +60,7 @@ export default function SearchWorkbench({
   const [todoistEntry, setTodoistEntry] = useState(null)
   const [todoistLoading, setTodoistLoading] = useState(false)
   const [deletingPaperId, setDeletingPaperId] = useState(null)
+  const [fetchingMetadataId, setFetchingMetadataId] = useState(null)
   const [metadataEditPaper, setMetadataEditPaper] = useState(null)
   const [metadataDraft, setMetadataDraft] = useState({ title: '', authors: '', abstract: '' })
   const [metadataSaving, setMetadataSaving] = useState(false)
@@ -136,6 +142,23 @@ export default function SearchWorkbench({
   }, [query, currentPage, pageSize])
 
   const selectedPaper = results[selectedIndex] || null
+  const selectedNeedsMetadata = needsMetadataFetch(selectedPaper)
+  const selectedMetadataFetching = fetchingMetadataId === selectedPaper?.id
+  const selectedScheduleState = (() => {
+    if (!selectedPaper?.todoist_task_id) return 'Unscheduled'
+    if (todoistLoading) return 'Checking'
+    if (todoistEntry?.stale) return 'Stale'
+    if (todoistEntry?.todoist) return 'Scheduled'
+    return 'Linked'
+  })()
+  const selectedDetails = selectedPaper ? [
+    { label: 'Status', value: selectedPaper.status || 'queued', status: selectedPaper.status || 'queued' },
+    { label: 'State', value: Number(selectedPaper.offline_pinned) === 1 ? 'Offline' : 'Online' },
+    { label: 'ID', value: selectedPaper.id || 'Unknown' },
+    { label: 'Year', value: selectedPaper.year || 'Unknown' },
+    { label: 'Schedule', value: selectedScheduleState },
+    { label: 'Authors', value: selectedPaper.authors || 'Unknown', multiline: true },
+  ] : []
 
   useEffect(() => {
     if (!selectedPaper?.id) {
@@ -170,6 +193,7 @@ export default function SearchWorkbench({
     }
   }, [selectedPaper?.id, selectedPaper?.todoist_task_id])
 
+  // Question: not feeling comfortable with these many arrow functions, any reason why we'd prefer doing this? 
   useEffect(() => {
     const row = listRef.current?.querySelector(`[data-index="${selectedIndex}"]`)
     row?.scrollIntoView?.({ block: 'nearest', behavior: 'auto' })
@@ -328,6 +352,25 @@ export default function SearchWorkbench({
       addToast?.('Could not save paper details', 'error')
     } finally {
       setMetadataSaving(false)
+    }
+  }
+
+  const handleFetchMetadata = async (paper = selectedPaper) => {
+    if (!paper?.id || fetchingMetadataId) return
+    setFetchingMetadataId(paper.id)
+    try {
+      const { data } = await axios.post(`/api/papers/${encodeURIComponent(paper.id)}/fetch-metadata`)
+      setResults((prev) => prev.map((item) => (item.id === data.id ? { ...item, ...data } : item)))
+      captureAction('paper_metadata_fetch', {
+        route: 'search',
+        paperId: paper.id,
+      })
+      addToast?.('Paper details filled', 'success')
+    } catch (error) {
+      captureAppError(error, { route: 'search', source: 'paper_metadata_fetch', paperId: paper.id })
+      addToast?.('Fetch failed', 'error')
+    } finally {
+      setFetchingMetadataId(null)
     }
   }
 
@@ -511,6 +554,11 @@ export default function SearchWorkbench({
         handleOfflineToggle()
         return
       }
+      if (lower === 'm') {
+        event.preventDefault()
+        if (selectedNeedsMetadata) handleFetchMetadata(selectedPaper)
+        return
+      }
       if (key === 'Delete' || key === 'Backspace') {
         event.preventDefault()
         handleDeletePaper()
@@ -529,13 +577,13 @@ export default function SearchWorkbench({
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [actionsOpen, currentPage, focusPanel, query, results.length, selectedPaper, setPage, totalPages])
+  }, [actionsOpen, currentPage, fetchingMetadataId, focusPanel, query, results.length, selectedNeedsMetadata, selectedPaper, setPage, totalPages])
 
   // ── inline style helpers ──────────────────────────────────────────────────────
   const paneBase = (active) => ({
-    background: 'var(--surface)',
-    border: `1px solid ${active ? 'color-mix(in srgb, var(--secondary) 28%, transparent)' : 'var(--border)'}`,
-    borderRadius: '10px',
+    background: 'color-mix(in srgb, var(--surface) 94%, var(--background))',
+    border: `1px solid ${active ? 'color-mix(in srgb, var(--secondary) 32%, var(--border))' : 'var(--border)'}`,
+    borderRadius: '8px',
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
@@ -543,95 +591,216 @@ export default function SearchWorkbench({
     transition: 'border-color .18s ease',
   })
 
-  const paneHeader = {
-    flexShrink: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '11px 15px',
-    borderBottom: '1px solid var(--border)',
-  }
-
-  const hdLabel = {
-    fontSize: '.66rem',
-    textTransform: 'uppercase',
-    letterSpacing: '.08em',
-    color: 'var(--muted)',
-  }
-
-  const hdHint = {
-    fontSize: '.61rem',
-    color: 'color-mix(in srgb, var(--muted) 65%, transparent)',
-  }
-
-  const kbdBadge = {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '.66rem',
-    color: 'var(--muted)',
-    whiteSpace: 'nowrap',
-    flexShrink: 0,
-    border: '1px solid var(--border)',
-    borderRadius: '4px',
-    padding: '2px 6px',
-    userSelect: 'none',
-  }
-
-  const todoistLabel = (() => {
-    if (!selectedPaper?.todoist_task_id) return null
-    if (todoistLoading) return '…'
-    if (todoistEntry?.stale) return 'stale link'
-    if (!todoistEntry?.todoist) return null
-    const t = todoistEntry.todoist
-    const pri = formatTodoistPriority(t.priority)
-    const due = formatTodoistDue(t.due)
-    return [pri, due ? `due ${due}` : null].filter(Boolean).join(' · ')
-  })()
-
-  const formatAuthors = (authors) => {
-    if (!authors) return null
-    const parts = authors.split(',').map(a => a.trim()).filter(Boolean)
-    if (parts.length === 0) return null
-    if (parts.length <= 2) return parts.join(', ')
-    return `${parts[0]}, ${parts[1]} et al.`
-  }
-
-  const cardStatusStyle = (status, isActive) => ({
-    fontSize: '.58rem',
-    textTransform: 'uppercase',
-    letterSpacing: '.07em',
-    borderRadius: '999px',
-    padding: '2px 7px',
-    whiteSpace: 'nowrap',
-    flexShrink: 0,
-    fontWeight: 600,
-    ...(() => {
-      const normalized = status || 'queued'
-      if (normalized === 'reading') {
-        return {
-          background: isActive ? 'rgba(34, 197, 94, 0.18)' : 'rgba(34, 197, 94, 0.10)',
-          color: '#4ade80',
-          border: '1px solid rgba(34, 197, 94, 0.45)',
-        }
-      }
-      if (normalized === 'done') {
-        return {
-          background: isActive ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.10)',
-          color: '#f87171',
-          border: '1px solid rgba(239, 68, 68, 0.45)',
-        }
-      }
-      return {
-        background: isActive ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.06)',
-        color: 'rgba(255, 255, 255, 0.88)',
-        border: '1px solid rgba(255, 255, 255, 0.34)',
-      }
-    })(),
-  })
-
   return (
-    <div style={{ height:'100vh', display:'flex', flexDirection:'column', padding:'11px', gap:'7px', background:`radial-gradient(ellipse 60% 28% at 50% 0%, color-mix(in srgb, var(--secondary) 4%, transparent), transparent) fixed, var(--background)` }}>
+    <div className="rx-workbench" style={{ height:'100vh', display:'flex', flexDirection:'column', padding:'11px', gap:'7px' }}>
 
       {/* ── Pagination bar — centered, bigger squares ──────────── */}
+      {/* ── Board ──────────────────────────────────────────────── */}
+      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns: actionsOpen ? 'minmax(0,.8fr) minmax(0,1.3fr) minmax(0,.58fr)' : 'minmax(0,.8fr) minmax(0,1.3fr)', gap:'8px' }}>
+
+        {/* Stack - library search lives inside here now */}
+        <section ref={stackPaneRef} style={paneBase(focusPanel === 'stack')}>
+          {/* Search input as the pane header */}
+          <div style={{ flexShrink:0, display:'flex', alignItems:'center', gap:'8px', padding:'14px 12px', borderBottom:'1px solid var(--border)' }}>
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Your Library..."
+              style={{ flex:1, minWidth:0, background:'transparent', border:0, outline:0, color:'var(--foreground)', fontFamily:'var(--font-sans)', fontSize:'.92rem', fontWeight:500 }}
+            />
+            <div style={{ display:'flex', alignItems:'center', gap:'6px', flexShrink:0, borderLeft:'1px solid var(--border)', paddingLeft:'8px' }}>
+              <span style={{ fontSize:'.63rem', color:'var(--muted)', whiteSpace:'nowrap' }}>{totalLabel}</span>
+            </div>
+          </div>
+
+          <div ref={listRef} style={{ flex:1, overflowY:'auto', padding:'6px' }}>
+            {loading ? (
+              <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+                {[1,2,3,4,5].map(i => (
+                  <div key={i} className="rx-list-skeleton-row">
+                    <div className="skeleton-shimmer" style={{ height:'13px', width:'80%', borderRadius:'3px', marginBottom:'8px' }} />
+                    <div className="skeleton-shimmer" style={{ height:'8px', width:'45%', borderRadius:'3px', marginBottom:'8px' }} />
+                    <div className="skeleton-shimmer" style={{ height:'8px', width:'62%', borderRadius:'3px' }} />
+                  </div>
+                ))}
+              </div>
+            ) : results.length === 0 ? (
+              <div className="rx-empty-state">
+                <div className="rx-empty-state-inner">
+                  <div className="rx-empty-state-title">
+                    {query.trim() ? 'No matching papers' : 'Your library is empty'}
+                  </div>
+                  <div className="rx-empty-state-copy">
+                    {query.trim()
+                      ? 'Try a title word, author name, arXiv ID, or clear the query to return to the full library.'
+                      : 'Add an arXiv URL or upload a PDF from Home. New papers will appear here.'}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+                {results.map((paper, idx) => {
+                  const active = idx === selectedIndex
+                  return (
+                    <button
+                      key={paper.id}
+                      type="button"
+                      data-index={idx}
+                      onClick={() => { setSelectedIndex(idx); setFocusPanel('stack') }}
+                      className="rx-paper-row animate-stagger-fade"
+                      data-active={active}
+                      style={{
+                        animationDelay: `${Math.min(idx, 7) * 30}ms`,
+                      }}
+                    >
+                      <div className="rx-paper-title" style={{ marginBottom:'6px' }}>
+                        {paper.title}
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px' }}>
+                        <span className="rx-paper-row-meta rx-meta">{paper.id}</span>
+                        <span className="rx-status-mark" data-status={paper.status || 'queued'}>
+                          <span className="rx-status-dot" />
+                          <span>{paper.status || 'queued'}</span>
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Dossier */}
+        <section ref={dosPaneRef} style={{ ...paneBase(focusPanel === 'dossier'), position:'relative' }}>
+          <div style={{ position:'absolute', inset:0, pointerEvents:'none', background:'linear-gradient(180deg, color-mix(in srgb, var(--foreground) 1.5%, transparent), transparent 42%)', zIndex:0 }} />
+          <div ref={dosBodyRef} style={{ flex:1, overflowY:'auto', padding:'28px 22px 16px', display:'flex', flexDirection:'column', gap:'11px', position:'relative', zIndex:1 }}>
+            {!selectedPaper ? (
+              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', textAlign:'center', fontFamily:'var(--font-mono)', fontSize:'.78rem' }}>
+                Select a paper from the results.
+              </div>
+            ) : (
+              <>
+                <h2 style={{ fontSize:'clamp(1.25rem, 1.7vw, 1.72rem)', fontWeight:500, lineHeight:1.18, letterSpacing:'0', margin:0, color:'var(--foreground)', maxWidth:'56rem' }}>
+                  {selectedPaper.title || selectedPaper.id}
+                </h2>
+
+                {selectedNeedsMetadata ? (
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleFetchMetadata(selectedPaper)}
+                      disabled={selectedMetadataFetching}
+                      className="hover:bg-foreground/[0.05] hover:border-border disabled:opacity-50 transition-colors"
+                      style={{
+                        border:'1px solid var(--border)',
+                        borderRadius:'7px',
+                        background:'transparent',
+                        color:'var(--foreground)',
+                        fontSize:'.76rem',
+                        fontWeight:600,
+                        padding:'6px 10px',
+                        cursor:'pointer',
+                      }}
+                    >
+                      {selectedMetadataFetching ? 'Fetching...' : 'Metadata Missing'}
+                    </button>
+                  </div>
+                ) : null}
+
+                {/* chips — bigger and bolder */}
+                {/* authors */}
+                {/* abstract */}
+                <div style={{ fontSize:'.72rem', fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase', color:'color-mix(in srgb, var(--muted) 90%, var(--foreground))' }}>
+                  Abstract
+                </div>
+                <p style={{ flex:1, fontSize:'.9rem', lineHeight:1.72, color:'color-mix(in srgb, var(--foreground) 86%, transparent)', margin:0, overflowY:'auto', paddingRight:'4px' }}>
+                  {selectedPaper.abstract || 'No abstract available.'}
+                </p>
+              </>
+            )}
+          </div>
+        </section>
+
+        {/* Actions rail */}
+        {actionsOpen && (
+          <aside className="animate-actions-in" style={paneBase(focusPanel === 'actions')}>
+            <div style={{ flexShrink:0, padding:'14px 20px 8px', color:'color-mix(in srgb, var(--muted) 90%, var(--foreground))', fontSize:'.72rem', fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase' }}>
+              Toolbar
+            </div>
+            <div style={{ flex:1, overflowY:'auto', padding:'6px', display:'flex', flexDirection:'column', gap:'1px' }}>
+              {[
+                { name:'Open in Reader', sub:null, key:'Enter', onClick: handleOpenSelected },
+                selectedNeedsMetadata ? {
+                  name: selectedMetadataFetching ? 'Fetching Metadata...' : 'Fetch Metadata',
+                  sub:null,
+                  key:'M',
+                  onClick: () => handleFetchMetadata(selectedPaper),
+                  disabled: selectedMetadataFetching,
+                } : null,
+                { name:'Copy Link', sub:null, key:'C', onClick: handleCopyLink },
+                { name:'Cycle Status', sub:null, key:'S', onClick: handleCycleStatus },
+                { name: paperHasTodoistTask(selectedPaper) ? 'Edit Schedule' : 'Schedule', sub:null, key:'D', onClick: () => selectedPaper && setTodoistModalPaper(selectedPaper) },
+                { name: Number(selectedPaper?.offline_pinned) === 1 ? 'Remove Offline Copy' : 'Pin Offline', sub:null, key:'F', onClick: handleOfflineToggle },
+                { name:'Delete Paper', sub:null, key:'Del', danger: true, onClick: handleDeletePaper, disabled: deletingPaperId === selectedPaper?.id, busyLabel:'Deleting...' },
+              ].filter(Boolean).map((act) => (
+                <button
+                  key={act.name}
+                  type="button"
+                  onClick={act.onClick}
+                  disabled={!selectedPaper || act.disabled}
+                  style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', padding:'9px 10px', borderRadius:'7px', border:'1px solid transparent', width:'100%', textAlign:'left', background:'transparent', cursor:'pointer' }}
+                  className={act.danger
+                    ? 'hover:bg-red-500/[0.07] hover:border-red-500/25 disabled:opacity-40 transition-colors'
+                    : 'hover:bg-foreground/[0.05] hover:border-border disabled:opacity-40 transition-colors'
+                  }
+                >
+                  <div>
+                    <div style={{ fontSize:'.83rem', fontWeight:500, color: act.danger ? 'color-mix(in srgb, #e05252 90%, transparent)' : 'var(--foreground)' }}>{act.busyLabel && act.disabled ? act.busyLabel : act.name}</div>
+                    {act.sub && <div style={{ fontSize:'.7rem', color:'var(--muted)', marginTop:'2px' }}>{act.sub}</div>}
+                  </div>
+                  {act.key ? (
+                    <span style={{ fontFamily:'var(--font-mono)', fontSize:'.67rem', color:'var(--muted)', whiteSpace:'nowrap', flexShrink:0, border:'1px solid var(--border)', borderRadius:'4px', padding:'2px 6px' }}>{act.key}</span>
+                  ) : null}
+                </button>
+              ))}
+              <div style={{ margin:'12px 10px 4px', borderTop:'1px solid var(--border)', paddingTop:'12px' }}>
+                <div style={{ color:'color-mix(in srgb, var(--muted) 90%, var(--foreground))', fontSize:'.68rem', fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'8px' }}>
+                  Details
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                  {selectedDetails.map((item) => (
+                    <div key={item.label} style={{ display:'grid', gridTemplateColumns:'76px minmax(0,1fr)', gap:'10px', alignItems:'baseline' }}>
+                      <div style={{ color:'var(--muted)', fontSize:'.68rem', fontFamily:'var(--font-mono)' }}>
+                        {item.label}
+                      </div>
+                      <div style={{
+                        color:'color-mix(in srgb, var(--foreground) 88%, transparent)',
+                        fontSize:'.76rem',
+                        minWidth:0,
+                        overflow:'hidden',
+                        textOverflow: item.multiline ? 'clip' : 'ellipsis',
+                        whiteSpace: item.multiline ? 'normal' : 'nowrap',
+                        lineHeight: item.multiline ? 1.45 : undefined,
+                      }}>
+                        {item.status ? (
+                          <span className="rx-status-mark" data-status={item.status} style={{ fontSize:'.68rem' }}>
+                            <span className="rx-status-dot" />
+                            <span>{item.value}</span>
+                          </span>
+                        ) : item.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </aside>
+        )}
+      </div>
+
       {totalPages > 1 && (
         <div
           ref={pageBarRef}
@@ -667,181 +836,8 @@ export default function SearchWorkbench({
               </button>
             )
           })}
-          <span style={{ flexShrink:0, fontSize:'.63rem', color:'color-mix(in srgb, var(--muted) 50%, transparent)', marginLeft:'8px', whiteSpace:'nowrap' }}>
-            ← →
-          </span>
         </div>
       )}
-
-      {/* ── Board ──────────────────────────────────────────────── */}
-      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns: actionsOpen ? 'minmax(0,.8fr) minmax(0,1.3fr) minmax(0,.58fr)' : 'minmax(0,.8fr) minmax(0,1.3fr)', gap:'8px' }}>
-
-        {/* Stack — search bar lives inside here now */}
-        <section ref={stackPaneRef} style={paneBase(focusPanel === 'stack')}>
-          {/* Search input as the pane header */}
-          <div style={{ flexShrink:0, display:'flex', alignItems:'center', gap:'8px', padding:'14px 12px', borderBottom:'1px solid var(--border)' }}>
-            <span style={{ background:'var(--secondary)', color:'var(--button-on-secondary)', borderRadius:'5px', padding:'2px 7px', fontFamily:'var(--font-mono)', fontSize:'.7rem', fontWeight:700, whiteSpace:'nowrap', flexShrink:0 }}>/search</span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Your library…"
-              style={{ flex:1, minWidth:0, background:'transparent', border:0, outline:0, color:'var(--foreground)', fontFamily:'var(--font-mono)', fontSize:'.86rem' }}
-            />
-            <div style={{ display:'flex', alignItems:'center', gap:'6px', flexShrink:0, borderLeft:'1px solid var(--border)', paddingLeft:'8px' }}>
-              <span style={{ fontSize:'.63rem', color:'var(--muted)', whiteSpace:'nowrap' }}>{totalLabel}</span>
-              <span style={{ ...kbdBadge, fontSize:'.61rem' }}>j / k</span>
-            </div>
-          </div>
-
-          <div ref={listRef} style={{ flex:1, overflowY:'auto', padding:'6px' }}>
-            {loading ? (
-              <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-                {[1,2,3,4,5].map(i => (
-                  <div key={i} style={{ padding:'11px 11px', borderRadius:'8px', border:'1px solid var(--border)' }}>
-                    <div className="skeleton-shimmer" style={{ height:'13px', width:'80%', borderRadius:'3px', marginBottom:'8px' }} />
-                    <div className="skeleton-shimmer" style={{ height:'8px', width:'45%', borderRadius:'3px' }} />
-                  </div>
-                ))}
-              </div>
-            ) : results.length === 0 ? (
-              <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', color:'var(--muted)', padding:'2rem', fontFamily:'var(--font-mono)', fontSize:'.78rem' }}>
-                {query.trim() ? 'No papers match this query.' : 'Your library is empty.'}
-              </div>
-            ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-                {results.map((paper, idx) => {
-                  const active = idx === selectedIndex
-                  return (
-                    <button
-                      key={paper.id}
-                      type="button"
-                      data-index={idx}
-                      onClick={() => { setSelectedIndex(idx); setFocusPanel('stack') }}
-                      className={active ? 'animate-stagger-fade' : 'hover:bg-foreground/[0.03] hover:border-border animate-stagger-fade'}
-                      style={{
-                        animationDelay: `${Math.min(idx, 7) * 30}ms`,
-                        width:'100%', textAlign:'left', padding:'12px 12px',
-                        borderRadius:'8px',
-                        border: active
-                          ? '1px solid color-mix(in srgb, var(--secondary) 34%, var(--border))'
-                          : '1px solid transparent',
-                        background: active ? 'color-mix(in srgb, var(--secondary) 18%, var(--surface))' : 'transparent',
-                        cursor:'pointer', transition:'background .1s ease, border-color .1s ease',
-                      }}
-                    >
-                      <div style={{ fontSize:'.9rem', fontWeight:600, lineHeight:1.35, letterSpacing:'-.015em', marginBottom:'5px', color: 'var(--foreground)' }}>
-                        {paper.title}
-                      </div>
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px' }}>
-                        <div style={{ fontSize:'.62rem', color: active ? 'color-mix(in srgb, var(--foreground) 72%, transparent)' : 'var(--muted)', letterSpacing:'.01em', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                          {formatAuthors(paper.authors) || paper.id}
-                        </div>
-                        <span style={cardStatusStyle(paper.status, active)}>{paper.status || 'queued'}</span>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Dossier */}
-        <section ref={dosPaneRef} style={{ ...paneBase(focusPanel === 'dossier'), position:'relative' }}>
-          <div style={{ position:'absolute', inset:0, pointerEvents:'none', background:'radial-gradient(ellipse 50% 35% at 100% 0%, color-mix(in srgb, var(--secondary) 5%, transparent), transparent)', zIndex:0 }} />
-          <div style={{ ...paneHeader, padding:'9px 13px', position:'relative', zIndex:1 }}>
-            <span style={hdLabel}>Paper</span>
-            <span style={hdHint}>{actionsOpen ? 'Tab · close actions' : 'Tab · open actions'}</span>
-          </div>
-          <div ref={dosBodyRef} style={{ flex:1, overflowY:'auto', padding:'16px 18px', display:'flex', flexDirection:'column', gap:'11px', position:'relative', zIndex:1 }}>
-            {!selectedPaper ? (
-              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', textAlign:'center', fontFamily:'var(--font-mono)', fontSize:'.78rem' }}>
-                Select a paper from the results.
-              </div>
-            ) : (
-              <>
-                <h2 style={{ fontSize:'clamp(1.4rem, 2.1vw, 2rem)', fontWeight:400, lineHeight:1.14, letterSpacing:'-.03em', margin:0, color:'var(--foreground)' }}>
-                  {selectedPaper.title}
-                </h2>
-
-                {/* chips — bigger and bolder */}
-                <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-                  {[
-                    { t: selectedPaper.status || 'queued', active: selectedPaper.status === 'reading' },
-                    selectedPaper.year ? { t: selectedPaper.year } : null,
-                    { t: Number(selectedPaper.offline_pinned) === 1 ? 'offline' : 'offline off' },
-                    todoistLabel ? { t: todoistLabel } : !selectedPaper.todoist_task_id ? { t: 'not in todoist' } : null,
-                  ].filter(Boolean).map((c, i) => (
-                    <span key={i} style={{
-                      fontSize:'.76rem', fontWeight:600,
-                      letterSpacing:'.04em', textTransform:'uppercase',
-                      color: c.active ? 'var(--secondary)' : 'var(--muted)',
-                      border:`1px solid ${c.active ? 'color-mix(in srgb, var(--secondary) 35%, transparent)' : 'var(--border)'}`,
-                      borderRadius:'999px', padding:'4px 11px',
-                      background: c.active ? 'color-mix(in srgb, var(--secondary) 9%, transparent)' : 'transparent',
-                    }}>
-                      {c.t}
-                    </span>
-                  ))}
-                </div>
-
-                {/* authors */}
-                {selectedPaper.authors ? (
-                  <div style={{ fontSize:'.7rem', color:'var(--muted)', lineHeight:1.5 }}>
-                    {selectedPaper.authors}
-                  </div>
-                ) : null}
-
-                {/* abstract */}
-                <p style={{ flex:1, fontSize:'.9rem', lineHeight:1.78, color:'var(--foreground)', opacity:0.82, margin:0, overflowY:'auto', paddingRight:'4px' }}>
-                  {selectedPaper.abstract || 'No abstract available.'}
-                </p>
-              </>
-            )}
-          </div>
-        </section>
-
-        {/* Actions rail */}
-        {actionsOpen && (
-          <aside className="animate-actions-in" style={paneBase(focusPanel === 'actions')}>
-            <div style={{ ...paneHeader, padding:'9px 13px' }}>
-              <span style={hdLabel}>Actions</span>
-              <span style={hdHint}>Tab · close</span>
-            </div>
-            <div style={{ flex:1, overflowY:'auto', padding:'6px', display:'flex', flexDirection:'column', gap:'1px' }}>
-              {[
-                { name:'Open in Reader', sub:'PDF + notes view', key:'Enter', onClick: handleOpenSelected },
-                { name:'Edit Details', sub:'Title, authors, abstract', key:'E', onClick: () => openMetadataEditor() },
-                { name:'Copy Link', sub: selectedPaper?.url ? 'arXiv URL' : 'Construct arxiv.org URL', key:'C', onClick: handleCopyLink },
-                { name:'Cycle Status', sub: selectedPaper ? `Currently: ${selectedPaper.status || 'queued'}` : 'Queued → Reading → Done', key:'S', onClick: handleCycleStatus },
-                { name: paperHasTodoistTask(selectedPaper) ? 'Edit Schedule' : 'Schedule in Todoist', sub:'Todoist due date + priority', key:'D', onClick: () => selectedPaper && setTodoistModalPaper(selectedPaper) },
-                { name: Number(selectedPaper?.offline_pinned) === 1 ? 'Remove Offline Copy' : 'Pin for Offline', sub:'Download or remove local PDF', key:'F', onClick: handleOfflineToggle },
-                { name:'Delete Paper', sub:'Remove from library', key:'⌫', danger: true, onClick: handleDeletePaper, disabled: deletingPaperId === selectedPaper?.id },
-              ].map((act) => (
-                <button
-                  key={act.name}
-                  type="button"
-                  onClick={act.onClick}
-                  disabled={!selectedPaper || act.disabled}
-                  style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', padding:'9px 10px', borderRadius:'7px', border:'1px solid transparent', width:'100%', textAlign:'left', background:'transparent', cursor:'pointer' }}
-                  className={act.danger
-                    ? 'hover:bg-red-500/[0.07] hover:border-red-500/25 disabled:opacity-40 transition-colors'
-                    : 'hover:bg-foreground/[0.05] hover:border-border disabled:opacity-40 transition-colors'
-                  }
-                >
-                  <div>
-                    <div style={{ fontSize:'.83rem', fontWeight:500, color: act.danger ? 'color-mix(in srgb, #e05252 90%, transparent)' : 'var(--foreground)' }}>{act.disabled ? 'Deleting…' : act.name}</div>
-                    {act.sub && <div style={{ fontSize:'.7rem', color:'var(--muted)', marginTop:'2px' }}>{act.sub}</div>}
-                  </div>
-                  <span style={{ fontFamily:'var(--font-mono)', fontSize:'.67rem', color:'var(--muted)', whiteSpace:'nowrap', flexShrink:0, border:'1px solid var(--border)', borderRadius:'4px', padding:'2px 6px' }}>{act.key}</span>
-                </button>
-              ))}
-            </div>
-          </aside>
-        )}
-      </div>
 
       {todoistModalPaper && (
         <TodoistTaskModal
