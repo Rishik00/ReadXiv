@@ -52,6 +52,41 @@ function resolvePaperArxivId(paper) {
   );
 }
 
+function extractNotesTitle(content) {
+  const match = String(content || '').match(/^#\s+(.+?)\s*$/m);
+  return match ? match[1].trim() : null;
+}
+
+function replaceFirstNotesTitle(content, nextTitle) {
+  if (!content || !String(content).trim()) return `# ${nextTitle}\n`;
+  if (/^#\s+.+?\s*$/m.test(content)) {
+    return String(content).replace(/^#\s+.+?\s*$/m, `# ${nextTitle}`);
+  }
+  return `# ${nextTitle}\n\n${String(content).trimStart()}`;
+}
+
+async function syncNotesTitleForMetadataFetch(paper, nextTitle) {
+  if (!nextTitle || isPlaceholderTitle(nextTitle, paper.id)) return;
+
+  const notesPath = path.join(PAPYRUS_DIR, 'notes', `${paper.id}.md`);
+  if (!(await fs.pathExists(notesPath))) return;
+
+  const content = await fs.readFile(notesPath, 'utf8');
+  const currentTitle = extractNotesTitle(content);
+  if (!currentTitle) return;
+
+  const rest = String(content)
+    .replace(/^#\s+.+?\s*$/m, '')
+    .trim();
+  const safeToUpdate =
+    isPlaceholderTitle(currentTitle, paper.id) ||
+    currentTitle === paper.title ||
+    (rest === '' && currentTitle);
+
+  if (!safeToUpdate || currentTitle === nextTitle) return;
+  await fs.writeFile(notesPath, replaceFirstNotesTitle(content, nextTitle), 'utf8');
+}
+
 async function downloadToFile(url, destination) {
   const temporaryPath = `${destination}.download-${randomUUID()}`;
   try {
@@ -302,6 +337,7 @@ router.post('/:id/fetch-metadata', async (req, res) => {
       [nextTitle, nextAuthors, nextAbstract, nextYear, paper.id]
     );
     saveDB();
+    await syncNotesTitleForMetadataFetch(paper, nextTitle);
 
     const updated = await fetchPaperById(paper.id);
     return res.json(updated);
@@ -425,7 +461,7 @@ router.post('/upload', upload.single('pdf'), async (req, res) => {
     const title = baseTitle || 'Untitled PDF';
     const now = new Date().toISOString();
     const notesPath = path.join(PAPYRUS_DIR, 'notes', `${paperId}.md`);
-    await fs.writeFile(notesPath, `# ${title}\n\n## Notes\n\n`, 'utf8');
+    await fs.writeFile(notesPath, `# ${title}\n`, 'utf8');
 
     db.run(
       `INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, tags, created_at, updated_at, last_accessed_at)

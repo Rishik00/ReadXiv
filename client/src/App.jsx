@@ -20,6 +20,7 @@ import {
 } from './lib/instrumentation'
 const Reader = lazy(() => import('./pages/Reader'))
 const SearchWorkbench = lazy(() => import('./pages/SearchWorkbench'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
 const GlobalCanvas = lazy(() => import('./components/GlobalCanvas'))
 
 // Question: does this still apply? If not, explain
@@ -216,6 +217,9 @@ function App() {
           captureAction('navigate', { route: pageRef.current, target: 'search', source: 'navigateTo' })
           setPage('search')
           setSearchFocusNonce((n) => n + 1)
+        } else if (target === 'dashboard') {
+          captureAction('navigate', { route: pageRef.current, target: 'dashboard', source: 'navigateTo' })
+          setPage('dashboard')
         } else if (target === 'settings') {
           captureAction('navigate', { route: pageRef.current, target: 'settings', source: 'navigateTo' })
           setPage('settings')
@@ -300,6 +304,11 @@ function App() {
         } else if (k === 'r') {
           event.preventDefault()
           setRecentsOpen(true)
+          pendingGRef.current = false
+          setPendingG(false)
+        } else if (k === 'd') {
+          event.preventDefault()
+          navigateTo('dashboard')
           pendingGRef.current = false
           setPendingG(false)
         } else if (page === 'reader' && k === '1') {
@@ -529,6 +538,7 @@ function App() {
       ? [
           ['h', 'Home'],
           ['l', 'Library'],
+          ['d', 'Dashboard'],
           ['r', 'Recent'],
           [',', 'Settings'],
           ['?', 'Help'],
@@ -539,6 +549,7 @@ function App() {
       : [
           ['h', 'Home'],
           ['l', 'Library'],
+          ['d', 'Dashboard'],
           ['r', 'Recent'],
           [',', 'Settings'],
           ['?', 'Help'],
@@ -647,7 +658,7 @@ function App() {
         )}
         <div className={`flex-1 overflow-auto ${activeExternalTabId ? 'hidden' : ''}`}>
           <div key={supportsViewTransitions ? 'app-page-shell' : page} className={`relative z-10 ${
-            page === 'reader' || page === 'search' || page === 'home' ? '' : 'brutalist-container pl-6 pr-6 pt-6 pb-16'
+            page === 'reader' || page === 'search' || page === 'home' || page === 'dashboard' ? '' : 'brutalist-container pl-6 pr-6 pt-6 pb-16'
           } ${supportsViewTransitions ? '' : 'animate-view-fade'}`}>
           {page === 'home' && (
             <Home
@@ -701,6 +712,18 @@ function App() {
               />
             </Suspense>
           )}
+          {page === 'dashboard' && (
+            <Suspense fallback={
+              <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 animate-fade-in">
+                <div className="h-2 w-48 rounded-full overflow-hidden bg-surface">
+                  <div className="h-full w-1/3 skeleton-shimmer" />
+                </div>
+                <span className="text-sm text-muted uppercase tracking-widest">Loading dashboard...</span>
+              </div>
+            }>
+              <Dashboard openPaper={openPaper} />
+            </Suspense>
+          )}
           {page === 'settings' && (
             <Settings settings={settings} setSettings={setSettings} setPage={setPage} addToast={addToast} />
           )}
@@ -740,7 +763,7 @@ function App() {
           setQuickSearchOpen(false)
         }}
         onCommand={(cmd) => {
-          if (['home', 'search', 'settings', 'help'].includes(cmd.id)) {
+          if (['home', 'search', 'dashboard', 'settings', 'help'].includes(cmd.id)) {
             navigateTo(cmd.id)
           }
           setQuickSearchOpen(false)

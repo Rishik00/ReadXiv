@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDB } from './db.js';
+import { checkScheduledBackup } from './backup.js';
 import papersRouter from './routes/papers.js';
 import searchRouter from './routes/search.js';
 import arxivRouter from './routes/arxiv.js';
@@ -13,6 +14,8 @@ import canvasRouter from './routes/canvas.js';
 import todoistRouter from './routes/todoist.js';
 import semanticScholarSettingsRouter from './routes/semanticScholarSettings.js';
 import analyticsRouter from './routes/analytics.js';
+import dashboardRouter from './routes/dashboard.js';
+import backupRouter from './routes/backup.js';
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientDistPath = path.resolve(__dirname, '../client/dist');
@@ -28,6 +31,7 @@ let isDbReady = false;
 initDB().then(() => {
   isDbReady = true;
   console.log('✅ Database ready');
+  checkScheduledBackup();
 }).catch(err => {
   console.error('❌ Database initialization failed:', err);
   process.exit(1);
@@ -49,6 +53,8 @@ app.use('/api/canvas', canvasRouter);
 app.use('/api/todoist', todoistRouter);
 app.use('/api/semantic-scholar', semanticScholarSettingsRouter);
 app.use('/api/instrumentation', analyticsRouter);
+app.use('/api/dashboard', dashboardRouter);
+app.use('/api/backup', backupRouter);
 
 // Health check
 app.get('/health', (req, res) => {

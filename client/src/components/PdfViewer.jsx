@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import axios from 'axios';
 import { getDocument, GlobalWorkerOptions, AnnotationMode } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import {
@@ -20,11 +21,13 @@ import { captureAction, captureAppError, captureTiming, elapsedSince, startTimer
 
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
+// Question: whats a good way to do private global variables in JS? I dont want globale variables to be accessible via the app.
 const SCALE_MIN = 0.5;
 const SCALE_MAX = 4;
 const SCALE_STEP = 1.12;
 const VALID_ZOOM_PRESETS = new Set(['actual', 'page-width', 'page-fit', 'auto']);
 
+// Put this in a utils file or in the lib folder or something. Use stuff globally pls. 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -34,7 +37,15 @@ function normalizeZoomPreset(value) {
 }
 
 const PdfViewer = forwardRef(function PdfViewer(
-  { paperId, paperTitle, continuousScroll = true, defaultZoom = 'actual', onSendToCanvas, onToolbarState },
+  {
+    paperId,
+    paperTitle,
+    continuousScroll = true,
+    defaultZoom = 'actual',
+    onInsertQuote,
+    onSendToCanvas,
+    onToolbarState,
+  },
   ref
 ) {
   const rootRef = useRef(null);
@@ -45,9 +56,12 @@ const PdfViewer = forwardRef(function PdfViewer(
   const pdfViewerRef = useRef(null);
   const linkServiceRef = useRef(null);
   const findControllerRef = useRef(null);
+
+  // Question: what does eventBusRef do? 
   const eventBusRef = useRef(null);
   const findQueryRef = useRef('');
   const defaultZoomRef = useRef(normalizeZoomPreset(defaultZoom));
+  const highlightsRef = useRef([]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -58,9 +72,17 @@ const PdfViewer = forwardRef(function PdfViewer(
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState('');
   const [findStatus, setFindStatus] = useState('');
+  const [highlightMode, setHighlightMode] = useState(false);
+  const [highlights, setHighlights] = useState([]);
+  const [pendingHighlight, setPendingHighlight] = useState(null);
 
   const pdfUrl = useMemo(() => (paperId ? `/api/reader/${paperId}/pdf` : null), [paperId]);
 
+
+  // Why do these effect calls have to be chained like this? 
+  // What are each of them doing? 
+
+  
   useEffect(() => {
     findQueryRef.current = findQuery;
   }, [findQuery]);
@@ -70,12 +92,41 @@ const PdfViewer = forwardRef(function PdfViewer(
   }, [defaultZoom]);
 
   useEffect(() => {
+    highlightsRef.current = highlights;
+  }, [highlights]);
+
+  useEffect(() => {
+    if (!paperId) {
+      setHighlights([]);
+      return undefined;
+    }
+    let cancelled = false;
+    axios
+      .get(`/api/reader/${encodeURIComponent(paperId)}/highlights`)
+      .then(({ data }) => {
+        if (!cancelled) setHighlights(Array.isArray(data) ? data : []);
+      })
+      .catch((error) => {
+        captureAppError(error, {
+          route: 'reader',
+          source: 'pdf_highlights_load',
+          paperId,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [paperId]);
+
+  useEffect(() => {
     const container = containerRef.current;
     const viewer = viewerRef.current;
     if (!container || !viewer || !pdfUrl) return undefined;
 
     let cancelled = false;
     const abortController = new AbortController();
+    
+    // QUestion: What the fuck is this? 
     const eventBus = new EventBus();
     const linkService = new PDFLinkService({ eventBus });
     const findController = new PDFFindController({ eventBus, linkService });
@@ -108,6 +159,7 @@ const PdfViewer = forwardRef(function PdfViewer(
     };
     const onPageChanging = ({ pageNumber }) => setPage(pageNumber);
     const onScaleChanging = ({ scale: nextScale }) => setScale(nextScale || pdfViewer.currentScale || 1);
+    const onPageRendered = () => renderHighlightOverlays();
     const onFindState = ({ state, matchesCount }) => {
       if (!findQueryRef.current.trim()) {
         setFindStatus('');
@@ -121,9 +173,11 @@ const PdfViewer = forwardRef(function PdfViewer(
     eventBus._on('pagesinit', onPagesInit);
     eventBus._on('pagechanging', onPageChanging);
     eventBus._on('scalechanging', onScaleChanging);
+    eventBus._on('pagerendered', onPageRendered);
     eventBus._on('updatefindcontrolstate', onFindState);
     eventBus._on('updatefindmatchescount', onFindState);
 
+    // Question: why function inside function, in python tbis is a red flag for me. 
     async function loadPdf() {
       const startedAt = startTimer();
       setLoading(true);
@@ -173,12 +227,15 @@ const PdfViewer = forwardRef(function PdfViewer(
 
     loadPdf();
 
+    // Question: bro why do we want to return all of this? what is this telling us? 
+    // Question: what is an eventBus? 
     return () => {
       cancelled = true;
       abortController.abort();
       eventBus._off?.('pagesinit', onPagesInit);
       eventBus._off?.('pagechanging', onPageChanging);
       eventBus._off?.('scalechanging', onScaleChanging);
+      eventBus._off?.('pagerendered', onPageRendered);
       eventBus._off?.('updatefindcontrolstate', onFindState);
       eventBus._off?.('updatefindmatchescount', onFindState);
       pdfViewer.setDocument(null);
@@ -200,14 +257,18 @@ const PdfViewer = forwardRef(function PdfViewer(
       scale,
       page,
       numPages,
-      highlightMode: false,
+      highlightMode,
       pdfDarkMode,
-      highlightsCount: 0,
+      highlightsCount: highlights.length,
       docReady: Boolean(pdfDocumentRef.current && !loading && !error),
       loading,
       error: Boolean(error),
     });
-  }, [scale, page, numPages, pdfDarkMode, loading, error, onToolbarState]);
+  }, [scale, page, numPages, highlightMode, highlights.length, pdfDarkMode, loading, error, onToolbarState]);
+
+  useEffect(() => {
+    renderHighlightOverlays();
+  }, [highlights, scale, numPages]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -240,6 +301,7 @@ const PdfViewer = forwardRef(function PdfViewer(
     return () => clearTimeout(id);
   }, [findOpen, findQuery]);
 
+  // Question: once again, why does this need to be inside the function? Can't we move it out? 
   function setViewerScale(nextScale) {
     const viewer = pdfViewerRef.current;
     if (!viewer) return;
@@ -284,6 +346,143 @@ const PdfViewer = forwardRef(function PdfViewer(
       findPrevious,
       matchDiacritics: false,
     });
+  }
+
+  function getHighlightColor(color) {
+    if (color === 'blue') return 'rgba(96, 165, 250, 0.34)';
+    if (color === 'pink') return 'rgba(244, 114, 182, 0.34)';
+    if (color === 'green') return 'rgba(74, 222, 128, 0.32)';
+    return 'rgba(250, 204, 21, 0.34)';
+  }
+
+  function renderHighlightOverlays() {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    viewer.querySelectorAll('.readxiv-pdf-highlight-layer').forEach((node) => node.remove());
+
+    const byPage = new Map();
+    for (const highlight of highlightsRef.current) {
+      const pageNumber = Number(highlight.page);
+      if (!pageNumber) continue;
+      if (!byPage.has(pageNumber)) byPage.set(pageNumber, []);
+      byPage.get(pageNumber).push(highlight);
+    }
+
+    for (const [pageNumber, pageHighlights] of byPage.entries()) {
+      const pageEl = viewer.querySelector(`.page[data-page-number="${pageNumber}"]`);
+      if (!pageEl) continue;
+      const layer = document.createElement('div');
+      layer.className = 'readxiv-pdf-highlight-layer';
+      layer.setAttribute('aria-hidden', 'true');
+      pageEl.appendChild(layer);
+
+      for (const highlight of pageHighlights) {
+        const rects = Array.isArray(highlight.rect?.rects) ? highlight.rect.rects : [];
+        for (const rect of rects) {
+          const mark = document.createElement('button');
+          mark.type = 'button';
+          mark.className = 'readxiv-pdf-highlight-mark';
+          mark.style.left = `${rect.left}%`;
+          mark.style.top = `${rect.top}%`;
+          mark.style.width = `${rect.width}%`;
+          mark.style.height = `${rect.height}%`;
+          mark.style.background = getHighlightColor(highlight.color);
+          mark.title = highlight.note || highlight.text || 'Highlight';
+          mark.addEventListener('click', (event) => {
+            event.stopPropagation();
+            onInsertQuote?.({ text: highlight.text, page: pageNumber });
+          });
+          layer.appendChild(mark);
+        }
+      }
+    }
+  }
+
+  function buildPendingHighlight(selection, event) {
+    const text = selection.toString().trim().replace(/\s+/g, ' ');
+    if (!text) return null;
+
+    const pageRects = new Map();
+    for (const range of Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i))) {
+      for (const rect of Array.from(range.getClientRects())) {
+        if (rect.width < 2 || rect.height < 2) continue;
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const pageEl = document.elementFromPoint(centerX, centerY)?.closest?.('.page[data-page-number]');
+        if (!pageEl || !containerRef.current?.contains(pageEl)) continue;
+        const pageNumber = Number(pageEl.dataset.pageNumber);
+        const pageBox = pageEl.getBoundingClientRect();
+        const clippedLeft = clamp(rect.left, pageBox.left, pageBox.right);
+        const clippedRight = clamp(rect.right, pageBox.left, pageBox.right);
+        const clippedTop = clamp(rect.top, pageBox.top, pageBox.bottom);
+        const clippedBottom = clamp(rect.bottom, pageBox.top, pageBox.bottom);
+        const normalized = {
+          left: ((clippedLeft - pageBox.left) / pageBox.width) * 100,
+          top: ((clippedTop - pageBox.top) / pageBox.height) * 100,
+          width: ((clippedRight - clippedLeft) / pageBox.width) * 100,
+          height: ((clippedBottom - clippedTop) / pageBox.height) * 100,
+        };
+        if (normalized.width <= 0 || normalized.height <= 0) continue;
+        if (!pageRects.has(pageNumber)) pageRects.set(pageNumber, []);
+        pageRects.get(pageNumber).push(normalized);
+      }
+    }
+
+    const groups = Array.from(pageRects.entries()).map(([pageNumber, rects]) => ({ pageNumber, rects }));
+    if (groups.length === 0) return null;
+    const rootBox = rootRef.current.getBoundingClientRect();
+    return {
+      text,
+      groups,
+      color: 'yellow',
+      note: '',
+      x: clamp(event.clientX - rootBox.left + 12, 12, rootBox.width - 260),
+      y: clamp(event.clientY - rootBox.top + 12, 12, rootBox.height - 180),
+    };
+  }
+
+  async function savePendingHighlight({ insertQuote = false } = {}) {
+    if (!pendingHighlight || !paperId) return;
+    try {
+      const created = [];
+      for (const group of pendingHighlight.groups) {
+        const { data } = await axios.post(`/api/reader/${encodeURIComponent(paperId)}/highlights`, {
+          page: group.pageNumber,
+          text: pendingHighlight.text,
+          color: pendingHighlight.color,
+          rect: { rects: group.rects },
+          note: pendingHighlight.note,
+        });
+        created.push(data);
+      }
+      setHighlights((prev) => [...prev, ...created]);
+      if (insertQuote) {
+        onInsertQuote?.({ text: pendingHighlight.text, page: pendingHighlight.groups[0]?.pageNumber });
+      }
+      captureAction('pdf_highlight_create', {
+        route: 'reader',
+        paperId,
+        pages: pendingHighlight.groups.length,
+        quoteInserted: insertQuote,
+      });
+    } catch (error) {
+      captureAppError(error, {
+        route: 'reader',
+        source: 'pdf_highlight_create',
+        paperId,
+      });
+    } finally {
+      setPendingHighlight(null);
+      window.getSelection()?.removeAllRanges();
+    }
+  }
+
+  function handleSelectionMouseUp(event) {
+    if (!highlightMode) return;
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) return;
+    const pending = buildPendingHighlight(selection, event);
+    if (pending) setPendingHighlight(pending);
   }
 
   async function copyPageToClipboard() {
@@ -333,7 +532,11 @@ const PdfViewer = forwardRef(function PdfViewer(
     focusScrollArea: () => containerRef.current?.focus(),
     togglePdfDarkMode: () => setPdfDarkMode((value) => !value),
     toggleHighlightMode: () => {
-      setFindOpen((value) => !value);
+      setHighlightMode((value) => !value);
+      setPendingHighlight(null);
+    },
+    openFind: () => {
+      setFindOpen(true);
       requestAnimationFrame(() => rootRef.current?.querySelector('[data-pdf-find-input]')?.focus());
     },
     copyPageToClipboard,
@@ -380,7 +583,7 @@ const PdfViewer = forwardRef(function PdfViewer(
   return (
     <div
       ref={rootRef}
-      className={`readxiv-pdfjs-root ${pdfDarkMode ? 'readxiv-pdfjs-dark' : ''}`}
+      className={`readxiv-pdfjs-root ${pdfDarkMode ? 'readxiv-pdfjs-dark' : ''} ${highlightMode ? 'readxiv-pdfjs-highlight-mode' : ''}`}
       aria-label={paperTitle ? `PDF viewer for ${paperTitle}` : 'PDF viewer'}
     >
       {findOpen && (
@@ -432,7 +635,59 @@ const PdfViewer = forwardRef(function PdfViewer(
         </div>
       )}
       {error && <div className="readxiv-pdfjs-status text-red-300">{error}</div>}
-      <div ref={containerRef} tabIndex={0} data-pdf-scroll className="readxiv-pdfjs-container">
+      {highlightMode && !pendingHighlight && (
+        <div className="readxiv-pdfjs-highlight-hint">Select text to highlight</div>
+      )}
+      {pendingHighlight && (
+        <div
+          className="readxiv-pdfjs-highlight-popover"
+          style={{ left: `${pendingHighlight.x}px`, top: `${pendingHighlight.y}px` }}
+        >
+          <div className="readxiv-pdfjs-highlight-text">{pendingHighlight.text}</div>
+          <textarea
+            value={pendingHighlight.note}
+            onChange={(event) => setPendingHighlight((prev) => ({ ...prev, note: event.target.value }))}
+            placeholder="Annotation note"
+            className="readxiv-pdfjs-highlight-note"
+            rows={2}
+          />
+          <div className="readxiv-pdfjs-highlight-actions">
+            {['yellow', 'green', 'blue', 'pink'].map((color) => (
+              <button
+                key={color}
+                type="button"
+                className={`readxiv-pdfjs-highlight-swatch ${pendingHighlight.color === color ? 'is-active' : ''}`}
+                style={{ background: getHighlightColor(color) }}
+                onClick={() => setPendingHighlight((prev) => ({ ...prev, color }))}
+                aria-label={`${color} highlight`}
+              />
+            ))}
+            <button type="button" onClick={() => savePendingHighlight()} className="readxiv-pdfjs-highlight-button">
+              Save
+            </button>
+            <button type="button" onClick={() => savePendingHighlight({ insertQuote: true })} className="readxiv-pdfjs-highlight-button">
+              Quote
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPendingHighlight(null);
+                window.getSelection()?.removeAllRanges();
+              }}
+              className="readxiv-pdfjs-highlight-button"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      <div
+        ref={containerRef}
+        tabIndex={0}
+        data-pdf-scroll
+        className="readxiv-pdfjs-container"
+        onMouseUp={handleSelectionMouseUp}
+      >
         <div ref={viewerRef} className="pdfViewer" />
       </div>
     </div>

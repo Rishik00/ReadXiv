@@ -42,8 +42,37 @@ function getNotesPath(paperId) {
   return path.join(PAPYRUS_DIR, 'notes', `${paperId}.md`);
 }
 
+function parseByteRange(range, fileSize) {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(String(range || '').trim());
+  if (!match) return null;
+
+  const [, startStr, endStr] = match;
+  if (!startStr && !endStr) return null;
+
+  if (!startStr) {
+    const suffixLength = Number(endStr);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return null;
+    const start = Math.max(fileSize - suffixLength, 0);
+    return { start, end: fileSize - 1 };
+  }
+
+  const start = Number(startStr);
+  const end = endStr ? Number(endStr) : fileSize - 1;
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(end) ||
+    start < 0 ||
+    end < start ||
+    start >= fileSize
+  ) {
+    return null;
+  }
+
+  return { start, end: Math.min(end, fileSize - 1) };
+}
+
 function buildDefaultNotesTemplate(paper) {
-  return `# ${paper.title}\n\n## Quotes from the paper\n\n> Add highlighted quotes here.\n\n## Opinions and Questions\n\n- Add your thoughts, critiques, and open questions.\n`;
+  return `# ${paper.title}\n`;
 }
 
 router.get('/:id/references', async (req, res) => {
@@ -71,9 +100,13 @@ router.get('/:id/pdf', async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
 
     if (range) {
-      const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
-      const start = Number(startStr);
-      const end = endStr ? Number(endStr) : fileSize - 1;
+      const parsedRange = parseByteRange(range, fileSize);
+      if (!parsedRange) {
+        res.status(416);
+        res.setHeader('Content-Range', `bytes */${fileSize}`);
+        return res.end();
+      }
+      const { start, end } = parsedRange;
       const chunkSize = end - start + 1;
       res.status(206);
       res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);

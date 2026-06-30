@@ -1,11 +1,38 @@
 {
-  "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true
-  },
   "permissions": {
     "allow": [
       "Bash(rm -f 01-editorial-stacks.html 02-terminal-ledger.html 03-kanban-flow.html 04-research-desk.html)",
-      "Read(//c/c/Users/user/Desktop/products/readxiv/**)"
+      "Read(//c/c/Users/user/Desktop/products/readxiv/**)",
+      "Bash(python -)",
+      "Bash(node -e ' *)",
+      "Bash(node *)",
+      "Bash(git add *)",
+      "Bash(git -c user.name=local -c user.email=local@local commit -qm \"load 4 real notes; align math to ReadXiv convention; fix span fragmentation\")",
+      "Bash(curl -s \"http://localhost:8099/style.css\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' http://localhost:8099/)",
+      "Bash(echo \"http: $\\(curl -s -o /dev/null -w '%{http_code}' http://localhost:8099/\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(curl -s http://localhost:8099/manifest.json)",
+      "Bash(echo \"manifest count: $\\(curl -s http://localhost:8099/manifest.json)",
+      "Bash(curl -s 'http://localhost:8099/note.html')",
+      "Bash(echo \"normalizeMath present: $\\(curl -s 'http://localhost:8099/note.html')",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Bash(vercel --version)",
+      "Bash(git -c user.name=Rishik00 -c user.email=a.nerdy.penguin@gmail.com commit -qm \"remove tags, add selection highlight + load animations, math normalization, add recurrence note\")",
+      "Bash(gh repo *)",
+      "Bash(git -c user.name=Rishik00 -c user.email=a.nerdy.penguin@gmail.com commit -qm \"add vercel.json \\(static, no build\\)\")",
+      "Bash(git push *)",
+      "Bash(gh api *)",
+      "Bash(vercel whoami *)",
+      "Bash(vercel --prod --yes)",
+      "Bash(vercel --prod --yes --scope rishik00s-projects)",
+      "Bash(git commit *)",
+      "Bash(curl -s 'https://notes-site-ruby.vercel.app/manifest.json')",
+      "Bash(echo \"live note ids: $\\(curl -s 'https://notes-site-ruby.vercel.app/manifest.json')"
     ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true
   }
 }

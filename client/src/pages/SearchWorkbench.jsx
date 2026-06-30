@@ -37,6 +37,19 @@ function needsMetadataFetch(paper) {
   return isPlaceholderTitle(paper.title, paper.id) || !String(paper.abstract || '').trim()
 }
 
+function formatDateAdded(value) {
+  if (!value) return 'Unknown'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Unknown'
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date)
+}
+
 // Question: what is default? 
 export default function SearchWorkbench({
   initialQuery = '',
@@ -156,6 +169,7 @@ export default function SearchWorkbench({
     { label: 'State', value: Number(selectedPaper.offline_pinned) === 1 ? 'Offline' : 'Online' },
     { label: 'ID', value: selectedPaper.id || 'Unknown' },
     { label: 'Year', value: selectedPaper.year || 'Unknown' },
+    { label: 'Date added', value: formatDateAdded(selectedPaper.created_at) },
     { label: 'Schedule', value: selectedScheduleState },
     { label: 'Authors', value: selectedPaper.authors || 'Unknown', multiline: true },
   ] : []

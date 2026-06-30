@@ -46,6 +46,106 @@ const md = new MarkdownIt({
   typographer: true
 });
 
+const NOTE_TEMPLATES = [
+  {
+    id: 'none',
+    label: 'None',
+    build: (paper) => `# ${paper?.title || 'Untitled paper'}\n`,
+  },
+  {
+    id: 'paper-digest',
+    label: 'Paper Digest',
+    build: (paper) => `# ${paper?.title || 'Untitled paper'}
+
+## One-line takeaway
+
+## Problem
+
+## Core idea
+
+## Method
+
+## Results
+
+## Limitations
+
+## Useful quotes
+
+## Follow-up questions
+`,
+  },
+  {
+    id: 'critical-reading',
+    label: 'Critical Reading',
+    build: (paper) => `# ${paper?.title || 'Untitled paper'}
+
+## Claim
+
+## Evidence
+
+## Method quality
+
+## What is actually new?
+
+## What could be wrong?
+
+## Reproducibility notes
+
+## My verdict
+`,
+  },
+  {
+    id: 'flashcards',
+    label: 'Flashcards',
+    build: (paper) => `# ${paper?.title || 'Untitled paper'}
+
+## Key Takeaway Cards
+
+### Q
+What is the main problem this paper addresses?
+
+### A
+
+---
+
+### Q
+What is the paper's core contribution?
+
+### A
+
+---
+
+### Q
+What method or architecture does the paper use?
+
+### A
+
+---
+
+### Q
+What evidence supports the main claim?
+
+### A
+
+---
+
+### Q
+What are the main limitations?
+
+### A
+
+---
+
+## Cloze Cards
+
+- The paper's central idea is {{c1::...}}.
+- The method improves on {{c1::...}} by {{c2::...}}.
+- The strongest result is {{c1::...}} on {{c2::...}}.
+- A key limitation is {{c1::...}}.
+`,
+  },
+];
+
 // Add task list support
 md.use((md) => {
   const defaultRenderer = md.renderer.rules.list_item_open || function(tokens, idx, options, env, self) {
@@ -293,6 +393,53 @@ function extractMarkdownTitle(markdown) {
   return null;
 }
 
+function getPaperNoteTitle(paper) {
+  return paper?.title || (paper?.id ? `arXiv:${paper.id}` : 'Untitled paper');
+}
+
+function buildTitleOnlyNote(paper) {
+  return `# ${getPaperNoteTitle(paper)}\n`;
+}
+
+function normalizeMarkdownForComparison(markdown) {
+  return String(markdown || '').replace(/\r\n/g, '\n').trim();
+}
+
+function isStarterNote(markdown, paper) {
+  const normalized = normalizeMarkdownForComparison(markdown);
+  if (!normalized) return true;
+
+  const title = getPaperNoteTitle(paper);
+  const placeholderTitle = paper?.id ? `arXiv:${paper.id}` : null;
+  const titleOnlyCandidates = [
+    `# ${title}`,
+    placeholderTitle ? `# ${placeholderTitle}` : null,
+  ].filter(Boolean);
+  if (titleOnlyCandidates.includes(normalized)) return true;
+
+  return NOTE_TEMPLATES.some((template) => {
+    if (template.id === 'none') return false;
+    return normalizeMarkdownForComparison(template.build(paper)) === normalized;
+  });
+}
+
+function inferNoteTemplateId(markdown, paper) {
+  const normalized = normalizeMarkdownForComparison(markdown);
+  if (!normalized) return 'none';
+
+  const title = getPaperNoteTitle(paper);
+  const placeholderTitle = paper?.id ? `arXiv:${paper.id}` : null;
+  if (normalized === `# ${title}` || (placeholderTitle && normalized === `# ${placeholderTitle}`)) {
+    return 'none';
+  }
+
+  const matchedTemplate = NOTE_TEMPLATES.find((template) => (
+    template.id !== 'none' &&
+    normalizeMarkdownForComparison(template.build(paper)) === normalized
+  ));
+  return matchedTemplate?.id || 'custom';
+}
+
 function isPlaceholderPaperTitle(paper) {
   if (!paper?.id || !paper?.title) return false;
   return String(paper.title).trim() === `arXiv:${paper.id}`;
@@ -328,6 +475,7 @@ const Reader = forwardRef(function Reader(
   const [referencesLoadedForPaperId, setReferencesLoadedForPaperId] = useState(null);
   const [addingReferenceKeys, setAddingReferenceKeys] = useState(() => new Set());
   const [addedReferenceKeys, setAddedReferenceKeys] = useState(() => new Set());
+  const [selectedNoteTemplate, setSelectedNoteTemplate] = useState(NOTE_TEMPLATES[0].id);
   const [mathHoverPreview, setMathHoverPreview] = useState(null);
   const splitRootRef = useRef(null);
   const saveTimerRef = useRef(null);
@@ -529,6 +677,13 @@ const Reader = forwardRef(function Reader(
   useEffect(() => {
     if (paperId) pdfPanelRef.current?.focus();
   }, [paperId]);
+
+  useEffect(() => {
+    const inferredTemplateId = inferNoteTemplateId(notes, readerPaper || paper);
+    if (inferredTemplateId && inferredTemplateId !== selectedNoteTemplate) {
+      setSelectedNoteTemplate(inferredTemplateId);
+    }
+  }, [notes, readerPaper, paper, selectedNoteTemplate]);
 
   useEffect(() => {
     let mounted = true;
@@ -820,6 +975,29 @@ const Reader = forwardRef(function Reader(
       setTimeout(() => mdxEditorRef.current?.insertMarkdown?.(text), 80);
     } else {
       mdxEditorRef.current?.insertMarkdown?.(text);
+    }
+  }
+
+  function applyNoteTemplate(templateId) {
+    const template = NOTE_TEMPLATES.find((item) => item.id === templateId) || NOTE_TEMPLATES[0];
+    const activePaper = readerPaper || paper;
+    const markdown = template.id === 'none'
+      ? buildTitleOnlyNote(activePaper)
+      : `${template.build(activePaper).trimEnd()}\n`;
+
+    setSelectedNoteTemplate(template.id);
+    setNoteTab('edit');
+    setNotes((prev) => {
+      if (isStarterNote(prev, activePaper)) return markdown;
+      if (template.id === 'none') return prev;
+      return `${prev.trimEnd()}\n\n${markdown}`;
+    });
+    captureAction('apply_note_template', {
+      paperId,
+      templateId: template.id,
+    });
+    if (template.id !== 'none') {
+      addToast?.(`${template.label} template applied`, 'success');
     }
   }
 
@@ -1140,7 +1318,28 @@ const Reader = forwardRef(function Reader(
                   </span>
                 </button>
               </div>
-              <div className="flex shrink-0 items-center">
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="note-template-control flex items-center gap-1.5">
+                  <select
+                    value={selectedNoteTemplate}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => applyNoteTemplate(e.target.value)}
+                    className="note-template-select"
+                    aria-label="Choose note template"
+                    title="Choose note template"
+                  >
+                    {selectedNoteTemplate === 'custom' && (
+                      <option value="custom" disabled>
+                        Custom
+                      </option>
+                    )}
+                    {NOTE_TEMPLATES.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   type="button"
                   onClick={(e) => {

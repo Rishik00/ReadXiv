@@ -6,6 +6,7 @@ const COMMAND_PREFIXES = ['>', ':', '/']
 const APP_COMMANDS = [
   { id: 'home', label: 'Go Home', shortcut: 'Space h', keywords: ['home', 'landing', 'h'] },
   { id: 'search', label: 'Open Library', shortcut: 'Space l', keywords: ['library', 'search', 'papers', 'l'] },
+  { id: 'dashboard', label: 'Open Dashboard', shortcut: 'Space d', keywords: ['dashboard', 'stats', 'streak', 'consistency', 'd'] },
   { id: 'settings', label: 'Go to Settings', shortcut: 'Space ,', keywords: ['settings', 'config', 'preferences', ','] },
   { id: 'help', label: 'Help', shortcut: 'Space ?', keywords: ['help', 'shortcuts', 'keys', '?'] },
 ]

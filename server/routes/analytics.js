@@ -6,7 +6,7 @@ const router = express.Router();
 const MAX_ANALYTICS_EVENTS = 10000;
 const ANALYTICS_PRUNE_INTERVAL = 100;
 let eventsSincePrune = 0;
-const KNOWN_ROUTES = ['home', 'search', 'reader', 'settings', 'help'];
+const KNOWN_ROUTES = ['home', 'search', 'dashboard', 'reader', 'settings', 'help'];
 const ALLOWED_EVENTS = new Set([
   'page_view',
   'page_load',

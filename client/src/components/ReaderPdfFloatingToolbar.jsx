@@ -19,17 +19,21 @@ export default function ReaderPdfFloatingToolbar({
   pageJumpMenuNonce = 0,
 }) {
   const [stripOpen, setStripOpen] = useState(true);
+  const [mouseActive, setMouseActive] = useState(true);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const [pageJumpOpen, setPageJumpOpen] = useState(false);
   const [pageJumpQuery, setPageJumpQuery] = useState('');
   const barRef = useRef(null);
   const pageJumpInputRef = useRef(null);
+  const idleTimerRef = useRef(null);
   const [panelBox, setPanelBox] = useState({ w: 0, h: 0 });
 
   const docReady = toolbarMetrics?.docReady;
   const scalePct = toolbarMetrics?.scale != null ? Math.round(toolbarMetrics.scale * 100) : null;
   const numPages = toolbarMetrics?.numPages ?? 0;
   const currentPage = toolbarMetrics?.page ?? 1;
+  const highlightMode = Boolean(toolbarMetrics?.highlightMode);
+  const highlightsCount = toolbarMetrics?.highlightsCount ?? 0;
 
   const run = useCallback(
     (method) => () => {
@@ -48,6 +52,29 @@ export default function ReaderPdfFloatingToolbar({
     ro.observe(el);
     return () => ro.disconnect();
   }, [pdfPanelRef]);
+
+  useEffect(() => {
+    const resetIdleTimer = () => {
+      setMouseActive(true);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        setMouseActive(false);
+      }, 1800);
+    };
+
+    resetIdleTimer();
+    window.addEventListener('mousemove', resetIdleTimer, { passive: true });
+    window.addEventListener('mousedown', resetIdleTimer, { passive: true });
+    window.addEventListener('wheel', resetIdleTimer, { passive: true });
+    window.addEventListener('keydown', resetIdleTimer);
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      window.removeEventListener('mousemove', resetIdleTimer);
+      window.removeEventListener('mousedown', resetIdleTimer);
+      window.removeEventListener('wheel', resetIdleTimer);
+      window.removeEventListener('keydown', resetIdleTimer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!viewMenuOpen && !pageJumpOpen) return;
@@ -153,7 +180,8 @@ export default function ReaderPdfFloatingToolbar({
   const bar = (
     <div
       ref={barRef}
-      className={`reader-pdf-toolbar-m8 pointer-events-auto flex items-center gap-2 sm:gap-3 ${stripOpen ? 'reader-pdf-toolbar-m8-expanded' : ''}`}
+      className={`reader-pdf-toolbar-m8 pointer-events-auto flex items-center gap-2 sm:gap-3 ${stripOpen ? 'reader-pdf-toolbar-m8-expanded' : ''} ${!stripOpen && !mouseActive ? 'reader-pdf-toolbar-m8-idle' : ''}`}
+      onMouseEnter={() => setMouseActive(true)}
     >
       <button
         type="button"
@@ -319,16 +347,20 @@ export default function ReaderPdfFloatingToolbar({
         </button>
         <button
           type="button"
-          className={toolIconBtn}
+          className={`${toolIconBtn} ${highlightMode ? 'ring-1 ring-secondary/50 text-secondary' : ''}`}
           onClick={run('toggleHighlightMode')}
           disabled={!docReady}
-          title="Find in PDF"
-          aria-label="Find in PDF"
+          title={highlightMode ? 'Highlight mode on' : 'Highlight text'}
+          aria-label="Highlight text"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
+            <path d="m9 11-6 6v4h4l6-6" />
+            <path d="m22 12-8.5-8.5a2.1 2.1 0 0 0-3 0l-2 2a2.1 2.1 0 0 0 0 3L17 17" />
+            <path d="M7 17h8" />
           </svg>
+          {highlightsCount > 0 && (
+            <span className="sr-only">{highlightsCount} saved highlights</span>
+          )}
         </button>
         <button
           type="button"

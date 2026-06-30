@@ -18,12 +18,12 @@ function getArxivPreviewKey(val) {
 }
 
 const SLASH_COMMANDS = [
-  { id: 'search', slug: 'library', label: 'Open Library', desc: 'Search and manage papers', prefix: '/library ' },
-  { id: 'search-alias', slug: 'search', label: 'Search library', desc: 'Alias for Library', prefix: '/search ' },
-  { id: 'add', slug: 'add', label: 'Add from arXiv', desc: 'Fetch paper by URL or ID', prefix: '/add ' },
-  { id: 'upload', slug: 'upload', label: 'Upload PDF', desc: 'Add a local PDF file', prefix: null },
-  { id: 'help', slug: 'help', label: 'Help', desc: 'Keyboard shortcuts and bindings', prefix: null },
-  { id: 'howto', slug: 'howto', label: 'Supported inputs', desc: 'Command reference', prefix: null },
+  { id: 'dashboard', slug: 'dashboard', label: 'Dashboard', prefix: null },
+  { id: 'search', slug: 'library', label: 'Library', prefix: '/library ' },
+  { id: 'add', slug: 'add', label: 'Add from ArXiv', prefix: '/add ' },
+  { id: 'upload', slug: 'upload', label: 'Upload', prefix: null },
+  { id: 'backup', slug: 'backup', label: 'Backup library', desc: 'Save a local copy of the database', prefix: null },
+  { id: 'help', slug: 'help', label: 'Help', prefix: null },
 ]
 
 export default function Home({
@@ -54,42 +54,32 @@ export default function Home({
   const handledInitialArxivInputRef = useRef(null)
 
   const GREETINGS = [
-    <>What <em>papers</em> are we conquering today?</>,
-    <>Ready to fall down a <em>citation rabbit hole</em>?</>,
     <>Your brain is a <em>sponge</em>. Feed it papers.</>,
-    <>What <em>knowledge</em> shall we acquire today?</>,
-    <>Paste, search, or upload-<em>let&apos;s go</em>.</>,
-    <>Another day, another paper to add to the <em>pile</em>.</>,
-    <>Scientific curiosity: <em>activate</em>.</>,
-    <>What&apos;s on the <em>arXiv menu</em> today?</>,
-    <>Papers: long tweets with <em>footnotes</em>.</>,
-    <>Your future self will thank you for <em>reading this</em>.</>,
-    <>Can we stop adding more papers?</>,
+    <>Another day, another paper to the <em>pile</em>.</>,
+    <>Another one.</>,
     <>Really, you&apos;re back here again? What&apos;s wrong with you?</>,
     <>Your unread pile called. It&apos;s <em>thriving</em>.</>,
     <>Let&apos;s pretend this one won&apos;t become technical debt.</>,
     <>One more PDF. As a <em>treat</em>.</>,
-    <>The backlog was lonely. Bring it a friend.</>,
     <>Today&apos;s plan: skim boldly, understand eventually.</>,
     <>Drop the paper. We&apos;ll judge it together.</>,
     <>Another abstract to overestimate and under-read.</>,
-    <>Feed the library. Starve the delusion of free time.</>,
     <>Sure, add it. Future you can handle the consequences.</>,
-    <>Welcome back to the citation treadmill.</>,
-    <>A clean inbox is temporary. PDFs are forever.</>,
     <>Let&apos;s add the paper and call it progress.</>,
-    <>Your reading list has filed a complaint.</>,
-    <>Paste the arXiv link. Enable the problem.</>,
-    <>Research mode: maximum tabs, minimum closure.</>,
-    <>New paper? Bold of you to assume we finished the last one.</>,
+
+    <>Your reading list <em>{'>>>>>>'}</em> your friends list.</>,
+    <>New paper? Did you finish the last one?</>,
     <>Another paper enters. Your weekend leaves.</>,
-    <>Let&apos;s turn curiosity into a queue.</>,
-    <>The pile grows. The vibes remain peer-reviewed.</>,
-    <>Bold of you to open this instead of the last one.</>,
     <>Add it now, panic about the <em>related work</em> later.</>,
-    <>Ctrl+F won&apos;t save you, but go off.</>,
-    <>Another <em>seminal</em> paper you&apos;ll cite but never finish.</>,
-    <>Hoarding PDFs is basically a personality now.</>,
+    <>Hoarding PDFs is basically a personality now?</>,
+    <>Seriously? Can we stop and go touch some grass?</>,
+
+    <>Ah yes, more papers. That reading list won&apos;t <em>not</em> finish itself.</>,
+    <>Bold of you to add another one when your last paper is still at page 2.</>,
+    <>At this point you&apos;re just <em>collecting</em> PDFs like Pokémon.</>,
+    <>You&apos;re not going to read this one either, but sure.</>,
+    <>Citation count: impressive. Papers actually read: <em>we both know</em>.</>,
+
   ]
 
   const [greeting] = useState(() => {
@@ -198,8 +188,7 @@ export default function Home({
     return SLASH_COMMANDS.filter(
       (c) =>
         c.slug.startsWith(slashFilter) ||
-        c.label.toLowerCase().includes(slashFilter) ||
-        c.desc.toLowerCase().includes(slashFilter)
+        c.label.toLowerCase().includes(slashFilter)
     )
   }, [showSlashMenu, slashFilter])
 
@@ -223,7 +212,7 @@ export default function Home({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [showHowtoModal])
 
-  const applySlashCommand = (cmd) => {
+  const applySlashCommand = async (cmd) => {
     captureAction('home_slash_command', { route: 'home', command: cmd.id })
     if (cmd.id === 'upload') {
       fileInputRef.current?.click()
@@ -233,6 +222,24 @@ export default function Home({
     if (cmd.id === 'help') {
       setPage('help')
       setInput('')
+      return
+    }
+    if (cmd.id === 'dashboard') {
+      setPage('dashboard')
+      setInput('')
+      return
+    }
+    if (cmd.id === 'backup') {
+      setInput('')
+      setLoading(true)
+      try {
+        await axios.post('/api/backup')
+        addToast?.('Backup saved to ~/.papyrus/backups/', 'success')
+      } catch (err) {
+        addToast?.(err.response?.data?.error || 'Backup failed', 'error')
+      } finally {
+        setLoading(false)
+      }
       return
     }
     if (cmd.id === 'howto') {
@@ -345,6 +352,13 @@ export default function Home({
       return
     }
 
+    if (normalizedCmd === '/dashboard' || normalizedCmd === '/dash') {
+      setPage('dashboard')
+      setInput('')
+      setCurrentMode('normal')
+      return
+    }
+
     if (currentMode === 'search') {
       handleSearchLaunch(searchQuery)
       return
@@ -451,10 +465,13 @@ export default function Home({
       flexDirection: 'column',
       position: 'relative',
       overflow: 'hidden',
-      padding: '2rem'
+      padding: '2rem',
+      background: 'var(--background)'
     }}>
+      <div className="home-gradient-layer" />
+      <div className="home-grain" />
       <div
-        className={`greeting ${isFocused ? 'fade' : ''}`}
+        className={`greeting home-greeting-animated ${isFocused ? 'fade' : ''}`}
         style={{
           flex: 1,
           display: 'flex',
@@ -463,7 +480,9 @@ export default function Home({
           transition: 'opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
           opacity: isFocused ? 0.1 : 1,
           transform: isFocused ? 'scale(0.95)' : 'scale(1)',
-          pointerEvents: isFocused ? 'none' : 'auto'
+          pointerEvents: isFocused ? 'none' : 'auto',
+          position: 'relative',
+          zIndex: 2
         }}
       >
         <h1 style={{
@@ -479,9 +498,10 @@ export default function Home({
       </div>
 
       <div
-        className={`command-area ${isFocused ? 'focused' : ''}`}
+        className={`command-area home-bar-animated ${isFocused ? 'focused' : ''}`}
         style={{
           position: 'relative',
+          zIndex: 2,
           width: 'min(70%, 1280px)',
           alignSelf: 'center',
           transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), margin-bottom 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -632,10 +652,6 @@ export default function Home({
                   }}
                 >
                   <div className="text-sm font-medium leading-tight">{cmd.label}</div>
-                  <div
-                    className="text-xs mt-0.5 leading-snug"
-                    style={{ color: i === slashSelectedIndex ? 'color-mix(in srgb, var(--button-on-secondary) 68%, transparent)' : undefined }}
-                  >{cmd.desc}</div>
                 </button>
               ))
             )}

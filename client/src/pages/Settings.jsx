@@ -1,7 +1,47 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 
+function useBackup() {
+  const [status, setStatus] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState(null)
+  const [err, setErr] = useState(null)
+
+  const refresh = useCallback(async () => {
+    try {
+      const { data } = await axios.get('/api/backup/status')
+      setStatus(data)
+    } catch {}
+  }, [])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  const runBackup = async () => {
+    setErr(null); setMsg(null); setLoading(true)
+    try {
+      await axios.post('/api/backup')
+      setMsg('Backup saved.')
+      await refresh()
+    } catch (e) {
+      setErr(e.response?.data?.error || e.message)
+    } finally { setLoading(false) }
+  }
+
+  const saveInterval = async (days) => {
+    setErr(null); setMsg(null)
+    try {
+      await axios.patch('/api/backup/settings', { intervalDays: Number(days) })
+      await refresh()
+    } catch (e) {
+      setErr(e.response?.data?.error || e.message)
+    }
+  }
+
+  return { status, loading, msg, err, runBackup, saveInterval }
+}
+
 export default function Settings({ settings, setSettings, setPage }) {
+  const backup = useBackup()
   const [todoistMeta, setTodoistMeta] = useState(null)
   const [todoistToken, setTodoistToken] = useState('')
   const [todoistProjectId, setTodoistProjectId] = useState('')
@@ -211,6 +251,63 @@ export default function Settings({ settings, setSettings, setPage }) {
     <div className="mx-auto max-w-[800px] p-12 font-sans">
       <h1 className="mb-2 text-4xl font-serif text-foreground">Settings</h1>
       <p className="mb-10 text-sm text-muted">Tune your note-taking experience.</p>
+
+      <div className="claude-card p-8 mb-8">
+        <h2 className="text-lg font-semibold text-foreground mb-1">Backup</h2>
+        <p className="text-sm text-muted mb-6">
+          Saves a copy of <code className="text-xs font-mono px-1 rounded bg-surface border border-border">papyrus.db</code> to{' '}
+          <code className="text-xs font-mono px-1 rounded bg-surface border border-border">~/.papyrus/backups/</code>.
+          Up to 20 backups are kept; oldest are rotated out automatically.
+        </p>
+
+        <div className="space-y-5">
+          <div className="flex items-center justify-between bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all">
+            <div>
+              <div className="text-sm font-semibold text-foreground">Auto-backup interval</div>
+              <div className="text-sm text-muted mt-1">
+                {backup.status?.lastBackupAt
+                  ? `Last backup: ${new Date(backup.status.lastBackupAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                  : 'No backup yet'}
+                {backup.status?.backupCount > 0 && ` · ${backup.status.backupCount} saved`}
+              </div>
+            </div>
+            <select
+              value={backup.status?.intervalDays ?? 7}
+              onChange={(e) => backup.saveInterval(e.target.value)}
+              className="w-40 pl-3 pr-8 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer appearance-none shrink-0"
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='292.4' height='292.4'%3E%3Cpath fill='%23737373' d='M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.5-12.8z'/%3E%3C/svg%3E\")",
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'right 0.5rem top 50%',
+                backgroundSize: '0.5rem auto',
+              }}
+            >
+              <option value={0}>Never</option>
+              <option value={3}>Every 3 days</option>
+              <option value={7}>Every week</option>
+              <option value={14}>Every 2 weeks</option>
+              <option value={30}>Every month</option>
+            </select>
+          </div>
+
+          <div className="flex gap-3 items-center">
+            <button
+              type="button"
+              onClick={backup.runBackup}
+              disabled={backup.loading}
+              className="px-5 py-2.5 text-sm font-medium rounded-lg bg-secondary text-[var(--button-on-secondary)] hover:opacity-90 disabled:opacity-60"
+            >
+              {backup.loading ? 'Backing up…' : 'Back up now'}
+            </button>
+            {backup.status?.backupCount > 0 && (
+              <span className="text-xs text-muted font-mono">{backup.status.backupsDir}</span>
+            )}
+          </div>
+
+          {backup.msg && <p className="text-sm text-secondary">{backup.msg}</p>}
+          {backup.err && <p className="text-sm text-red-400">{backup.err}</p>}
+        </div>
+      </div>
 
       <div className="claude-card p-8 mb-8">
         <h2 className="text-lg font-semibold text-foreground mb-1">Todoist</h2>
