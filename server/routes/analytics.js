@@ -1,6 +1,7 @@
 import express from 'express';
 import { randomUUID } from 'crypto';
 import { getDB, scheduleSaveDB } from '../db.js';
+import { recordReadingHeartbeat } from '../readingSessions.js';
 
 const router = express.Router();
 const MAX_ANALYTICS_EVENTS = 10000;
@@ -96,6 +97,17 @@ router.post('/events', async (req, res) => {
     return res.status(201).json({ success: true, id: result.id });
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/reading-session', async (req, res) => {
+  try {
+    const db = await getDB();
+    const heartbeat = recordReadingHeartbeat(db, req.body);
+    scheduleSaveDB();
+    return res.status(202).json({ success: true, activeSeconds: heartbeat.activeSeconds });
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message });
   }
 });
 

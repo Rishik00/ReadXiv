@@ -1,5 +1,6 @@
 import express from 'express';
 import { getDB } from '../db.js';
+import { getReadingTimeTotals } from '../readingSessions.js';
 
 const router = express.Router();
 
@@ -18,15 +19,18 @@ function firstRow(result) {
 }
 
 function toIsoDate(date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function startOfLocalDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function buildDateWindow(days) {
-  const today = startOfLocalDay(new Date());
+export function buildDateWindow(days, now = new Date()) {
+  const today = startOfLocalDay(now);
   return Array.from({ length: days }, (_, idx) => {
     const date = new Date(today);
     date.setDate(today.getDate() - (days - 1 - idx));
@@ -34,7 +38,7 @@ function buildDateWindow(days) {
   });
 }
 
-function calculateStreaks(readsByDay) {
+export function calculateStreaks(readsByDay) {
   let longestStreak = 0;
   let running = 0;
   for (const day of readsByDay) {
@@ -59,7 +63,7 @@ router.get('/summary', async (req, res) => {
   try {
     const db = await getDB();
     const daysRaw = Number.parseInt(req.query.days, 10);
-    const days = Number.isFinite(daysRaw) ? Math.max(7, Math.min(daysRaw, 90)) : 30;
+    const days = Number.isFinite(daysRaw) ? Math.max(7, Math.min(daysRaw, 182)) : 30;
     const dates = buildDateWindow(days);
     const sinceDate = dates[0];
 
@@ -107,6 +111,8 @@ router.get('/summary', async (req, res) => {
            p.authors,
            p.year,
            p.status,
+           p.current_page,
+           p.total_pages,
            MAX(e.created_at) AS last_accessed_at
          FROM analytics_events e
          JOIN papers p ON p.id = e.paper_id
@@ -146,6 +152,18 @@ router.get('/summary', async (req, res) => {
          LIMIT 6`
       )
     );
+
+    const continuePaper = rowsToObjects(
+      db.exec(
+        `SELECT id, title, authors, year, status, current_page, total_pages, last_accessed_at
+         FROM papers
+         WHERE status = 'reading' OR COALESCE(current_page, 1) > 1
+         ORDER BY COALESCE(last_accessed_at, updated_at, created_at) DESC
+         LIMIT 1`
+      )
+    )[0] || recentReads[0] || null;
+
+    const readingTime = getReadingTimeTotals(db);
 
     // Paper of the day — deterministic by UTC day, excludes done papers
     const podCountRow = firstRow(db.exec(`SELECT COUNT(*) as c FROM papers WHERE status != 'done'`));
@@ -204,6 +222,8 @@ router.get('/summary', async (req, res) => {
         ...streaks,
         readsByDay,
       },
+      readingTime,
+      continuePaper,
       recentReads,
       momentum: {
         recentlyAdded,

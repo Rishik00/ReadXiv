@@ -35,6 +35,7 @@ import {
   getInstrumentationSessionId,
   startTimer,
 } from '../lib/instrumentation';
+import useReadingSession from '../lib/useReadingSession';
 
 const DEFAULT_SPLIT = 68;
 const PERF_FLAG = 'readxiv-perf';
@@ -469,6 +470,8 @@ const Reader = forwardRef(function Reader(
   const [foldedSections, setFoldedSections] = useState(new Set());
   const [pdfToolbarMetrics, setPdfToolbarMetrics] = useState(null);
   const [readerToolbarExpanded, setReaderToolbarExpanded] = useState(true);
+  const progressSaveTimerRef = useRef(null);
+  const lastReadingProgressRef = useRef(null);
   const [pageJumpMenuNonce, setPageJumpMenuNonce] = useState(0);
   const [paperReferences, setPaperReferences] = useState([]);
   const [referencesLoading, setReferencesLoading] = useState(false);
@@ -488,6 +491,26 @@ const Reader = forwardRef(function Reader(
   const benchmarkActiveRef = useRef(false);
   const notesTitleSyncRef = useRef(new Set());
   const paperId = useMemo(() => readerPaper?.id || paper?.id, [readerPaper?.id, paper?.id]);
+  useReadingSession(paperId);
+
+  const saveReadingProgress = useCallback(({ page, totalPages }) => {
+    if (!paperId) return;
+    lastReadingProgressRef.current = { page, totalPages };
+    if (progressSaveTimerRef.current) clearTimeout(progressSaveTimerRef.current);
+    progressSaveTimerRef.current = setTimeout(() => {
+      axios.put(`/api/papers/${encodeURIComponent(paperId)}/progress`, { page, totalPages }).catch(() => {});
+      progressSaveTimerRef.current = null;
+    }, 700);
+  }, [paperId]);
+
+  useEffect(() => () => {
+    if (!progressSaveTimerRef.current || !paperId || !lastReadingProgressRef.current) return;
+    clearTimeout(progressSaveTimerRef.current);
+    axios.put(
+      `/api/papers/${encodeURIComponent(paperId)}/progress`,
+      lastReadingProgressRef.current
+    ).catch(() => {});
+  }, [paperId]);
 
   useEffect(() => {
     perfLog('Reader commit', {
@@ -688,6 +711,7 @@ const Reader = forwardRef(function Reader(
   useEffect(() => {
     let mounted = true;
     let pollTimer = null;
+    let pollAttempts = 0;
     async function loadReaderData() {
       if (!paperId) return;
       const startedAt = startTimer();
@@ -710,16 +734,19 @@ const Reader = forwardRef(function Reader(
         setServerNotes(data.notes || '');
         setNotesStatus('saved');
         setBackgroundPdfLoading(Boolean(!data.hasPdf && data.status === 'loading'));
-        if (!data.hasPdf && data.status === 'loading') {
+        if ((!data.hasPdf && data.status === 'loading') || isPlaceholderPaperTitle(data)) {
           pollTimer = setInterval(async () => {
             try {
+              pollAttempts += 1;
               const { data: refreshed } = await axios.get(`/api/reader/${paperId}`, {
                 params: { brief: 1 },
               });
               if (!mounted) return;
               setReaderPaper((prev) => ({ ...prev, ...refreshed }));
               setBackgroundPdfLoading(Boolean(!refreshed.hasPdf && refreshed.status === 'loading'));
-              if (refreshed.hasPdf || refreshed.status !== 'loading') {
+              const pdfPreparationFinished = refreshed.hasPdf || refreshed.status !== 'loading';
+              const metadataPreparationFinished = !isPlaceholderPaperTitle(refreshed);
+              if ((pdfPreparationFinished && metadataPreparationFinished) || pollAttempts >= 60) {
                 clearInterval(pollTimer);
                 pollTimer = null;
               }
@@ -1216,6 +1243,8 @@ const Reader = forwardRef(function Reader(
                   paperTitle={readerPaper?.title}
                   continuousScroll={settings?.continuousScroll !== false}
                   defaultZoom={settings?.defaultPdfZoom ?? 'actual'}
+                  initialPage={readerPaper?.current_page || 1}
+                  onPageProgress={saveReadingProgress}
                   onInsertQuote={insertQuoteFromHighlight}
                   onSendToCanvas={onSendToCanvas}
                   onToolbarState={handleToolbarState}

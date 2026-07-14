@@ -3,6 +3,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { getDB, saveDB, PAPYRUS_DIR } from '../db.js';
 import { fetchReferencesFromSemanticScholar } from '../semanticScholarReferences.mjs';
+import { ensureArxivPaperReady } from './arxiv.js';
 
 async function resolvePdfPathForPaper(paper) {
   if (!paper?.id) return null;
@@ -125,6 +126,15 @@ router.get('/:id', async (req, res) => {
   try {
     const paper = await getPaperById(req.params.id);
     if (!paper) return res.status(404).json({ error: 'Paper not found' });
+    const pdfPath = await resolvePdfPathForPaper(paper);
+    const hasPlaceholderMetadata =
+      paper.title === `arXiv:${paper.id}` || !paper.authors || paper.authors === 'Unknown';
+    if (
+      paper.source === 'arxiv' &&
+      (hasPlaceholderMetadata || (!pdfPath && paper.status === 'loading'))
+    ) {
+      void ensureArxivPaperReady(paper.id);
+    }
 
     const brief =
       req.query.brief === '1' ||
@@ -132,7 +142,6 @@ router.get('/:id', async (req, res) => {
       req.query.light === '1';
 
     if (brief) {
-      const pdfPath = await resolvePdfPathForPaper(paper);
       return res.json({
         ...paper,
         hasPdf: Boolean(pdfPath),
@@ -145,7 +154,6 @@ router.get('/:id', async (req, res) => {
       ? await fs.readFile(notesPath, 'utf8')
       : buildDefaultNotesTemplate(paper);
 
-    const pdfPath = await resolvePdfPathForPaper(paper);
     return res.json({
       ...paper,
       notes,

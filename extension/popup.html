@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ReadXiv Capture</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="capture" aria-labelledby="capture-heading">
+      <header class="masthead">
+        <h1 id="capture-heading" class="wordmark">
+          <span class="wordmark-mark" aria-hidden="true">R/</span>
+          <span>ReadXiv quick capture</span>
+        </h1>
+      </header>
+
+      <section class="paper-slip">
+        <div class="paper-index" aria-hidden="true">
+          <span>AR</span>
+          <span id="paper-number">—</span>
+        </div>
+        <div class="paper-copy">
+          <h2 id="paper-title" class="paper-title">Reading the active tab…</h2>
+        </div>
+      </section>
+
+      <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+
+      <button id="add-button" class="add-button" type="button" disabled>
+        <span id="button-label">Add to library</span>
+        <span class="button-key" aria-hidden="true">↵</span>
+      </button>
+      <button id="visit-button" class="visit-button" type="button" hidden>Visit paper</button>
+    </main>
+
+    <script src="shared.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

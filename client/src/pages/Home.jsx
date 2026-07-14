@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import LatexText from '../components/LatexText'
+import EditorialLanding from '../components/EditorialLanding'
 import { captureAction, captureAppError, captureTiming, elapsedSince, startTimer } from '../lib/instrumentation'
 
 function isArxivInput(val) {
@@ -46,6 +47,12 @@ export default function Home({
   const [addQuery, setAddQuery] = useState('')
   const [previewQuery, setPreviewQuery] = useState('')
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
+  const [memoryPapers, setMemoryPapers] = useState([])
+  const [todayPapers, setTodayPapers] = useState([])
+  const [memorySelectedIndex, setMemorySelectedIndex] = useState(0)
+  const [liveResults, setLiveResults] = useState([])
+  const [liveSelectedIndex, setLiveSelectedIndex] = useState(0)
+  const [dashboardSummary, setDashboardSummary] = useState(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
   const slashMenuRef = useRef(null)
@@ -92,6 +99,91 @@ export default function Home({
   useEffect(() => () => {
     if (pollingRef.current) clearInterval(pollingRef.current)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      axios.get('/api/papers/recents', { params: { limit: 5 } }),
+      axios.get('/api/papers'),
+      axios.get('/api/dashboard/summary', { params: { days: 182 } }),
+    ])
+      .then(([recentsResponse, papersResponse, dashboardResponse]) => {
+        if (cancelled) return
+        const today = new Date().toISOString().slice(0, 10)
+        const papers = Array.isArray(papersResponse.data) ? papersResponse.data : []
+        setMemoryPapers(Array.isArray(recentsResponse.data) ? recentsResponse.data : [])
+        setTodayPapers(papers.filter((paper) => paper.scheduled_date === today))
+        setDashboardSummary(dashboardResponse.data)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  const continuePaper = useMemo(
+    () => memoryPapers.find((paper) => Number(paper.current_page) > 1 || paper.status === 'reading') || memoryPapers[0] || null,
+    [memoryPapers]
+  )
+  const recentlySaved = useMemo(
+    () => memoryPapers
+      .filter((paper) => paper.id !== continuePaper?.id && !todayPapers.some((todayPaper) => todayPaper.id === paper.id))
+      .slice(0, 3),
+    [memoryPapers, continuePaper?.id, todayPapers]
+  )
+  const memoryItems = useMemo(
+    () => {
+      const editorialContinue = dashboardSummary?.continuePaper || continuePaper
+      const editorialRecents = dashboardSummary?.momentum?.recentlyAdded?.slice(0, 4) || recentlySaved
+      return [editorialContinue, ...editorialRecents.filter((paper) => paper.id !== editorialContinue?.id)].filter(Boolean)
+    },
+    [continuePaper, dashboardSummary, recentlySaved]
+  )
+  const liveQuery = currentMode === 'normal' && !isArxivInput(input) && !input.trim().startsWith('/')
+    ? input.trim()
+    : ''
+
+  useEffect(() => {
+    if (liveQuery.length < 2) {
+      setLiveResults([])
+      setLiveSelectedIndex(0)
+      return undefined
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      axios.get('/api/search', { params: { q: liveQuery } })
+        .then(({ data }) => {
+          if (!cancelled) {
+            setLiveResults((Array.isArray(data) ? data : []).slice(0, 6))
+            setLiveSelectedIndex(0)
+          }
+        })
+        .catch(() => { if (!cancelled) setLiveResults([]) })
+    }, 180)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [liveQuery])
+
+  useEffect(() => {
+    if (isFocused || memoryItems.length === 0) return undefined
+    const onMemoryKeyDown = (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable) return
+      if (event.key === 'j' || event.key === 'ArrowDown') {
+        event.preventDefault()
+        setMemorySelectedIndex((index) => Math.min(index + 1, memoryItems.length - 1))
+      } else if (event.key === 'k' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        setMemorySelectedIndex((index) => Math.max(index - 1, 0))
+      } else if (event.key === 'Enter') {
+        event.preventDefault()
+        openPaper?.(memoryItems[memorySelectedIndex])
+      }
+    }
+    window.addEventListener('keydown', onMemoryKeyDown)
+    return () => window.removeEventListener('keydown', onMemoryKeyDown)
+  }, [isFocused, memoryItems, memorySelectedIndex, openPaper])
 
   useEffect(() => {
     if (!focusNonce) return
@@ -490,6 +582,8 @@ export default function Home({
           fontWeight: 400,
           fontFamily: 'var(--font-sans)',
           textAlign: 'center',
+          width: 'min(24ch, 100%)',
+          lineHeight: 1.05,
           margin: 0,
           color: 'var(--foreground)'
         }}>
@@ -497,19 +591,52 @@ export default function Home({
         </h1>
       </div>
 
+      <EditorialLanding
+        summary={dashboardSummary}
+        fallbackContinue={continuePaper}
+        fallbackRecents={recentlySaved}
+        openPaper={openPaper}
+        dimmed={isFocused}
+        selectedPaperId={memoryItems[memorySelectedIndex]?.id}
+        onPaperHover={(paperId) => {
+          const index = memoryItems.findIndex((paper) => paper.id === paperId)
+          if (index >= 0) setMemorySelectedIndex(index)
+        }}
+      />
+
       <div
         className={`command-area home-bar-animated ${isFocused ? 'focused' : ''}`}
         style={{
           position: 'relative',
           zIndex: 2,
-          width: 'min(70%, 1280px)',
+          width: 'min(760px, 100%)',
           alignSelf: 'center',
           transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), margin-bottom 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
           transform: isFocused ? 'translateY(-6px)' : 'translateY(0)',
-          height: '76px',
+          height: '66px',
           marginBottom: isFocused ? '0.75rem' : '2rem'
         }}
       >
+        {liveQuery && (
+          <div className="home-editorial-search-results" role="listbox" aria-label="Library results">
+            <span className="home-memory-label">Library results</span>
+            {liveResults.length > 0 ? liveResults.map((paper, index) => (
+              <button
+                key={paper.id}
+                type="button"
+                role="option"
+                aria-selected={liveSelectedIndex === index}
+                className={liveSelectedIndex === index ? 'is-selected' : ''}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setLiveSelectedIndex(index)}
+                onClick={() => openPaper?.(paper)}
+              >
+                <span>{paper.title || paper.id}</span>
+                <small>{[paper.year, paper.authors].filter(Boolean).join(' · ') || paper.id}</small>
+              </button>
+            )) : <span className="home-editorial-no-results">No matching papers</span>}
+          </div>
+        )}
         <form onSubmit={handleSubmit} style={{ position: 'relative', height: '100%' }}>
           <div style={{
             display: 'flex',
@@ -553,6 +680,23 @@ export default function Home({
                 }
               }}
               onKeyDown={(e) => {
+                if (liveQuery && liveResults.length > 0) {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault()
+                    setLiveSelectedIndex((index) => Math.min(index + 1, liveResults.length - 1))
+                    return
+                  }
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault()
+                    setLiveSelectedIndex((index) => Math.max(index - 1, 0))
+                    return
+                  }
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    openPaper?.(liveResults[liveSelectedIndex])
+                    return
+                  }
+                }
                 if (currentMode === 'normal' && showSlashMenu && filteredSlashCommands.length > 0) {
                   if (e.key === 'ArrowDown') {
                     e.preventDefault()

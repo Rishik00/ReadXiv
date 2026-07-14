@@ -306,6 +306,31 @@ router.post('/:id/access', async (req, res) => {
   }
 });
 
+router.put('/:id/progress', async (req, res) => {
+  try {
+    const page = Math.max(1, Number.parseInt(req.body?.page, 10) || 1);
+    const totalPagesRaw = Number.parseInt(req.body?.totalPages, 10);
+    const totalPages = Number.isFinite(totalPagesRaw) ? Math.max(page, totalPagesRaw) : null;
+    const db = await getDB();
+    db.run(
+      `UPDATE papers
+       SET current_page = ?, total_pages = COALESCE(?, total_pages),
+           last_read_at = datetime('now'), last_accessed_at = datetime('now'),
+           updated_at = datetime('now')
+       WHERE id = ?`,
+      [page, totalPages, req.params.id]
+    );
+    saveDB();
+    const result = db.exec('SELECT * FROM papers WHERE id = ?', [req.params.id]);
+    if (result.length === 0 || result[0].values.length === 0) {
+      return res.status(404).json({ error: 'Paper not found' });
+    }
+    return res.json(rowToObject(result[0].values[0], result[0].columns));
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // Fetch arXiv metadata for placeholder or incomplete papers.
 router.post('/:id/fetch-metadata', async (req, res) => {
   try {

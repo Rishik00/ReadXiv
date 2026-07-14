@@ -16,6 +16,7 @@ import semanticScholarSettingsRouter from './routes/semanticScholarSettings.js';
 import analyticsRouter from './routes/analytics.js';
 import dashboardRouter from './routes/dashboard.js';
 import backupRouter from './routes/backup.js';
+import publishRouter from './routes/publish.js';
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientDistPath = path.resolve(__dirname, '../client/dist');
@@ -55,6 +56,7 @@ app.use('/api/semantic-scholar', semanticScholarSettingsRouter);
 app.use('/api/instrumentation', analyticsRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/backup', backupRouter);
+app.use('/api/publish', publishRouter);
 
 // Health check
 app.get('/health', (req, res) => {

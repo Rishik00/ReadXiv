@@ -18,6 +18,7 @@ const METADATA_CACHE_MAX_ENTRIES = 100;
 const S2_BASE = 'https://api.semanticscholar.org/graph/v1';
 const metadataCache = new Map();
 const metadataRequests = new Map();
+const paperPreparationRequests = new Map();
 let lastArxivApiRequestAt = 0;
 let arxivRateLimitedUntil = 0;
 let arxivApiQueue = Promise.resolve();
@@ -267,6 +268,102 @@ function rowToObject(row, columns) {
   return obj;
 }
 
+async function hasReadablePdf(pdfPath) {
+  if (!pdfPath || !(await fs.pathExists(pdfPath))) return false;
+  const stat = await fs.stat(pdfPath);
+  return stat.size > 0;
+}
+
+async function syncPlaceholderNoteTitle(arxivId, title) {
+  if (!title || title === `arXiv:${arxivId}`) return;
+  const notesPath = path.join(PAPYRUS_DIR, 'notes', `${arxivId}.md`);
+  if (!(await fs.pathExists(notesPath))) return;
+  const notes = await fs.readFile(notesPath, 'utf8');
+  if (notes.trim() !== `# arXiv:${arxivId}`) return;
+  await fs.writeFile(notesPath, `# ${title}\n\n`, 'utf8');
+}
+
+async function preparePaperMetadata(arxivId, paper) {
+  const isPlaceholder = !paper.title || paper.title === `arXiv:${arxivId}`;
+  const needsMetadata = isPlaceholder || !paper.abstract || !paper.authors || paper.authors === 'Unknown';
+  if (!needsMetadata) return;
+
+  const metadata = await fetchArxivMetadata(arxivId, 3);
+  const title = metadata.title && metadata.title !== `arXiv:${arxivId}`
+    ? metadata.title
+    : paper.title;
+  const db = await getDB();
+  db.run(
+    `UPDATE papers
+     SET title = ?, authors = ?, abstract = ?, year = ?, updated_at = datetime('now')
+     WHERE id = ?`,
+    [
+      title,
+      metadata.authors || paper.authors,
+      metadata.abstract || paper.abstract,
+      metadata.year || paper.year,
+      arxivId,
+    ]
+  );
+  saveDB();
+  await syncPlaceholderNoteTitle(arxivId, title);
+}
+
+async function preparePaperPdf(arxivId, paper) {
+  const plannedPath = paper.pdf_path || path.join(PAPYRUS_DIR, 'pdfs', `${arxivId}.pdf`);
+  const db = await getDB();
+
+  if (await hasReadablePdf(plannedPath)) {
+    db.run(
+      "UPDATE papers SET pdf_path = ?, status = 'queued', updated_at = datetime('now') WHERE id = ?",
+      [plannedPath, arxivId]
+    );
+    saveDB();
+    return;
+  }
+
+  db.run("UPDATE papers SET status = 'loading', updated_at = datetime('now') WHERE id = ?", [arxivId]);
+  saveDB();
+  try {
+    const { pdfPath, pdfUrl } = await downloadPDF(arxivId);
+    const updatedDb = await getDB();
+    updatedDb.run(
+      "UPDATE papers SET pdf_path = ?, pdf_url = ?, status = 'queued', updated_at = datetime('now') WHERE id = ?",
+      [pdfPath, pdfUrl, arxivId]
+    );
+    saveDB();
+  } catch (error) {
+    const failedDb = await getDB();
+    failedDb.run("UPDATE papers SET status = 'error', updated_at = datetime('now') WHERE id = ?", [arxivId]);
+    saveDB();
+    throw error;
+  }
+}
+
+export function ensureArxivPaperReady(arxivId) {
+  if (paperPreparationRequests.has(arxivId)) return paperPreparationRequests.get(arxivId);
+
+  const request = (async () => {
+    const db = await getDB();
+    const result = db.exec('SELECT * FROM papers WHERE id = ?', [arxivId]);
+    if (result.length === 0 || result[0].values.length === 0) return;
+    const paper = rowToObject(result[0].values[0], result[0].columns);
+    const [metadataResult, pdfResult] = await Promise.allSettled([
+      preparePaperMetadata(arxivId, paper),
+      preparePaperPdf(arxivId, paper),
+    ]);
+    if (metadataResult.status === 'rejected') {
+      console.warn(`Background metadata fetch failed for ${arxivId}:`, metadataResult.reason?.message || metadataResult.reason);
+    }
+    if (pdfResult.status === 'rejected') {
+      console.error(`Background PDF download failed for ${arxivId}:`, pdfResult.reason?.message || pdfResult.reason);
+    }
+  })().finally(() => paperPreparationRequests.delete(arxivId));
+
+  paperPreparationRequests.set(arxivId, request);
+  return request;
+}
+
 // Preview metadata only (no DB write) - for search bar lip
 router.get('/preview', async (req, res) => {
   return res.status(503).json({
@@ -296,6 +393,7 @@ router.post('/add', async (req, res) => {
     if (existingResult.length > 0 && existingResult[0].values.length > 0) {
       const columns = existingResult[0].columns;
       const existing = Object.fromEntries(columns.map((col, i) => [col, existingResult[0].values[0][i]]));
+      void ensureArxivPaperReady(arxivId);
       return res.json({ ...existing, alreadyExists: true });
     }
     
@@ -339,27 +437,9 @@ router.post('/add', async (req, res) => {
     const result = database.exec('SELECT * FROM papers WHERE id = ?', [arxivId]);
     const paper = rowToObject(result[0].values[0], result[0].columns);
 
-    // Fire-and-forget PDF download in the background. Metadata is already
-    // committed above, so PDF failures do not corrupt list/search data.
-    void (async () => {
-      try {
-        const { pdfPath, pdfUrl } = await downloadPDF(arxivId);
-        const db = await getDB();
-        db.run(
-          "UPDATE papers SET pdf_path = ?, pdf_url = ?, status = 'queued', updated_at = datetime('now') WHERE id = ?",
-          [pdfPath, pdfUrl, arxivId]
-        );
-        saveDB();
-      } catch (downloadError) {
-        const db = await getDB();
-        db.run(
-          "UPDATE papers SET status = 'error', updated_at = datetime('now') WHERE id = ?",
-          [arxivId]
-        );
-        saveDB();
-        console.error('Background PDF download failed:', downloadError);
-      }
-    })();
+    // Metadata and PDF preparation continue after the capture response. The
+    // same coordinator can safely resume interrupted work on a later open/add.
+    void ensureArxivPaperReady(arxivId);
 
     res.status(202).json({ ...paper, loadingInBackground: true });
   } catch (error) {

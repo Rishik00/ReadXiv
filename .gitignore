@@ -12,6 +12,12 @@ library design/
 # Environment
 .env
 .env.local
+*_ideas.md
+questions.md
+features.md
+ideas.md
+design_prototypes
+
 
 # Database
 *.db

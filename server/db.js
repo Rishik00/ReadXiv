@@ -80,6 +80,17 @@ export async function initDB() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS reading_sessions (
+      id TEXT PRIMARY KEY,
+      paper_id TEXT NOT NULL REFERENCES papers(id),
+      session_id TEXT NOT NULL,
+      active_seconds INTEGER NOT NULL DEFAULT 0,
+      started_at TEXT NOT NULL,
+      ended_at TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_papers_status ON papers(status);
     CREATE INDEX IF NOT EXISTS idx_papers_created ON papers(created_at);
     CREATE INDEX IF NOT EXISTS idx_highlights_paper ON highlights(paper_id);
@@ -87,6 +98,8 @@ export async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_analytics_route ON analytics_events(route);
     CREATE INDEX IF NOT EXISTS idx_analytics_paper ON analytics_events(paper_id);
     CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_reading_sessions_paper ON reading_sessions(paper_id);
+    CREATE INDEX IF NOT EXISTS idx_reading_sessions_updated ON reading_sessions(updated_at);
   `);
 
   // Lightweight migration for existing DBs that were created before
@@ -113,6 +126,27 @@ export async function initDB() {
   }
   if (!papersCols.includes('citation_count')) {
     db.run('ALTER TABLE papers ADD COLUMN citation_count INTEGER');
+  }
+  if (!papersCols.includes('current_page')) {
+    db.run('ALTER TABLE papers ADD COLUMN current_page INTEGER DEFAULT 1');
+  }
+  if (!papersCols.includes('total_pages')) {
+    db.run('ALTER TABLE papers ADD COLUMN total_pages INTEGER');
+  }
+  if (!papersCols.includes('last_read_at')) {
+    db.run('ALTER TABLE papers ADD COLUMN last_read_at TEXT');
+  }
+  if (!papersCols.includes('note_file_path')) {
+    db.run('ALTER TABLE papers ADD COLUMN note_file_path TEXT');
+  }
+  if (!papersCols.includes('published_at')) {
+    db.run('ALTER TABLE papers ADD COLUMN published_at TEXT');
+  }
+  if (!papersCols.includes('published_url')) {
+    db.run('ALTER TABLE papers ADD COLUMN published_url TEXT');
+  }
+  if (!papersCols.includes('published_hash')) {
+    db.run('ALTER TABLE papers ADD COLUMN published_hash TEXT');
   }
   if (!papersCols.includes('page_count')) {
     db.run('ALTER TABLE papers ADD COLUMN page_count INTEGER');

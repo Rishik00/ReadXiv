@@ -1,9 +1,33 @@
-import { useEffect, useState } from 'react'
-import { Tldraw } from 'tldraw'
+import { useEffect, useRef, useState } from 'react'
+import { createShapeId, Tldraw, toRichText } from 'tldraw'
 import 'tldraw/tldraw.css'
 
-function GlobalCanvas({ open, onClose }) {
+function GlobalCanvas({ open, onClose, pendingSource, onSourceConsumed, onOpenSource }) {
   const [pendingLeader, setPendingLeader] = useState(false)
+  const [editor, setEditor] = useState(null)
+  const [selectedSource, setSelectedSource] = useState(null)
+  const selectionCleanupRef = useRef(null)
+
+  useEffect(() => () => selectionCleanupRef.current?.(), [])
+
+  useEffect(() => {
+    if (!open || !editor || !pendingSource?.paperId) return
+    const bounds = editor.getViewportPageBounds()
+    const shapeId = createShapeId()
+    editor.createShape({
+      id: shapeId,
+      type: 'note',
+      x: bounds.center.x - 110,
+      y: bounds.center.y - 110,
+      props: {
+        color: 'yellow',
+        richText: toRichText(`${pendingSource.paperTitle}\n\nPage ${pendingSource.page}`),
+      },
+      meta: { readxivSource: pendingSource },
+    })
+    editor.select(shapeId)
+    onSourceConsumed?.()
+  }, [editor, onSourceConsumed, open, pendingSource])
 
   useEffect(() => {
     if (!open) return
@@ -70,12 +94,31 @@ function GlobalCanvas({ open, onClose }) {
           Leader... (h = home)
         </div>
       )}
+      {selectedSource && (
+        <button
+          type="button"
+          onClick={() => onOpenSource?.(selectedSource)}
+          className="absolute bottom-20 right-4 z-[101] px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium transition-colors border border-neutral-600 shadow-lg"
+        >
+          Open {selectedSource.paperTitle || 'source'} · p. {selectedSource.page}
+        </button>
+      )}
       <div className="w-full h-full">
         <Tldraw
           persistenceKey="readxiv-global-canvas"
           forceMobile={false}
           onMount={(editor) => {
             editor.user.updateUserPreferences({ colorScheme: 'dark' })
+            setEditor(editor)
+            selectionCleanupRef.current?.()
+            const updateSelectedSource = () => {
+              const source = editor.getSelectedShapes()
+                .map((shape) => shape.meta?.readxivSource)
+                .find(Boolean)
+              setSelectedSource(source || null)
+            }
+            updateSelectedSource()
+            selectionCleanupRef.current = editor.store.listen(updateSelectedSource)
           }}
         />
       </div>

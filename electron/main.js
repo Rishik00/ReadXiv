@@ -81,9 +81,17 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-ipcMain.on('notification-show', (_, { title, body }) => {
+ipcMain.on('notification-show', (_, { title, body, data }) => {
   if (Notification.isSupported()) {
-    new Notification({ title, body }).show();
+    const notification = new Notification({ title, body });
+    notification.on('click', () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('notification-activated', data || {});
+    });
+    notification.show();
   }
 });
 

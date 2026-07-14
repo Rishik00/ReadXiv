@@ -9,6 +9,7 @@ import GlobalSearchPalette from './components/GlobalSearchPalette'
 import RecentPapersFinder from './components/RecentPapersFinder'
 import Home from './pages/Home'
 import Settings from './pages/Settings'
+import { notificationsSupported, showNotification } from './lib/notifications'
 import Help from './pages/Help'
 import {
   captureAction,
@@ -51,6 +52,10 @@ function isLibraryPath(pathname) {
   return pathname === '/library' || pathname === '/library/' || pathname === '/search' || pathname === '/search/'
 }
 
+function isDashboardPath(pathname) {
+  return pathname === '/dashboard' || pathname === '/dashboard/'
+}
+
 function getTabTitle(url) {
   try {
     const u = new URL(url)
@@ -74,6 +79,11 @@ function App() {
   const [page, setPage] = useState('home')
   const [selectedPaper, setSelectedPaper] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchWorkspaceState, setSearchWorkspaceState] = useState({
+    query: '',
+    currentPage: 1,
+    selectedPaperId: null,
+  })
   const [homeFocusNonce, setHomeFocusNonce] = useState(0)
   const [homeArxivInput, setHomeArxivInput] = useState(null)
   const [initialRouteResolved, setInitialRouteResolved] = useState(false)
@@ -83,6 +93,7 @@ function App() {
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [recentsOpen, setRecentsOpen] = useState(false)
   const [canvasOpen, setCanvasOpen] = useState(false)
+  const [pendingCanvasSource, setPendingCanvasSource] = useState(null)
   const [pendingG, setPendingG] = useState(false)
   const readerRef = useRef(null)
   /** Mirror chord flags so the next key is recognized before React re-renders (fixes Space then o). */
@@ -108,6 +119,7 @@ function App() {
   const VALID_THEMES = ['monochrome', 'blue', 'noir', 'olive', 'mist', 'plum', 'periwinkle', 'lichen', 'cinder']
   const VALID_PDF_ZOOMS = ['actual', 'page-width', 'page-fit', 'auto']
   const VALID_READER_VIEWS = ['split', 'pdf', 'notes']
+  const VALID_NOTES_FONTS = ['current', 'source-sans-3', 'atkinson-hyperlegible']
 
   // Teach Me: what does UseState do? 
   // Question: why is this so big? What is this doing? because this is hardly readable for me. 
@@ -118,6 +130,7 @@ function App() {
         continuousScroll: true,
         theme: DEFAULT_THEME,
         fontFamily: 'brutalist',
+        notesFontFamily: 'current',
         homeLayout: 'list',
         defaultPdfZoom: DEFAULT_PDF_ZOOM,
         defaultReaderView: DEFAULT_READER_VIEW,
@@ -138,6 +151,9 @@ function App() {
       const defaultReaderView = VALID_READER_VIEWS.includes(currentSettings.defaultReaderView)
         ? currentSettings.defaultReaderView
         : DEFAULT_READER_VIEW
+      const notesFontFamily = VALID_NOTES_FONTS.includes(currentSettings.notesFontFamily)
+        ? currentSettings.notesFontFamily
+        : 'current'
       delete currentSettings['live' + 'MarkdownPreview']
       return {
         continuousScroll: true,
@@ -146,12 +162,14 @@ function App() {
         theme,
         defaultPdfZoom,
         defaultReaderView,
+        notesFontFamily,
       }
     } catch {
       return {
         continuousScroll: true,
         theme: DEFAULT_THEME,
         fontFamily: 'brutalist',
+        notesFontFamily: 'current',
         homeLayout: 'list',
         defaultPdfZoom: DEFAULT_PDF_ZOOM,
         defaultReaderView: DEFAULT_READER_VIEW,
@@ -189,7 +207,48 @@ function App() {
     // Apply theme variables to document element
     document.documentElement.setAttribute('data-theme', settings.theme || DEFAULT_THEME)
     document.documentElement.setAttribute('data-font', settings.fontFamily || 'brutalist')
+    document.documentElement.setAttribute('data-notes-font', settings.notesFontFamily || 'current')
   }, [settings])
+
+  useEffect(() => {
+    if (!notificationsSupported()) return undefined
+    const storageKey = 'readxiv-last-reading-reminder'
+    const checkReminders = async () => {
+      try {
+        const { data } = await axios.get('/api/papers')
+        const papers = Array.isArray(data) ? data : data?.items || []
+        if (!papers.length) return
+        const today = new Date().toISOString().slice(0, 10)
+        const committed = papers
+          .filter((paper) => paper.scheduled_date === today)
+          .sort((a, b) => String(b.last_accessed_at || '').localeCompare(String(a.last_accessed_at || '')))[0]
+        const ambient = papers
+          .filter((paper) => paper.status === 'reading' || Number(paper.current_page) > 1)
+          .sort((a, b) => String(b.last_accessed_at || '').localeCompare(String(a.last_accessed_at || '')))[0]
+        const candidate = committed || ambient
+        if (!candidate) return
+        const last = Number(localStorage.getItem(storageKey) || 0)
+        const interval = committed ? 90 * 60 * 1000 : 5 * 60 * 60 * 1000
+        if (!last) {
+          localStorage.setItem(storageKey, String(Date.now()))
+          return
+        }
+        if (Date.now() - last < interval) return
+        const page = Number(candidate.current_page) > 1 ? ` at page ${candidate.current_page}` : ''
+        showNotification(
+          committed ? 'You left this for today' : 'Your reading is still here',
+          `${candidate.title || candidate.id}${page}`,
+          { paperId: candidate.id, page: Number(candidate.current_page) || 1 }
+        )
+        localStorage.setItem(storageKey, String(Date.now()))
+      } catch {
+        // Reminders are best-effort and should never interrupt reading.
+      }
+    }
+    checkReminders()
+    const timer = setInterval(checkReminders, 60 * 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     if (!window.electron?.onOpenExternalTab) return
@@ -406,10 +465,11 @@ function App() {
   }, [])
 
   const openPaperById = useCallback(
-    async (id) => {
+    async (id, { page: requestedPage } = {}) => {
       try {
         const { data } = await axios.get(`/api/papers/${encodeURIComponent(id)}`)
-        openPaper(data)
+        const page = Number(requestedPage)
+        openPaper(Number.isFinite(page) && page > 0 ? { ...data, current_page: page } : data)
         return true
       } catch (e) {
         addToast(e.response?.status === 404 ? 'Paper not found' : 'Could not open paper', 'error')
@@ -421,6 +481,19 @@ function App() {
     },
     [addToast, openPaper]
   )
+
+  useEffect(() => {
+    const openFromNotification = (payload = {}) => {
+      if (payload.paperId) openPaperById(payload.paperId, { page: payload.page })
+    }
+    const unsubscribeElectron = window.electron?.onNotificationActivated?.(openFromNotification)
+    const onBrowserNotification = (event) => openFromNotification(event.detail)
+    window.addEventListener('readxiv-notification-activated', onBrowserNotification)
+    return () => {
+      unsubscribeElectron?.()
+      window.removeEventListener('readxiv-notification-activated', onBrowserNotification)
+    }
+  }, [openPaperById])
 
   useEffect(() => {
     let cancelled = false
@@ -441,6 +514,8 @@ function App() {
       if (isLibraryPath(window.location.pathname)) {
         setPage('search')
         setSearchFocusNonce((n) => n + 1)
+      } else if (isDashboardPath(window.location.pathname)) {
+        setPage('dashboard')
       }
       setInitialRouteResolved(true)
     }
@@ -467,6 +542,11 @@ function App() {
             setPage('search')
             setSelectedPaper(null)
             setSearchFocusNonce((n) => n + 1)
+          })
+        } else if (isDashboardPath(window.location.pathname)) {
+          runWithViewTransition(() => {
+            setPage('dashboard')
+            setSelectedPaper(null)
           })
         } else {
           runWithViewTransition(() => {
@@ -497,6 +577,12 @@ function App() {
       } else if (window.location.pathname.startsWith('/search')) {
         window.history.replaceState({ readxiv: 'library' }, '', '/library')
       }
+    } else if (page === 'dashboard') {
+      if (!isDashboardPath(window.location.pathname)) {
+        window.history.pushState({ readxiv: 'dashboard' }, '', '/dashboard')
+      }
+    } else if (page === 'home' && isDashboardPath(window.location.pathname)) {
+      window.history.replaceState(null, '', '/')
     } else if (page === 'home' && parseArxivDeepLink(window.location.pathname)) {
       window.history.replaceState(null, '', '/')
     } else if (page !== 'reader' && window.location.pathname.startsWith('/p/')) {
@@ -686,6 +772,8 @@ function App() {
                 setPage={navigateTo}
                 openPaper={openPaper}
                 addToast={addToast}
+                workspaceState={searchWorkspaceState}
+                onWorkspaceStateChange={setSearchWorkspaceState}
               />
             </Suspense>
           )}
@@ -707,7 +795,15 @@ function App() {
                 initialTab={readerInitialTab}
                 addToast={addToast}
                 onSendToCanvas={(imageData) => {
-                  addToast(`Page ${imageData.page} copied to clipboard`)
+                  setPendingCanvasSource({
+                    sourceType: 'pdf-page',
+                    paperId: selectedPaper?.id,
+                    paperTitle: selectedPaper?.title || selectedPaper?.id,
+                    page: imageData.page,
+                    collectedAt: new Date().toISOString(),
+                  })
+                  setCanvasOpen(true)
+                  addToast(`Page ${imageData.page} added to Canvas`, 'success')
                 }}
               />
             </Suspense>
@@ -774,6 +870,12 @@ function App() {
           <GlobalCanvas
             open
             onClose={() => setCanvasOpen(false)}
+            pendingSource={pendingCanvasSource}
+            onSourceConsumed={() => setPendingCanvasSource(null)}
+            onOpenSource={(source) => {
+              setCanvasOpen(false)
+              if (source?.paperId) openPaperById(source.paperId, { page: source.page })
+            }}
           />
         </Suspense>
       )}

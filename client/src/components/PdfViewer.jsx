@@ -42,6 +42,8 @@ const PdfViewer = forwardRef(function PdfViewer(
     paperTitle,
     continuousScroll = true,
     defaultZoom = 'actual',
+    initialPage = 1,
+    onPageProgress,
     onInsertQuote,
     onSendToCanvas,
     onToolbarState,
@@ -62,6 +64,7 @@ const PdfViewer = forwardRef(function PdfViewer(
   const findQueryRef = useRef('');
   const defaultZoomRef = useRef(normalizeZoomPreset(defaultZoom));
   const highlightsRef = useRef([]);
+  const initialPageRef = useRef(Math.max(1, Number(initialPage) || 1));
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -156,8 +159,13 @@ const PdfViewer = forwardRef(function PdfViewer(
     const onPagesInit = () => {
       pdfViewer.scrollMode = continuousScroll ? ScrollMode.VERTICAL : ScrollMode.PAGE;
       applyDefaultZoom();
+      const target = clamp(initialPageRef.current, 1, pdfDocumentRef.current?.numPages || 1);
+      if (target > 1) pdfViewer.currentPageNumber = target;
     };
-    const onPageChanging = ({ pageNumber }) => setPage(pageNumber);
+    const onPageChanging = ({ pageNumber }) => {
+      setPage(pageNumber);
+      onPageProgress?.({ page: pageNumber, totalPages: pdfDocumentRef.current?.numPages || 0 });
+    };
     const onScaleChanging = ({ scale: nextScale }) => setScale(nextScale || pdfViewer.currentScale || 1);
     const onPageRendered = () => renderHighlightOverlays();
     const onFindState = ({ state, matchesCount }) => {
@@ -250,7 +258,7 @@ const PdfViewer = forwardRef(function PdfViewer(
       findControllerRef.current = null;
       eventBusRef.current = null;
     };
-  }, [pdfUrl, continuousScroll]);
+  }, [pdfUrl, continuousScroll, onPageProgress]);
 
   useEffect(() => {
     onToolbarState?.({

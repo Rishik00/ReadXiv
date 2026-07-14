@@ -40,7 +40,7 @@ function useBackup() {
   return { status, loading, msg, err, runBackup, saveInterval }
 }
 
-export default function Settings({ settings, setSettings, setPage }) {
+export default function Settings({ settings, setSettings, setPage, addToast }) {
   const backup = useBackup()
   const [todoistMeta, setTodoistMeta] = useState(null)
   const [todoistToken, setTodoistToken] = useState('')
@@ -521,6 +521,26 @@ export default function Settings({ settings, setSettings, setPage }) {
                     {theme.name}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between gap-6 bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all">
+              <div>
+                <div className="text-sm font-semibold text-foreground">Notes font</div>
+                <div className="text-sm text-muted mt-1">Typeface used while writing and reading notes</div>
+              </div>
+              <select
+                aria-label="Notes font"
+                value={settings.notesFontFamily || 'current'}
+                onChange={(event) => {
+                  setSettings((prev) => ({ ...prev, notesFontFamily: event.target.value }))
+                  addToast?.('font changed', 'success')
+                }}
+                className="w-52 pl-3 pr-8 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer shrink-0"
+              >
+                <option value="current">Current (default)</option>
+                <option value="source-sans-3">Source Sans 3</option>
+                <option value="atkinson-hyperlegible">Atkinson Hyperlegible</option>
               </select>
             </div>
 

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import TodoistTaskModal, { paperHasTodoistTask } from '../components/TodoistTaskModal'
 import { captureAction, captureAppError, captureTiming, elapsedSince, startTimer } from '../lib/instrumentation'
+import { requestNotificationPermission } from '../lib/notifications'
 
 function getStatusColor(status) {
   switch (status) {
@@ -57,13 +58,15 @@ export default function SearchWorkbench({
   setPage,
   openPaper,
   addToast,
+  workspaceState,
+  onWorkspaceStateChange,
 }) {
   // Question: Why do we have these many UseState calls? why are we going to track the state of all of these things? 
-  const [query, setQuery] = useState(initialQuery)
+  const [query, setQuery] = useState(workspaceState?.query ?? initialQuery)
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(workspaceState?.currentPage || 1)
   const [total, setTotal] = useState(0)
   const [pageSize] = useState(10)
   const [totalPages, setTotalPages] = useState(1)
@@ -77,6 +80,8 @@ export default function SearchWorkbench({
   const [metadataEditPaper, setMetadataEditPaper] = useState(null)
   const [metadataDraft, setMetadataDraft] = useState({ title: '', authors: '', abstract: '' })
   const [metadataSaving, setMetadataSaving] = useState(false)
+  const [publication, setPublication] = useState(null)
+  const [publicationLoading, setPublicationLoading] = useState(false)
   const inputRef = useRef(null)
   const listRef = useRef(null)
   const stackPaneRef = useRef(null)
@@ -84,11 +89,92 @@ export default function SearchWorkbench({
   const dosBodyRef = useRef(null)
   const prevPaperIdRef = useRef(null)
   const pageBarRef = useRef(null)
+  const selectedPaper = results[selectedIndex] || null
 
   useEffect(() => {
+    if (!selectedPaper?.id || !actionsOpen) {
+      return undefined
+    }
+    let cancelled = false
+    setPublicationLoading(true)
+    axios.get(`/api/publish/${encodeURIComponent(selectedPaper.id)}`)
+      .then(({ data }) => { if (!cancelled) setPublication(data) })
+      .catch(() => { if (!cancelled) setPublication(null) })
+      .finally(() => { if (!cancelled) setPublicationLoading(false) })
+    return () => { cancelled = true }
+  }, [selectedPaper?.id, actionsOpen])
+
+  const handlePublishNotes = async () => {
+    if (!selectedPaper?.id || publicationLoading) return
+    setPublicationLoading(true)
+    try {
+      const { data } = await axios.post(`/api/publish/${encodeURIComponent(selectedPaper.id)}`)
+      setPublication(data)
+      addToast?.(data.message || 'Published', data.unchanged ? 'info' : 'success')
+    } catch (error) {
+      const message = error.response?.data?.error || 'Could not publish notes'
+      addToast?.(message, 'error')
+      captureAppError(error, { route: 'search', source: 'publish_notes', paperId: selectedPaper.id })
+    } finally {
+      setPublicationLoading(false)
+    }
+  }
+
+  const handlePreviewNotes = () => {
+    if (!selectedPaper?.id) return
+    window.open(
+      `/api/publish/${encodeURIComponent(selectedPaper.id)}/preview`,
+      '_blank',
+      'noopener,noreferrer'
+    )
+  }
+
+  const handleUnpublishNotes = async () => {
+    if (!selectedPaper?.id || publicationLoading) return
+    if (!window.confirm(`Remove the published notes for "${selectedPaper.title || selectedPaper.id}"?`)) return
+    setPublicationLoading(true)
+    try {
+      const { data } = await axios.delete(`/api/publish/${encodeURIComponent(selectedPaper.id)}`)
+      setPublication((current) => ({ ...current, published: false, publishedUrl: null, changed: true }))
+      addToast?.(data.message || 'Unpublished', 'success')
+    } catch (error) {
+      addToast?.(error.response?.data?.error || 'Could not unpublish notes', 'error')
+    } finally {
+      setPublicationLoading(false)
+    }
+  }
+
+  const handleToggleTodayReminder = async () => {
+    if (!selectedPaper?.id) return
+    const today = new Date().toISOString().slice(0, 10)
+    const scheduledDate = selectedPaper.scheduled_date === today ? null : today
+    try {
+      const notificationsEnabled = scheduledDate
+        ? await requestNotificationPermission()
+        : true
+      const { data } = await axios.patch(`/api/papers/${encodeURIComponent(selectedPaper.id)}`, {
+        scheduled_date: scheduledDate,
+      })
+      updateSelectedPaper(() => ({ ...selectedPaper, ...data }))
+      addToast?.(
+        scheduledDate && !notificationsEnabled
+          ? `Reminder saved for “${selectedPaper.title || selectedPaper.id}”, but browser notifications are blocked`
+          : scheduledDate
+          ? `Reminder set for “${selectedPaper.title || selectedPaper.id}” — every 90 minutes until today ends`
+          : `Today reminder cleared for “${selectedPaper.title || selectedPaper.id}”`,
+        'success'
+      )
+    } catch (error) {
+      addToast?.('Could not update reminder', 'error')
+    }
+  }
+
+  useEffect(() => {
+    if (!initialQuery && workspaceState?.query) return
+    if (initialQuery === workspaceState?.query) return
     setQuery(initialQuery)
     setCurrentPage(1)
-  }, [initialQuery])
+  }, [initialQuery, workspaceState?.query])
 
   useEffect(() => {
     if (!focusNonce) return
@@ -120,6 +206,8 @@ export default function SearchWorkbench({
         setCurrentPage(Number.isFinite(data?.page) ? data.page : 1)
         setSelectedIndex((prev) => {
           if (items.length === 0) return 0
+          const restoredIndex = items.findIndex((paper) => paper.id === workspaceState?.selectedPaperId)
+          if (restoredIndex >= 0) return restoredIndex
           return Math.min(prev, items.length - 1)
         })
         captureTiming('page_load', elapsedSince(startedAt), {
@@ -154,7 +242,15 @@ export default function SearchWorkbench({
     }
   }, [query, currentPage, pageSize])
 
-  const selectedPaper = results[selectedIndex] || null
+  useEffect(() => {
+    if (loading) return
+    onWorkspaceStateChange?.({
+      query,
+      currentPage,
+      selectedPaperId: selectedPaper?.id || null,
+    })
+  }, [currentPage, loading, onWorkspaceStateChange, query, selectedPaper?.id])
+
   const selectedNeedsMetadata = needsMetadataFetch(selectedPaper)
   const selectedMetadataFetching = fetchingMetadataId === selectedPaper?.id
   const selectedScheduleState = (() => {
@@ -241,6 +337,11 @@ export default function SearchWorkbench({
 
   const handleOpenSelected = () => {
     if (!selectedPaper) return
+    onWorkspaceStateChange?.({
+      query,
+      currentPage,
+      selectedPaperId: selectedPaper.id,
+    })
     captureAction('search_open_selected_paper', {
       route: 'search',
       paperId: selectedPaper.id,
@@ -487,6 +588,7 @@ export default function SearchWorkbench({
       }
 
       if (inputFocused) return
+      if (event.ctrlKey || event.metaKey || event.altKey) return
 
       const key = event.key
       const lower = key.toLowerCase()
@@ -556,6 +658,16 @@ export default function SearchWorkbench({
         if (!actionsOpen) setActionsOpen(true)
         if (selectedPaper) setTodoistModalPaper(selectedPaper)
         setFocusPanel('actions')
+        return
+      }
+      if (lower === 'p' && actionsOpen) {
+        event.preventDefault()
+        handlePreviewNotes()
+        return
+      }
+      if (lower === 'r' && actionsOpen) {
+        event.preventDefault()
+        handleToggleTodayReminder()
         return
       }
       if (lower === 'e') {
@@ -756,6 +868,10 @@ export default function SearchWorkbench({
                 } : null,
                 { name:'Copy Link', sub:null, key:'C', onClick: handleCopyLink },
                 { name:'Cycle Status', sub:null, key:'S', onClick: handleCycleStatus },
+                { name: publication?.published ? 'Preview & Update Notes' : 'Preview & Publish Notes', sub: publication?.changed ? 'Local changes' : 'Opens full-page preview', key:'P', onClick: handlePreviewNotes, disabled: publicationLoading || !publication },
+                publication?.publishedUrl ? { name:'Open Published Notes', sub:null, key:null, onClick: () => window.open(publication.publishedUrl, '_blank', 'noopener,noreferrer') } : null,
+                publication?.published ? { name:'Unpublish Notes', sub:null, key:null, danger:true, onClick: handleUnpublishNotes, disabled: publicationLoading } : null,
+                { name: selectedPaper?.scheduled_date === new Date().toISOString().slice(0, 10) ? 'Clear Today Reminder' : 'Remind Me Today', sub:'90-minute reminder', key:'R', onClick: handleToggleTodayReminder },
                 { name: paperHasTodoistTask(selectedPaper) ? 'Edit Schedule' : 'Schedule', sub:null, key:'D', onClick: () => selectedPaper && setTodoistModalPaper(selectedPaper) },
                 { name: Number(selectedPaper?.offline_pinned) === 1 ? 'Remove Offline Copy' : 'Pin Offline', sub:null, key:'F', onClick: handleOfflineToggle },
                 { name:'Delete Paper', sub:null, key:'Del', danger: true, onClick: handleDeletePaper, disabled: deletingPaperId === selectedPaper?.id, busyLabel:'Deleting...' },
