@@ -72,6 +72,7 @@ router.get('/summary', async (req, res) => {
         `SELECT
            COUNT(*) AS total_papers,
            SUM(CASE WHEN status = 'reading' THEN 1 ELSE 0 END) AS reading_now,
+           SUM(CASE WHEN status = 'writing' THEN 1 ELSE 0 END) AS writing_now,
            SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS completed,
            SUM(CASE WHEN date(created_at) >= date('now', '-6 days') THEN 1 ELSE 0 END) AS added_this_week
          FROM papers`
@@ -210,6 +211,7 @@ router.get('/summary', async (req, res) => {
       totals: {
         totalPapers: Number(totals.total_papers || 0),
         readingNow: Number(totals.reading_now || 0),
+        writingNow: Number(totals.writing_now || 0),
         completed: Number(totals.completed || 0),
         addedThisWeek: Number(totals.added_this_week || 0),
         touchedThisWeek: Number(touchedThisWeek.count || 0),

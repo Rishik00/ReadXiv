@@ -137,11 +137,13 @@ export default function EditorialLanding({
   }, [selectedPaperId, view])
 
   const reading = Number(totals.readingNow || 0)
+  const writing = Number(totals.writingNow || 0)
   const done = Number(totals.completed || 0)
   const total = Number(totals.totalPapers || 0)
-  const queued = Math.max(0, total - reading - done)
+  const queued = Math.max(0, total - reading - writing - done)
   const split = [
     { key: 'reading', label: 'Reading', n: reading },
+    { key: 'writing', label: 'Writing', n: writing },
     { key: 'done', label: 'Done', n: done },
     { key: 'queued', label: 'Queued', n: queued },
   ]
@@ -239,7 +241,7 @@ export default function EditorialLanding({
                   <span key={seg.key} className={`s-${seg.key}`} style={{ flex: seg.n }} title={`${seg.label}: ${seg.n}`} />
                 ))}
               </div>
-              <div className="editorial-legend">
+            <div className="editorial-legend editorial-legend--four">
                 {split.map((seg) => (
                   <div key={seg.key} className="editorial-leg">
                     <span className={`editorial-leg-dot s-${seg.key}`} />

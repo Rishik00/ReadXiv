@@ -13,8 +13,16 @@ const dropdownClosedClass = 'pointer-events-none translate-y-2 opacity-0';
 const STATUS_OPTIONS = [
   { id: 'queued', label: 'Queued' },
   { id: 'reading', label: 'Reading' },
+  { id: 'writing', label: 'Writing' },
   { id: 'done', label: 'Done' },
 ];
+
+function statusColor(status) {
+  if (status === 'reading') return 'var(--status-reading)';
+  if (status === 'writing') return 'var(--status-writing)';
+  if (status === 'done') return 'var(--status-done)';
+  return 'var(--status-queued)';
+}
 
 export default function ReaderPdfFloatingToolbar({
   pdfViewerRef,
@@ -301,7 +309,7 @@ export default function ReaderPdfFloatingToolbar({
               >
                 <span
                   className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ background: status === 'reading' ? 'var(--status-reading)' : status === 'done' ? 'var(--status-done)' : 'var(--status-queued)' }}
+                  style={{ background: statusColor(status) }}
                   aria-hidden
                 />
                 <span className="max-w-[4.5rem] truncate sm:max-w-none">{statusLabel}</span>
@@ -326,7 +334,7 @@ export default function ReaderPdfFloatingToolbar({
                     <span className="flex items-center gap-2">
                       <span
                         className="h-2 w-2 shrink-0 rounded-full"
-                        style={{ background: opt.id === 'reading' ? 'var(--status-reading)' : opt.id === 'done' ? 'var(--status-done)' : 'var(--status-queued)' }}
+                        style={{ background: statusColor(opt.id) }}
                         aria-hidden
                       />
                       {opt.label}
