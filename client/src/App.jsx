@@ -676,13 +676,6 @@ function App() {
           <div className="electron-window-controls" aria-label="Window controls">
             <button
               type="button"
-              className="electron-window-control electron-window-control-close"
-              aria-label="Close window"
-              title="Close"
-              onClick={() => window.electron.windowControls?.close()}
-            />
-            <button
-              type="button"
               className="electron-window-control electron-window-control-minimize"
               aria-label="Minimize window"
               title="Minimize"
@@ -694,6 +687,13 @@ function App() {
               aria-label="Maximize or restore window"
               title="Maximize / Restore"
               onClick={() => window.electron.windowControls?.toggleMaximize()}
+            />
+            <button
+              type="button"
+              className="electron-window-control electron-window-control-close"
+              aria-label="Close window"
+              title="Close"
+              onClick={() => window.electron.windowControls?.close()}
             />
           </div>
         </>
