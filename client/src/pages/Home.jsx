@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import LatexText from '../components/LatexText'
 import EditorialLanding from '../components/EditorialLanding'
@@ -27,6 +27,28 @@ const SLASH_COMMANDS = [
   { id: 'help', slug: 'help', label: 'Help', prefix: null },
 ]
 
+let greetingIndexForPageLoad = null
+
+function pickGreetingIndex(count) {
+  if (greetingIndexForPageLoad !== null) return greetingIndexForPageLoad
+
+  const storageKey = 'readxiv-last-greeting-index'
+  let previousIndex = -1
+  try {
+    previousIndex = Number.parseInt(sessionStorage.getItem(storageKey) || '-1', 10)
+  } catch {}
+
+  const randomIndex = Math.floor(Math.random() * count)
+  greetingIndexForPageLoad = count > 1 && randomIndex === previousIndex
+    ? (randomIndex + 1) % count
+    : randomIndex
+
+  try {
+    sessionStorage.setItem(storageKey, String(greetingIndexForPageLoad))
+  } catch {}
+  return greetingIndexForPageLoad
+}
+
 export default function Home({
   setPage,
   openPaper,
@@ -48,11 +70,11 @@ export default function Home({
   const [previewQuery, setPreviewQuery] = useState('')
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   const [memoryPapers, setMemoryPapers] = useState([])
-  const [todayPapers, setTodayPapers] = useState([])
   const [memorySelectedIndex, setMemorySelectedIndex] = useState(0)
   const [liveResults, setLiveResults] = useState([])
   const [liveSelectedIndex, setLiveSelectedIndex] = useState(0)
   const [dashboardSummary, setDashboardSummary] = useState(null)
+  const [deskView, setDeskView] = useState('now')
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
   const slashMenuRef = useRef(null)
@@ -89,53 +111,53 @@ export default function Home({
 
   ]
 
-  const [greeting] = useState(() => {
-    const d = new Date()
-    const dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5)
-    const seed = dayOfYear * 24 + d.getHours()
-    return GREETINGS[seed % GREETINGS.length]
-  })
+  const [greeting] = useState(() => GREETINGS[pickGreetingIndex(GREETINGS.length)])
 
   useEffect(() => () => {
     if (pollingRef.current) clearInterval(pollingRef.current)
   }, [])
 
-  useEffect(() => {
+  const refreshHomeData = useCallback(() => {
     let cancelled = false
     Promise.all([
-      axios.get('/api/papers/recents', { params: { limit: 5 } }),
-      axios.get('/api/papers'),
+      axios.get('/api/papers/recents', { params: { limit: 10 } }),
       axios.get('/api/dashboard/summary', { params: { days: 182 } }),
     ])
-      .then(([recentsResponse, papersResponse, dashboardResponse]) => {
+      .then(([recentsResponse, dashboardResponse]) => {
         if (cancelled) return
-        const today = new Date().toISOString().slice(0, 10)
-        const papers = Array.isArray(papersResponse.data) ? papersResponse.data : []
         setMemoryPapers(Array.isArray(recentsResponse.data) ? recentsResponse.data : [])
-        setTodayPapers(papers.filter((paper) => paper.scheduled_date === today))
         setDashboardSummary(dashboardResponse.data)
       })
       .catch(() => {})
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => refreshHomeData(), [refreshHomeData])
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshHomeData()
+    }
+    window.addEventListener('focus', refreshWhenVisible)
+    window.addEventListener('readxiv:paper-accessed', refreshWhenVisible)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      window.removeEventListener('focus', refreshWhenVisible)
+      window.removeEventListener('readxiv:paper-accessed', refreshWhenVisible)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
+  }, [refreshHomeData])
+
   const continuePaper = useMemo(
     () => memoryPapers.find((paper) => Number(paper.current_page) > 1 || paper.status === 'reading') || memoryPapers[0] || null,
     [memoryPapers]
   )
-  const recentlySaved = useMemo(
-    () => memoryPapers
-      .filter((paper) => paper.id !== continuePaper?.id && !todayPapers.some((todayPaper) => todayPaper.id === paper.id))
-      .slice(0, 3),
-    [memoryPapers, continuePaper?.id, todayPapers]
-  )
   const memoryItems = useMemo(
     () => {
       const editorialContinue = dashboardSummary?.continuePaper || continuePaper
-      const editorialRecents = dashboardSummary?.momentum?.recentlyAdded?.slice(0, 4) || recentlySaved
-      return [editorialContinue, ...editorialRecents.filter((paper) => paper.id !== editorialContinue?.id)].filter(Boolean)
+      return [editorialContinue, ...memoryPapers.filter((paper) => paper.id !== editorialContinue?.id)].filter(Boolean)
     },
-    [continuePaper, dashboardSummary, recentlySaved]
+    [continuePaper, dashboardSummary, memoryPapers]
   )
   const liveQuery = currentMode === 'normal' && !isArxivInput(input) && !input.trim().startsWith('/')
     ? input.trim()
@@ -189,6 +211,22 @@ export default function Home({
     if (!focusNonce) return
     inputRef.current?.focus()
   }, [focusNonce])
+
+  // `t` toggles the desk between Reading and Stats (ignored while typing/focused)
+  useEffect(() => {
+    if (isFocused) return undefined
+    const onDeskToggle = (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable) return
+      if (event.key === 't' || event.key === 'T') {
+        event.preventDefault()
+        setDeskView((current) => (current === 'now' ? 'stats' : 'now'))
+      }
+    }
+    window.addEventListener('keydown', onDeskToggle)
+    return () => window.removeEventListener('keydown', onDeskToggle)
+  }, [isFocused])
 
   useEffect(() => {
     if (!initialArxivInput) return
@@ -562,47 +600,55 @@ export default function Home({
     }}>
       <div className="home-gradient-layer" />
       <div className="home-grain" />
-      <div
-        className={`greeting home-greeting-animated ${isFocused ? 'fade' : ''}`}
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
-          opacity: isFocused ? 0.1 : 1,
-          transform: isFocused ? 'scale(0.95)' : 'scale(1)',
-          pointerEvents: isFocused ? 'none' : 'auto',
-          position: 'relative',
-          zIndex: 2
-        }}
-      >
-        <h1 style={{
-          fontSize: '4.5rem',
-          fontWeight: 400,
-          fontFamily: 'var(--font-sans)',
-          textAlign: 'center',
-          width: 'min(24ch, 100%)',
-          lineHeight: 1.05,
-          margin: 0,
-          color: 'var(--foreground)'
-        }}>
-          {greeting}
-        </h1>
-      </div>
+      {deskView === 'stats' ? (
+        <div style={{ flex: 1 }} aria-hidden="true" />
+      ) : (
+        <div
+          className={`greeting home-greeting-animated ${isFocused ? 'fade' : ''}`}
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+            opacity: isFocused ? 0 : 1,
+            transform: isFocused ? 'scale(0.95)' : 'scale(1)',
+            pointerEvents: isFocused ? 'none' : 'auto',
+            position: 'relative',
+            zIndex: 2
+          }}
+        >
+          <h1 style={{
+            fontSize: '4.5rem',
+            fontWeight: 400,
+            fontFamily: 'var(--font-sans)',
+            textAlign: 'center',
+            width: 'min(24ch, 100%)',
+            lineHeight: 1.05,
+            margin: 0,
+            color: 'var(--foreground)'
+          }}>
+            {greeting}
+          </h1>
+        </div>
+      )}
 
       <EditorialLanding
         summary={dashboardSummary}
         fallbackContinue={continuePaper}
-        fallbackRecents={recentlySaved}
+        recentPapers={memoryPapers}
         openPaper={openPaper}
         dimmed={isFocused}
+        view={deskView}
+        onViewChange={setDeskView}
         selectedPaperId={memoryItems[memorySelectedIndex]?.id}
         onPaperHover={(paperId) => {
           const index = memoryItems.findIndex((paper) => paper.id === paperId)
           if (index >= 0) setMemorySelectedIndex(index)
         }}
       />
+
+      <div style={{ flex: 0.12 }} aria-hidden="true" />
 
       <div
         className={`command-area home-bar-animated ${isFocused ? 'focused' : ''}`}

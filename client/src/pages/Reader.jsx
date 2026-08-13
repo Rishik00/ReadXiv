@@ -24,8 +24,8 @@ import {
 import '@mdxeditor/editor/style.css';
 import PdfViewer from '../components/PdfViewer';
 import ReaderPdfFloatingToolbar from '../components/ReaderPdfFloatingToolbar';
+import { latexEditorPlugin } from '../components/LatexEditorPlugin';
 import { Card, CardContent } from '../components/ui/card';
-import { ensureMathJax } from '../utils/mathjax';
 import {
   captureAction,
   captureAppError,
@@ -330,51 +330,6 @@ function summarizeEvents(events, sizeKb, markdown, editCount, elapsedMs) {
   return row;
 }
 
-function getCaretRangeFromPoint(x, y) {
-  if (document.caretRangeFromPoint) return document.caretRangeFromPoint(x, y);
-  if (document.caretPositionFromPoint) {
-    const pos = document.caretPositionFromPoint(x, y);
-    if (!pos) return null;
-    const range = document.createRange();
-    range.setStart(pos.offsetNode, pos.offset);
-    range.collapse(true);
-    return range;
-  }
-  return null;
-}
-
-function extractTexTokenAtOffset(text, offset) {
-  if (!text || typeof text !== 'string') return null;
-  const pairedPatterns = [
-    /\$\$\$\$[\s\S]+?\$\$\$\$/g,
-    /\\\[[\s\S]+?\\\]/g,
-    /\$\$[\s\S]+?\$\$/g,
-    /\\\([\s\S]+?\\\)/g,
-  ];
-
-  for (const pattern of pairedPatterns) {
-    let match;
-    while ((match = pattern.exec(text)) !== null) {
-      const start = match.index;
-      const end = start + match[0].length;
-      if (offset >= start && offset <= end) return match[0];
-    }
-  }
-
-  const starts = [];
-  for (let i = 0; i < text.length; i += 1) {
-    if (text[i] === '$' && text[i - 1] !== '\\' && text[i + 1] !== '$' && text[i - 1] !== '$') {
-      starts.push(i);
-    }
-  }
-  for (let i = 0; i < starts.length - 1; i += 2) {
-    const start = starts[i];
-    const end = starts[i + 1] + 1;
-    if (offset >= start && offset <= end) return text.slice(start, end);
-  }
-  return null;
-}
-
 function normalizeReaderView(value) {
   return value === 'pdf' || value === 'notes' ? value : 'split';
 }
@@ -447,7 +402,7 @@ function isPlaceholderPaperTitle(paper) {
 }
 
 const Reader = forwardRef(function Reader(
-  { paper, setSelectedPaper, setPage, settings, initialTab = 'edit', addToast, onSendToCanvas },
+  { paper, setSelectedPaper, setPage, settings, initialTab = 'edit', addToast, onSendToCanvas, onExit },
   ref
 ) {
   const renderCountRef = useRef(0);
@@ -479,13 +434,10 @@ const Reader = forwardRef(function Reader(
   const [addingReferenceKeys, setAddingReferenceKeys] = useState(() => new Set());
   const [addedReferenceKeys, setAddedReferenceKeys] = useState(() => new Set());
   const [selectedNoteTemplate, setSelectedNoteTemplate] = useState(NOTE_TEMPLATES[0].id);
-  const [mathHoverPreview, setMathHoverPreview] = useState(null);
   const splitRootRef = useRef(null);
   const saveTimerRef = useRef(null);
   const pdfPanelRef = useRef(null);
   const mdxEditorRef = useRef(null);
-  const notesEditPanelRef = useRef(null);
-  const mathHoverPreviewRef = useRef(null);
   const pdfViewerRef = useRef(null);
   const benchmarkRanRef = useRef(false);
   const benchmarkActiveRef = useRef(false);
@@ -498,7 +450,9 @@ const Reader = forwardRef(function Reader(
     lastReadingProgressRef.current = { page, totalPages };
     if (progressSaveTimerRef.current) clearTimeout(progressSaveTimerRef.current);
     progressSaveTimerRef.current = setTimeout(() => {
-      axios.put(`/api/papers/${encodeURIComponent(paperId)}/progress`, { page, totalPages }).catch(() => {});
+      axios.put(`/api/papers/${encodeURIComponent(paperId)}/progress`, { page, totalPages })
+        .then(() => window.dispatchEvent(new Event('readxiv:paper-accessed')))
+        .catch(() => {});
       progressSaveTimerRef.current = null;
     }, 700);
   }, [paperId]);
@@ -533,6 +487,7 @@ const Reader = forwardRef(function Reader(
       thematicBreakPlugin(),
       codeBlockPlugin({ defaultCodeBlockLanguage: 'txt' }),
       markdownShortcutPlugin(),
+      latexEditorPlugin(),
     ],
     []
   );
@@ -574,6 +529,33 @@ const Reader = forwardRef(function Reader(
   const handleToolbarState = useCallback((metrics) => {
     setPdfToolbarMetrics(metrics);
   }, []);
+
+  const changeStatus = useCallback(async (nextStatus) => {
+    if (!paperId) return;
+    const previousStatus = readerPaper?.status;
+    if (nextStatus === previousStatus) {
+      if (nextStatus === 'done') onExit?.();
+      return;
+    }
+    // optimistic
+    setReaderPaper((prev) => (prev ? { ...prev, status: nextStatus } : prev));
+    setSelectedPaper?.((prev) => (prev?.id === paperId ? { ...prev, status: nextStatus } : prev));
+    try {
+      await axios.patch(`/api/papers/${encodeURIComponent(paperId)}`, { status: nextStatus });
+      captureAction('reader_status_change', { route: 'reader', paperId, fromStatus: previousStatus, toStatus: nextStatus });
+      if (nextStatus === 'done') {
+        addToast?.('Marked done', 'success');
+        onExit?.();
+      } else {
+        addToast?.(`Status: ${nextStatus}`, 'success');
+      }
+    } catch (err) {
+      // rollback
+      setReaderPaper((prev) => (prev ? { ...prev, status: previousStatus } : prev));
+      setSelectedPaper?.((prev) => (prev?.id === paperId ? { ...prev, status: previousStatus } : prev));
+      addToast?.(err.response?.data?.error || 'Could not update status', 'error');
+    }
+  }, [paperId, readerPaper?.status, setSelectedPaper, addToast, onExit]);
 
   const readerView = pdfCollapsed ? 'notes' : notesCollapsed ? 'pdf' : 'split';
   const pdfSolo = readerView === 'pdf';
@@ -636,24 +618,6 @@ const Reader = forwardRef(function Reader(
       return md.utils.escapeHtml(s);
     }
   }
-
-  useEffect(() => {
-    if (!mathHoverPreview?.source) return undefined;
-    let cancelled = false;
-    const id = setTimeout(() => {
-      if (cancelled || !mathHoverPreviewRef.current) return;
-      ensureMathJax()
-        .then(() => {
-          if (cancelled || !mathHoverPreviewRef.current || !window.MathJax?.typesetPromise) return;
-          return window.MathJax.typesetPromise([mathHoverPreviewRef.current]);
-        })
-        .catch(() => {});
-    }, 80);
-    return () => {
-      cancelled = true;
-      clearTimeout(id);
-    };
-  }, [mathHoverPreview?.source]);
 
   useEffect(() => {
     setNoteTab(normalizedInitialTab);
@@ -1053,37 +1017,6 @@ const Reader = forwardRef(function Reader(
     setNoteTab('edit');
   }
 
-  function handleNotesEditorMouseMove(event) {
-    const panel = notesEditPanelRef.current;
-    if (!panel || !event.target.closest?.('.readxiv-mdx-editor')) {
-      setMathHoverPreview(null);
-      return;
-    }
-
-    const range = getCaretRangeFromPoint(event.clientX, event.clientY);
-    const node = range?.startContainer;
-    if (!node || node.nodeType !== Node.TEXT_NODE) {
-      setMathHoverPreview(null);
-      return;
-    }
-
-    const source = extractTexTokenAtOffset(node.textContent || '', range.startOffset);
-    if (!source) {
-      setMathHoverPreview(null);
-      return;
-    }
-
-    const rect = panel.getBoundingClientRect();
-    const x = Math.min(rect.width - 24, Math.max(16, event.clientX - rect.left + 14));
-    const y = Math.min(rect.height - 88, Math.max(16, event.clientY - rect.top + 16));
-    setMathHoverPreview((prev) => {
-      if (prev?.source === source && Math.abs(prev.x - x) < 4 && Math.abs(prev.y - y) < 4) {
-        return prev;
-      }
-      return { source, x, y };
-    });
-  }
-
   function scrollToOutlineItem(lineNumber) {
     setNoteTab('edit');
     requestAnimationFrame(() => {
@@ -1200,6 +1133,8 @@ const Reader = forwardRef(function Reader(
     viewMode: readerView,
     onSetView: setReaderView,
     pageJumpMenuNonce,
+    status: readerPaper?.status || 'queued',
+    onChangeStatus: changeStatus,
   };
 
   return (
@@ -1502,11 +1437,8 @@ const Reader = forwardRef(function Reader(
               </div>
             ) : (
               <div
-                ref={notesEditPanelRef}
                 className="flex-1 min-h-0 flex flex-col relative overflow-hidden select-text"
                 onFocusCapture={() => setFocusedPanel('notes')}
-                onMouseMove={handleNotesEditorMouseMove}
-                onMouseLeave={() => setMathHoverPreview(null)}
               >
                 <Profiler id="Reader.MDXEditor" onRender={profileRender}>
                   <MDXEditor
@@ -1528,18 +1460,6 @@ const Reader = forwardRef(function Reader(
                     }}
                   />
                 </Profiler>
-                {mathHoverPreview && (
-                  <div
-                    ref={mathHoverPreviewRef}
-                    className="latex-hover-preview markdown-preview"
-                    style={{
-                      left: `${mathHoverPreview.x}px`,
-                      top: `${mathHoverPreview.y}px`,
-                    }}
-                  >
-                    {mathHoverPreview.source}
-                  </div>
-                )}
                 {foldedSections.size > 0 && (
                   <div className="absolute top-4 right-4 text-xs text-muted bg-surface/80 px-2 py-1 rounded border border-border">
                     {foldedSections.size} section(s) folded

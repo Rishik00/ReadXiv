@@ -10,6 +10,12 @@ const dropdownClosedClass = 'pointer-events-none translate-y-2 opacity-0';
 /**
  * Bottom-left PDF toolbar. Space+T (reader) opens page jump. Parent hides via Space+o.
  */
+const STATUS_OPTIONS = [
+  { id: 'queued', label: 'Queued' },
+  { id: 'reading', label: 'Reading' },
+  { id: 'done', label: 'Done' },
+];
+
 export default function ReaderPdfFloatingToolbar({
   pdfViewerRef,
   pdfPanelRef,
@@ -17,10 +23,13 @@ export default function ReaderPdfFloatingToolbar({
   viewMode,
   onSetView,
   pageJumpMenuNonce = 0,
+  status = 'queued',
+  onChangeStatus,
 }) {
   const [stripOpen, setStripOpen] = useState(true);
   const [mouseActive, setMouseActive] = useState(true);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [pageJumpOpen, setPageJumpOpen] = useState(false);
   const [pageJumpQuery, setPageJumpQuery] = useState('');
   const barRef = useRef(null);
@@ -77,15 +86,16 @@ export default function ReaderPdfFloatingToolbar({
   }, []);
 
   useEffect(() => {
-    if (!viewMenuOpen && !pageJumpOpen) return;
+    if (!viewMenuOpen && !pageJumpOpen && !statusMenuOpen) return;
     const close = (e) => {
       if (barRef.current?.contains(e.target)) return;
       setViewMenuOpen(false);
       setPageJumpOpen(false);
+      setStatusMenuOpen(false);
     };
     document.addEventListener('mousedown', close, true);
     return () => document.removeEventListener('mousedown', close, true);
-  }, [viewMenuOpen, pageJumpOpen]);
+  }, [viewMenuOpen, pageJumpOpen, statusMenuOpen]);
 
   /** Space + T: close/reopen so focus + query reset even if the menu was already open. */
   useEffect(() => {
@@ -163,16 +173,25 @@ export default function ReaderPdfFloatingToolbar({
 
   const openViewMenu = () => {
     setPageJumpOpen(false);
+    setStatusMenuOpen(false);
     setViewMenuOpen((o) => !o);
   };
 
   const openPageJumpMenu = () => {
     setViewMenuOpen(false);
+    setStatusMenuOpen(false);
     setPageJumpOpen((o) => !o);
+  };
+
+  const openStatusMenu = () => {
+    setViewMenuOpen(false);
+    setPageJumpOpen(false);
+    setStatusMenuOpen((o) => !o);
   };
 
   const viewLabel =
     viewMode === 'pdf' ? 'PDF' : viewMode === 'notes' ? 'Notes' : 'Split';
+  const statusLabel = (STATUS_OPTIONS.find((s) => s.id === status) || STATUS_OPTIONS[0]).label;
 
   const toolIconBtn =
     'flex h-9 w-9 shrink-0 items-center justify-center rounded-[20px] border border-border bg-background text-foreground transition-colors hover:bg-border disabled:opacity-40';
@@ -206,7 +225,7 @@ export default function ReaderPdfFloatingToolbar({
         </svg>
       </button>
 
-      <div className="reader-pdf-toolbar-m8-panel flex max-w-[min(100vw-5rem,36rem)] flex-wrap items-center gap-1.5 rounded-[30px] border border-border bg-surface px-2 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.5)] sm:gap-2 sm:px-3">
+      <div className="reader-pdf-toolbar-m8-panel flex max-w-[min(100vw-5rem,46rem)] flex-wrap items-center gap-1.5 rounded-[30px] border border-border bg-surface px-2 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.5)] sm:gap-2 sm:px-3">
         <div className="flex items-center rounded-[20px] border border-border bg-background p-0.5">
           <button
             type="button"
@@ -270,6 +289,57 @@ export default function ReaderPdfFloatingToolbar({
             ))}
           </div>
         </div>
+
+        {onChangeStatus && (
+          <>
+            <div className="relative">
+              <button
+                type="button"
+                className={`flex items-center gap-1.5 rounded-[20px] border border-border bg-background px-2.5 py-1.5 font-mono text-[11px] text-foreground transition-colors hover:bg-border sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${statusMenuOpen ? 'ring-1 ring-secondary/40' : ''}`}
+                onClick={openStatusMenu}
+                title="Set status"
+              >
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: status === 'reading' ? 'var(--status-reading)' : status === 'done' ? 'var(--status-done)' : 'var(--status-queued)' }}
+                  aria-hidden
+                />
+                <span className="max-w-[4.5rem] truncate sm:max-w-none">{statusLabel}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 sm:w-[14px] sm:h-[14px]">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+
+              <div className={`${dropdownPanelClass} min-w-[10rem] ${statusMenuOpen ? dropdownOpenClass : dropdownClosedClass}`}>
+                {STATUS_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left font-mono text-xs transition-colors hover:bg-border sm:gap-3 sm:px-3 sm:text-sm ${
+                      status === opt.id ? 'bg-secondary/10 text-secondary' : 'text-foreground'
+                    }`}
+                    onClick={() => {
+                      setStatusMenuOpen(false);
+                      onChangeStatus(opt.id);
+                    }}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ background: opt.id === 'reading' ? 'var(--status-reading)' : opt.id === 'done' ? 'var(--status-done)' : 'var(--status-queued)' }}
+                        aria-hidden
+                      />
+                      {opt.label}
+                    </span>
+                    {opt.id === 'done' && <span className="text-[10px] text-muted sm:text-[11px]">& close</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="h-5 w-px shrink-0 bg-border" aria-hidden />
+          </>
+        )}
 
         <div className="relative">
           <button

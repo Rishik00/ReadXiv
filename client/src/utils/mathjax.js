@@ -5,14 +5,13 @@ function configureMathJax() {
   if (window.MathJax?.version) return;
   window.MathJax = {
     tex: {
-      // ReadXiv: `$$…$$` = inline; `$$$$…$$$$` = display (block). Put `$$` before `$` so pairs resolve first.
+      // Standard Markdown math delimiters: `$…$` inline and `$$…$$` display.
       inlineMath: [
-        ['$$', '$$'],
         ['$', '$'],
         ['\\(', '\\)'],
       ],
       displayMath: [
-        ['$$$$', '$$$$'],
+        ['$$', '$$'],
         ['\\[', '\\]'],
       ],
     },
@@ -73,7 +72,6 @@ export function notesMayContainTex(notes) {
     notes.includes('$') ||
     notes.includes('\\(') ||
     notes.includes('\\[') ||
-    notes.includes('$$') ||
-    notes.includes('$$$$')
+    notes.includes('$$')
   );
 }

@@ -1,6 +1,6 @@
 1. The UI can be neater. For the reader you can get rid of the top heading, and add a keyboard shortcut Ctrl+Shift+c which gives me a toast saying: "Paper link copied!". This would make the overall height of the PDF reader longer. (Done)
 2. The page number view should be moved to the right, and the highlight bits can be moved to the left. (Done)
-3. We can get rid of the smaller bar with Code | H1 and so on. They can be mapped to keyboard shortcuts and I can have like a global keyboard shortcut for 'help' (DOne)
+3. We can get rid of the smaller bar with Code | H1 and so on. They can be mapped to keyboard shortcuts and I can have like a global keyboard shortcut for 'help' (Done)
 4. Better accesibility to the PDF reader, idk something about the PDF reader rn feels very hard to access. (Done)
 5.  The dropdown for paper status can be moved elsewhere. (Done)
 6. You can remove the 'notes' bit, like that text doesnt have to be there. (Done)

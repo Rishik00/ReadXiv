@@ -8,7 +8,9 @@ dist/
 client/dist/
 build/
 release/
+.perf/
 library design/
+design_prototypes/
 # Environment
 .env
 .env.local
@@ -16,7 +18,6 @@ library design/
 questions.md
 features.md
 ideas.md
-design_prototypes
 
 
 # Database

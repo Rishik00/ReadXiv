@@ -3,13 +3,67 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs-extra';
 
-// Papyrus data directory: ~/.papyrus/
-const PAPYRUS_DIR = path.join(os.homedir(), '.papyrus');
+// Tests and benchmarks can point at an isolated data directory.
+const PAPYRUS_DIR = process.env.READXIV_DATA_DIR
+  ? path.resolve(process.env.READXIV_DATA_DIR)
+  : path.join(os.homedir(), '.papyrus');
 const DB_PATH = path.join(PAPYRUS_DIR, 'papyrus.db');
+const DB_BACKUP_PATH = `${DB_PATH}.backup`;
+const LEGACY_BACKUPS_DIR = path.join(PAPYRUS_DIR, 'backups');
+const SQLITE_HEADER = Buffer.from('SQLite format 3\0', 'ascii');
 
 let db = null;
 let SQL = null;
 let scheduledSave = null;
+
+function isSQLiteDatabaseFile(filePath) {
+  if (!fs.existsSync(filePath)) return false;
+  const descriptor = fs.openSync(filePath, 'r');
+  try {
+    const header = Buffer.alloc(SQLITE_HEADER.length);
+    const bytesRead = fs.readSync(descriptor, header, 0, header.length, 0);
+    return bytesRead === SQLITE_HEADER.length && header.equals(SQLITE_HEADER);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function quarantineInvalidDatabase(filePath) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const quarantinedPath = `${filePath}.corrupt-${timestamp}`;
+  fs.moveSync(filePath, quarantinedPath);
+  console.error(`⚠️ Invalid database preserved at ${quarantinedPath}`);
+  return quarantinedPath;
+}
+
+function findValidBackup() {
+  const candidates = [DB_BACKUP_PATH];
+  if (fs.existsSync(LEGACY_BACKUPS_DIR)) {
+    const datedBackups = fs.readdirSync(LEGACY_BACKUPS_DIR)
+      .filter((name) => name.startsWith('papyrus-') && name.endsWith('.db'))
+      .sort()
+      .reverse()
+      .map((name) => path.join(LEGACY_BACKUPS_DIR, name));
+    candidates.push(...datedBackups);
+  }
+  return candidates.find(isSQLiteDatabaseFile) || null;
+}
+
+function loadDatabaseData() {
+  if (!fs.existsSync(DB_PATH)) return null;
+  if (isSQLiteDatabaseFile(DB_PATH)) return fs.readFileSync(DB_PATH);
+
+  quarantineInvalidDatabase(DB_PATH);
+  const validBackup = findValidBackup();
+  if (validBackup) {
+    fs.copyFileSync(validBackup, DB_PATH);
+    console.warn(`♻️ Restored database from ${validBackup}`);
+    return fs.readFileSync(DB_PATH);
+  }
+
+  console.warn('Creating a new database because no valid backup was available.');
+  return null;
+}
 
 export async function getDB() {
   if (!db) {
@@ -32,10 +86,7 @@ export async function initDB() {
   }
 
   // Load existing database or create new one
-  let dbData = null;
-  if (fs.existsSync(DB_PATH)) {
-    dbData = fs.readFileSync(DB_PATH);
-  }
+  const dbData = loadDatabaseData();
 
   db = new SQL.Database(dbData);
 
@@ -178,7 +229,23 @@ export function saveDB() {
       scheduledSave = null;
     }
     const data = db.export();
-    fs.writeFileSync(DB_PATH, data);
+    const temporaryPath = `${DB_PATH}.tmp-${process.pid}`;
+    const descriptor = fs.openSync(temporaryPath, 'w');
+    try {
+      fs.writeFileSync(descriptor, data);
+      fs.fsyncSync(descriptor);
+    } finally {
+      fs.closeSync(descriptor);
+    }
+
+    try {
+      if (isSQLiteDatabaseFile(DB_PATH)) {
+        fs.copyFileSync(DB_PATH, DB_BACKUP_PATH);
+      }
+      fs.moveSync(temporaryPath, DB_PATH, { overwrite: true });
+    } finally {
+      fs.removeSync(temporaryPath);
+    }
   }
 }
 
@@ -191,4 +258,4 @@ export function scheduleSaveDB(delayMs = 1000) {
   scheduledSave.unref?.();
 }
 
-export { PAPYRUS_DIR, DB_PATH };
+export { PAPYRUS_DIR, DB_PATH, DB_BACKUP_PATH };

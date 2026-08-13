@@ -44,6 +44,10 @@
     "electron": "electron electron/main.js",
     "electron:dev": "concurrently \"npm run dev:client\" \"wait-on http://localhost:5173 && electron electron/main.js\"",
     "electron:build": "npm run build && electron-builder",
+    "perf:sample": "node scripts/create-perf-db.mjs",
+    "perf:api": "node scripts/perf-api.mjs",
+    "perf:electron": "node scripts/perf-electron.mjs",
+    "perf": "npm run perf:sample && npm run perf:api && npm run perf:electron",
     "start": "npm run dev",
     "cli": "node ./bin/readxiv.mjs",
     "prepublishOnly": "npm run build"
@@ -61,6 +65,7 @@
     "concurrently": "^8.2.2",
     "electron": "^36.0.0",
     "electron-builder": "^25.1.8",
+    "playwright": "^1.62.0",
     "wait-on": "^8.0.1"
   },
   "build": {

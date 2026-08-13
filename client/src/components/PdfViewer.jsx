@@ -211,6 +211,10 @@ const PdfViewer = forwardRef(function PdfViewer(
         findController.setDocument(pdfDocument);
         pdfViewer.setDocument(pdfDocument);
         setNumPages(pdfDocument.numPages);
+        onPageProgress?.({
+          page: clamp(initialPageRef.current, 1, pdfDocument.numPages),
+          totalPages: pdfDocument.numPages,
+        });
         captureTiming('pdf_load', elapsedSince(startedAt), {
           route: 'reader',
           paperId,
@@ -508,7 +512,6 @@ const PdfViewer = forwardRef(function PdfViewer(
         try {
           if (!blob) return;
           await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-          onSendToCanvas?.({ page });
           captureAction('copy_pdf_page_to_clipboard', { route: 'reader', paperId, page });
         } catch (error) {
           captureAppError(error, {

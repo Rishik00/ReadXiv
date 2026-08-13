@@ -17,26 +17,88 @@ function formatHours(seconds) {
   return hours.toFixed(1).replace(/\.0$/, '')
 }
 
+function formatShortDate(value) {
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date)
+}
+
 function paperMeta(paper) {
   return [paper?.year, paper?.authors].filter(Boolean).join(' · ') || paper?.id || ''
 }
 
-function ActivityCalendar({ days }) {
-  const max = Math.max(1, ...days.map((day) => Number(day.views || 0)))
+/* Reads-over-time area chart. The SVG paths live in a 0..100 viewBox
+   (preserveAspectRatio none) and the hover overlays are HTML positioned by the
+   same percentages, so cursor/dot/tooltip always line up regardless of width. */
+function ReadsChart({ activity, thisWeek }) {
+  const [hover, setHover] = useState(null)
+  const n = activity.length
+  const vals = useMemo(() => activity.map((day) => Number(day.views || 0)), [activity])
+  const max = Math.max(1, ...vals)
+  const padTop = 12
+  const padBottom = 6
+  const xAt = (i) => (n <= 1 ? 0 : (i / (n - 1)) * 100)
+  const yAt = (v) => padTop + (1 - v / max) * (100 - padTop - padBottom)
+
+  const { line, area } = useMemo(() => {
+    const pts = vals.map((v, i) => `${xAt(i).toFixed(2)} ${yAt(v).toFixed(2)}`)
+    const l = 'M ' + pts.join(' L ')
+    return { line: l, area: `${l} L 100 100 L 0 100 Z` }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vals, max])
+
+  const ticks = useMemo(() => {
+    if (!n) return []
+    return [0, Math.floor(n / 3), Math.floor((2 * n) / 3), n - 1]
+      .map((i) => formatShortDate(activity[i].date))
+  }, [activity, n])
+
+  const onMove = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const rel = (event.clientX - rect.left) / rect.width
+    setHover(Math.max(0, Math.min(n - 1, Math.round(rel * (n - 1)))))
+  }
+
   return (
-    <div className="editorial-calendar" role="list" aria-label="Reading activity by day">
-      {days.map((day) => {
-        const level = Number(day.views || 0) / max
-        return (
-          <span
-            key={day.date}
-            role="listitem"
-            className="editorial-calendar-day"
-            style={{ '--activity-level': level }}
-            title={`${day.date}: ${day.views || 0} ${Number(day.views) === 1 ? 'open' : 'opens'}`}
-          />
-        )
-      })}
+    <div className="editorial-sect">
+      <div className="editorial-sect-head">
+        <div>
+          <div className="editorial-sect-title">Papers opened</div>
+          <div className="editorial-sect-sub">per day · last 30 days</div>
+        </div>
+        <div className="editorial-sect-stat">
+          <span className="editorial-fig">{thisWeek}</span>
+          <div className="editorial-sect-sub">opened · past 7 days</div>
+        </div>
+      </div>
+      <div className="editorial-chart">
+        <div className="editorial-chart-plot">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="editorial-reads-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--secondary)" stopOpacity="0.28" />
+                <stop offset="100%" stopColor="var(--secondary)" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <line className="editorial-chart-base" x1="0" y1="94" x2="100" y2="94" vectorEffect="non-scaling-stroke" />
+            <path className="editorial-chart-area" d={area} />
+            <path className="editorial-chart-line" d={line} vectorEffect="non-scaling-stroke" />
+          </svg>
+          {hover != null && (
+            <>
+              <span className="editorial-chart-cursor" style={{ left: `${xAt(hover)}%` }} />
+              <span className="editorial-chart-dot" style={{ left: `${xAt(hover)}%`, top: `${yAt(vals[hover])}%` }} />
+              <span className="editorial-chart-pop" style={{ left: `${xAt(hover)}%`, top: `${yAt(vals[hover])}%` }}>
+                {vals[hover]} opened · {formatShortDate(activity[hover].date)}
+              </span>
+            </>
+          )}
+          <span className="editorial-chart-hit" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
+        </div>
+        <div className="editorial-chart-xticks">
+          {ticks.map((tick, index) => <span key={index}>{tick}</span>)}
+        </div>
+      </div>
     </div>
   )
 }
@@ -44,156 +106,154 @@ function ActivityCalendar({ days }) {
 export default function EditorialLanding({
   summary,
   fallbackContinue,
-  fallbackRecents = [],
+  recentPapers = [],
   openPaper,
   dimmed = false,
+  view = 'now',
+  onViewChange,
   selectedPaperId,
   onPaperHover,
 }) {
-  const [activityOpen, setActivityOpen] = useState(false)
-  const swipeStart = useRef(null)
   const continuePaper = summary?.continuePaper || fallbackContinue
-  const recentlySaved = summary?.momentum?.recentlyAdded?.slice(0, 4) || fallbackRecents.slice(0, 4)
   const consistency = summary?.consistency || {}
   const totals = summary?.totals || {}
   const readingTime = summary?.readingTime || {}
   const history = consistency.readsByDay || []
   const activity = history.slice(-30)
-  const maxViews = useMemo(
-    () => Math.max(1, ...activity.map((day) => Number(day.views || 0))),
-    [activity]
-  )
+
   const currentPage = Math.max(1, Number(continuePaper?.current_page) || 1)
   const totalPages = Math.max(currentPage, Number(continuePaper?.total_pages) || currentPage)
   const progress = totalPages > 1 ? Math.min(100, Math.round((currentPage / totalPages) * 100)) : 0
 
-  const openActivity = () => setActivityOpen(true)
+  const activeDays30 = activity.filter((day) => Number(day.views) > 0).length
+  const jumpBack = recentPapers.filter((paper) => paper.id !== continuePaper?.id).slice(0, 10)
 
+  // keep the keyboard-selected paper visible as you arrow through Jump back
+  const jumpListRef = useRef(null)
   useEffect(() => {
-    if (!activityOpen) return undefined
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') setActivityOpen(false)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [activityOpen])
+    if (view !== 'now' || !selectedPaperId) return
+    const el = jumpListRef.current?.querySelector(`[data-paper-id="${selectedPaperId}"]`)
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [selectedPaperId, view])
+
+  const reading = Number(totals.readingNow || 0)
+  const done = Number(totals.completed || 0)
+  const total = Number(totals.totalPapers || 0)
+  const queued = Math.max(0, total - reading - done)
+  const split = [
+    { key: 'reading', label: 'Reading', n: reading },
+    { key: 'done', label: 'Done', n: done },
+    { key: 'queued', label: 'Queued', n: queued },
+  ]
 
   return (
-    <>
-      <section className={`editorial-desk ${dimmed ? 'is-dimmed' : ''}`} aria-label="Reading desk">
-        <div className="editorial-desk-grid">
-          <div className="editorial-primary-column">
+    <section className={`editorial-desk ${dimmed ? 'is-dimmed' : ''}`} aria-label="Reading desk">
+      <div className="editorial-deskhead">
+        <span className="editorial-marq">
+          {view === 'now' && <span className="editorial-marq-dot" aria-hidden="true" />}
+          {view === 'now' ? 'Continue reading' : 'Your library, in numbers'}
+        </span>
+        <div className="editorial-switch" role="tablist" aria-label="Desk view">
+          <button type="button" role="tab" aria-selected={view === 'now'} data-on={view === 'now'} onClick={() => onViewChange?.('now')}>Reading</button>
+          <button type="button" role="tab" aria-selected={view === 'stats'} data-on={view === 'stats'} onClick={() => onViewChange?.('stats')}>Stats</button>
+        </div>
+      </div>
+
+      <div className="editorial-panel">
+        {view === 'now' ? (
+          <div className="editorial-now">
             {continuePaper ? (
               <button
                 type="button"
-                className={`editorial-continue ${selectedPaperId === continuePaper.id ? 'is-selected' : ''}`}
+                className={`editorial-hero ${selectedPaperId === continuePaper.id ? 'is-selected' : ''}`}
                 onMouseEnter={() => onPaperHover?.(continuePaper.id)}
                 onClick={() => openPaper?.(continuePaper)}
               >
-                <span className="editorial-card-head">
-                  <span className="editorial-label">Continue</span>
-                  <span className="editorial-reading-state"><i /> Reading</span>
-                </span>
-                <span className="editorial-continue-title">{continuePaper.title || continuePaper.id}</span>
-                <span className="editorial-paper-meta">{paperMeta(continuePaper)}</span>
-                <span className="editorial-progress"><i style={{ width: `${progress}%` }} /></span>
-                <span className="editorial-card-foot">
-                  <span>{totalPages > 1 ? `Page ${currentPage} of ${totalPages}` : 'Ready to continue'}</span>
-                  <span>Open →</span>
+                <span className="editorial-hero-title">{continuePaper.title || continuePaper.id}</span>
+                <span className="editorial-hero-meta">{paperMeta(continuePaper)}</span>
+                <span className="editorial-hero-bar"><i style={{ width: `${progress}%` }} /></span>
+                <span className="editorial-hero-foot">
+                  <span className="editorial-counter">
+                    {totalPages > 1 ? <>page {currentPage} <span className="sep">/</span> {totalPages}</> : 'Ready to continue'}
+                  </span>
+                  <span className="editorial-resume">Resume →</span>
                 </span>
               </button>
             ) : (
-              <div className="editorial-continue editorial-empty">
-                <span className="editorial-label">Continue</span>
-                <span className="editorial-continue-title">Your next paper will appear here.</span>
+              <div className="editorial-hero editorial-hero-empty">
+                <span className="editorial-hero-title">Your next paper will appear here.</span>
               </div>
             )}
 
-            <div className="editorial-stats">
-              <div className="editorial-stat">
-                <span className="editorial-stat-value">{consistency.currentStreak || 0}<small>d</small></span>
-                <span className="editorial-label">Streak</span>
-                <span className="editorial-stat-detail">best {consistency.longestStreak || 0}d</span>
-              </div>
-              <div className="editorial-stat">
-                <span className="editorial-stat-value">{formatHours(readingTime.totalSeconds)}<small>h</small></span>
-                <span className="editorial-label">Time read</span>
-                <span className="editorial-stat-detail">+{formatHours(readingTime.thisWeekSeconds)}h this wk</span>
-              </div>
-              <div className="editorial-stat">
-                <span className="editorial-stat-value">{totals.readingNow || 0}<small>/{totals.totalPapers || 0}</small></span>
-                <span className="editorial-label">In progress</span>
-                <span className="editorial-stat-detail">{totals.completed || 0} finished</span>
+            <div className="editorial-jump">
+              <span className="editorial-cap">Jump back</span>
+              <div className="editorial-jump-list" ref={jumpListRef}>
+                {jumpBack.length ? jumpBack.map((paper, index) => (
+                  <button
+                    key={paper.id}
+                    type="button"
+                    data-paper-id={paper.id}
+                    className={`editorial-jrow ${selectedPaperId === paper.id ? 'is-selected' : ''}`}
+                    onMouseEnter={() => onPaperHover?.(paper.id)}
+                    onClick={() => openPaper?.(paper)}
+                  >
+                    <span className="editorial-jrow-n">{String(index + 1).padStart(2, '0')}</span>
+                    <span className="editorial-jrow-t">{paper.title || paper.id}</span>
+                    <time>{relativeTime(paper.last_accessed_at || paper.created_at)}</time>
+                  </button>
+                )) : <span className="editorial-empty-copy">Open a paper and it will appear here.</span>}
               </div>
             </div>
           </div>
+        ) : (
+          <div className="editorial-stats-view">
+            <div className="editorial-tiles">
+              <div className="editorial-tile editorial-tile-accent">
+                <span className="editorial-fig">{formatHours(readingTime.totalSeconds)}<span className="editorial-u">h</span></span>
+                <span className="editorial-cap">Time read</span>
+                <span className="editorial-tile-sub">+{formatHours(readingTime.thisWeekSeconds)}h this week</span>
+              </div>
+              <div className="editorial-tile">
+                <span className="editorial-fig">{consistency.currentStreak || 0}<span className="editorial-u">d</span></span>
+                <span className="editorial-cap">Streak</span>
+                <span className="editorial-tile-sub">best {consistency.longestStreak || 0}d</span>
+              </div>
+              <div className="editorial-tile">
+                <span className="editorial-fig">{activeDays30}<span className="editorial-u">/{activity.length || 30}</span></span>
+                <span className="editorial-cap">Active days</span>
+                <span className="editorial-tile-sub">last 30 days</span>
+              </div>
+            </div>
 
-          <div className="editorial-secondary-column">
-            <span className="editorial-label">Recently saved</span>
-            <div className="editorial-recents">
-              {recentlySaved.length ? recentlySaved.map((paper) => (
-                <button
-                  key={paper.id}
-                  type="button"
-                  className={selectedPaperId === paper.id ? 'is-selected' : ''}
-                  onMouseEnter={() => onPaperHover?.(paper.id)}
-                  onClick={() => openPaper?.(paper)}
-                >
-                  <span>{paper.title || paper.id}</span>
-                  <time>{relativeTime(paper.created_at || paper.last_accessed_at)}</time>
-                </button>
-              )) : <span className="editorial-empty-copy">New captures will appear here.</span>}
-            </div>
-            <button
-              type="button"
-              className="editorial-activity-peek"
-              onClick={openActivity}
-              onPointerDown={(event) => { swipeStart.current = { x: event.clientX, y: event.clientY } }}
-              onPointerUp={(event) => {
-                const start = swipeStart.current
-                swipeStart.current = null
-                if (start && Math.abs(event.clientX - start.x) > 45 && Math.abs(event.clientX - start.x) > Math.abs(event.clientY - start.y)) openActivity()
-              }}
-            >
-              <span className="editorial-card-head">
-                <span className="editorial-label">Reading activity</span>
-                <span className="editorial-activity-action">swipe → · expand ⤢</span>
-              </span>
-              <span className="editorial-spark" aria-hidden="true">
-                {activity.map((day, index) => {
-                  const value = Number(day.views || 0)
-                  const height = value === 0 ? 8 : 12 + (value / maxViews) * 76
-                  return <i key={day.date} style={{ height: `${height}%`, opacity: value ? .45 + value / maxViews * .55 : .18, animationDelay: `${index * 14}ms` }} />
-                })}
-              </span>
-            </button>
-          </div>
-        </div>
-      </section>
+            <ReadsChart activity={activity} thisWeek={totals.touchedThisWeek || 0} />
 
-      {activityOpen && (
-        <div className="editorial-activity-overlay" role="dialog" aria-modal="true" aria-labelledby="activity-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setActivityOpen(false) }}>
-          <div className="editorial-activity-panel">
-            <header>
-              <div>
-                <span className="editorial-label">Reading activity</span>
-                <h2 id="activity-title">The last 26 weeks</h2>
+            <div className="editorial-sect">
+              <div className="editorial-sect-head">
+                <div>
+                  <div className="editorial-sect-title">Library by status</div>
+                  <div className="editorial-sect-sub">{total} papers total</div>
+                </div>
               </div>
-              <button type="button" onClick={() => setActivityOpen(false)}>esc ×</button>
-            </header>
-            <div className="editorial-activity-summary">
-              <span><b>{history.reduce((sum, day) => sum + Number(day.views || 0), 0)}</b> opens</span>
-              <span>·</span>
-              <span><b>{history.filter((day) => Number(day.views) > 0).length}</b> active days</span>
-              <span>·</span>
-              <span><b>{consistency.currentStreak || 0}</b>-day streak</span>
-              <span>·</span>
-              <span>best <b>{consistency.longestStreak || 0}</b></span>
+              <div className="editorial-splitbar">
+                {split.map((seg) => seg.n > 0 && (
+                  <span key={seg.key} className={`s-${seg.key}`} style={{ flex: seg.n }} title={`${seg.label}: ${seg.n}`} />
+                ))}
+              </div>
+              <div className="editorial-legend">
+                {split.map((seg) => (
+                  <div key={seg.key} className="editorial-leg">
+                    <span className={`editorial-leg-dot s-${seg.key}`} />
+                    <span>
+                      <span className="editorial-fig">{seg.n}</span>
+                      <span className="editorial-cap">{seg.label}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <ActivityCalendar days={history} />
           </div>
-        </div>
-      )}
-    </>
+        )}
+      </div>
+    </section>
   )
 }

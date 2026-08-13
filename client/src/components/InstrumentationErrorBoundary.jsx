@@ -1,6 +1,19 @@
 import React from 'react';
 import { captureAppError } from '../lib/instrumentation';
 
+const CHUNK_RECOVERY_KEY = 'readxiv-last-chunk-recovery';
+const CHUNK_RECOVERY_COOLDOWN_MS = 60 * 1000;
+
+function isStaleChunkError(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return (
+    message.includes('failed to fetch dynamically imported module') ||
+    message.includes('error loading dynamically imported module') ||
+    message.includes('importing a module script failed') ||
+    message.includes('chunkloaderror')
+  );
+}
+
 export default class InstrumentationErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -17,6 +30,14 @@ export default class InstrumentationErrorBoundary extends React.Component {
       source: 'react_error_boundary',
       componentStack: info?.componentStack || null,
     });
+
+    if (isStaleChunkError(error)) {
+      const lastRecovery = Number(sessionStorage.getItem(CHUNK_RECOVERY_KEY) || 0);
+      if (!Number.isFinite(lastRecovery) || Date.now() - lastRecovery > CHUNK_RECOVERY_COOLDOWN_MS) {
+        sessionStorage.setItem(CHUNK_RECOVERY_KEY, String(Date.now()));
+        window.location.reload();
+      }
+    }
   }
 
   render() {
@@ -26,8 +47,15 @@ export default class InstrumentationErrorBoundary extends React.Component {
           <div className="max-w-xl rounded-lg border border-border bg-surface p-6">
             <h1 className="text-lg font-semibold mb-2">ReadXiv hit a render error</h1>
             <p className="text-sm text-muted mb-4">
-              The error was logged locally. Reload the page after the fix is applied.
+              The error was logged locally. Reload the page to try again.
             </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mb-4 rounded border border-border bg-background px-3 py-2 text-sm text-foreground"
+            >
+              Reload ReadXiv
+            </button>
             <pre className="max-h-48 overflow-auto rounded bg-background p-3 text-xs text-red-300">
               {this.state.error?.message || String(this.state.error)}
             </pre>

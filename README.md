@@ -2,17 +2,23 @@
 
 ReadXiv is a personal research companion for collecting and reading arXiv papers.
 
-This repository now includes an npm CLI so you can use ReadXiv from any terminal after global install.
+This repository includes a CLI that can be linked locally and used from any terminal.
 
 ## Install
 
-Scoped package install (replace with your actual npm scope):
+ReadXiv is not published to npm and does not have a packaged desktop installer yet. Install it from source:
 
 ```bash
-npm install -g @your-scope/readxiv
+git clone https://github.com/Rishik00/ReadXiv.git
+cd ReadXiv
+npm run install:all
+npm run build
+npm link
 ```
 
-Initialize local data and dependencies:
+`npm link` makes the `readxiv` command available globally on the current machine.
+
+Initialize local data if this is a fresh setup:
 
 ```bash
 readxiv init
@@ -21,8 +27,11 @@ readxiv init
 ## Quick Start
 
 ```bash
-# Start the web app from any terminal
-readxiv serve
+# Start the development website from any terminal
+readxiv
+
+# Start the Electron desktop app
+readxiv --app
 
 # Add papers
 readxiv add:https://arxiv.org/abs/2301.07041
@@ -38,6 +47,12 @@ readxiv remove:2301.07041
 ## CLI Commands
 
 ### App and setup
+
+- `readxiv`
+  Starts the backend and frontend in development mode and opens the website.
+
+- `readxiv --app`
+  Starts the Electron desktop app from the current production client build. DevTools stay closed by default.
 
 - `readxiv init`  
   Creates `~/.papyrus/`, initializes `papyrus.db`, writes default config, installs `client` and `server` dependencies.
@@ -111,5 +126,5 @@ Link globally for testing:
 ```bash
 npm run build
 npm link
-readxiv serve
+readxiv
 ```

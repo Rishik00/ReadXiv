@@ -5,12 +5,8 @@
 
 import { Suspense, lazy, useEffect, useState, useCallback, useRef } from 'react'
 import axios from 'axios'
-import GlobalSearchPalette from './components/GlobalSearchPalette'
-import RecentPapersFinder from './components/RecentPapersFinder'
 import Home from './pages/Home'
-import Settings from './pages/Settings'
 import { notificationsSupported, showNotification } from './lib/notifications'
-import Help from './pages/Help'
 import {
   captureAction,
   capturePageView,
@@ -23,6 +19,26 @@ const Reader = lazy(() => import('./pages/Reader'))
 const SearchWorkbench = lazy(() => import('./pages/SearchWorkbench'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const GlobalCanvas = lazy(() => import('./components/GlobalCanvas'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Help = lazy(() => import('./pages/Help'))
+const GlobalSearchPalette = lazy(() => import('./components/GlobalSearchPalette'))
+
+const DESKTOP_SESSION_KEY = 'readxiv-desktop-session-v1'
+const RESTORABLE_DESKTOP_PAGES = new Set(['home', 'search', 'dashboard', 'settings', 'help', 'reader'])
+
+function readDesktopSession() {
+  if (!window.electron?.isElectron) return null
+  try {
+    const session = JSON.parse(localStorage.getItem(DESKTOP_SESSION_KEY) || 'null')
+    if (!session || !RESTORABLE_DESKTOP_PAGES.has(session.page)) return null
+    return {
+      page: session.page,
+      paperId: typeof session.paperId === 'string' && session.paperId ? session.paperId : null,
+    }
+  } catch {
+    return null
+  }
+}
 
 // Question: does this still apply? If not, explain
 // Settings button: kept in code but not in use. User will specify placement later.
@@ -77,6 +93,7 @@ function App() {
   // Question: This is....a lot of state that you're maintaining. Sure all of this is necessary? 
   // Question: actually, are we using react router? What are we doing right now for routes?
   const [page, setPage] = useState('home')
+  const [readerOrigin, setReaderOrigin] = useState('home')
   const [selectedPaper, setSelectedPaper] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchWorkspaceState, setSearchWorkspaceState] = useState({
@@ -91,7 +108,6 @@ function App() {
   const [readerInitialTab, setReaderInitialTab] = useState('edit')
   const [toasts, setToasts] = useState([])
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
-  const [recentsOpen, setRecentsOpen] = useState(false)
   const [canvasOpen, setCanvasOpen] = useState(false)
   const [pendingCanvasSource, setPendingCanvasSource] = useState(null)
   const [pendingG, setPendingG] = useState(false)
@@ -113,10 +129,10 @@ function App() {
   // Question: I feel uncomfortable having all of this here. Is there a better way of doing this? 
   const [externalTabs, setExternalTabs] = useState([])
   const [activeExternalTabId, setActiveExternalTabId] = useState(null)
-  const DEFAULT_THEME = 'mist'
+  const DEFAULT_THEME = 'monochrome'
   const DEFAULT_PDF_ZOOM = 'actual'
   const DEFAULT_READER_VIEW = 'split'
-  const VALID_THEMES = ['monochrome', 'blue', 'noir', 'olive', 'mist', 'plum', 'periwinkle', 'lichen', 'cinder']
+  const VALID_THEMES = ['monochrome', 'olive', 'umber']
   const VALID_PDF_ZOOMS = ['actual', 'page-width', 'page-fit', 'auto']
   const VALID_READER_VIEWS = ['split', 'pdf', 'notes']
   const VALID_NOTES_FONTS = ['current', 'source-sans-3', 'atkinson-hyperlegible']
@@ -318,6 +334,10 @@ function App() {
           paperTitle: paper.title,
           initialTab,
         })
+        // remember where we came from so the reader can take us back
+        if (pageRef.current && pageRef.current !== 'reader') {
+          setReaderOrigin(pageRef.current)
+        }
         setSelectedPaper(paper)
         setReaderInitialTab(initialTab)
         setPage('reader')
@@ -358,11 +378,6 @@ function App() {
         } else if (k === 'l') {
           event.preventDefault()
           navigateTo('search')
-          pendingGRef.current = false
-          setPendingG(false)
-        } else if (k === 'r') {
-          event.preventDefault()
-          setRecentsOpen(true)
           pendingGRef.current = false
           setPendingG(false)
         } else if (k === 'd') {
@@ -516,6 +531,14 @@ function App() {
         setSearchFocusNonce((n) => n + 1)
       } else if (isDashboardPath(window.location.pathname)) {
         setPage('dashboard')
+      } else {
+        const session = readDesktopSession()
+        if (session?.page === 'reader' && session.paperId) {
+          await openPaperById(session.paperId)
+        } else if (session?.page) {
+          setPage(session.page)
+          if (session.page === 'search') setSearchFocusNonce((n) => n + 1)
+        }
       }
       setInitialRouteResolved(true)
     }
@@ -593,6 +616,16 @@ function App() {
   }, [page, selectedPaper?.id])
 
   useEffect(() => {
+    if (!initialRouteResolved || !window.electron?.isElectron) return
+    if (!RESTORABLE_DESKTOP_PAGES.has(page)) return
+    const previous = readDesktopSession()
+    localStorage.setItem(DESKTOP_SESSION_KEY, JSON.stringify({
+      page,
+      paperId: selectedPaper?.id || previous?.paperId || null,
+    }))
+  }, [initialRouteResolved, page, selectedPaper?.id])
+
+  useEffect(() => {
     if (!initialRouteResolved) return
     markCurrentRoute(page)
     pageTimerRef.current = startTimer()
@@ -646,6 +679,34 @@ function App() {
   // Question: is this how good react codebases do? directly just return the HTML file? 
   return (
     <div className="flex min-h-screen text-foreground font-sans">
+      {window.electron?.isElectron && (
+        <>
+          <div className="electron-drag-region" aria-hidden="true" />
+          <div className="electron-window-controls" aria-label="Window controls">
+            <button
+              type="button"
+              className="electron-window-control electron-window-control-close"
+              aria-label="Close window"
+              title="Close"
+              onClick={() => window.electron.windowControls?.close()}
+            />
+            <button
+              type="button"
+              className="electron-window-control electron-window-control-minimize"
+              aria-label="Minimize window"
+              title="Minimize"
+              onClick={() => window.electron.windowControls?.minimize()}
+            />
+            <button
+              type="button"
+              className="electron-window-control electron-window-control-maximize"
+              aria-label="Maximize or restore window"
+              title="Maximize / Restore"
+              onClick={() => window.electron.windowControls?.toggleMaximize()}
+            />
+          </div>
+        </>
+      )}
       <div className="fixed bottom-5 right-5 z-50 flex w-[min(92vw,20rem)] flex-col-reverse gap-2 pointer-events-none">
         {toasts.map((toast) => (
           <div
@@ -805,6 +866,7 @@ function App() {
                   setCanvasOpen(true)
                   addToast(`Page ${imageData.page} added to Canvas`, 'success')
                 }}
+                onExit={() => navigateTo(readerOrigin || 'home')}
               />
             </Suspense>
           )}
@@ -821,10 +883,14 @@ function App() {
             </Suspense>
           )}
           {page === 'settings' && (
-            <Settings settings={settings} setSettings={setSettings} setPage={setPage} addToast={addToast} />
+            <Suspense fallback={null}>
+              <Settings settings={settings} setSettings={setSettings} setPage={setPage} addToast={addToast} />
+            </Suspense>
           )}
           {page === 'help' && (
-            <Help setPage={setPage} />
+            <Suspense fallback={null}>
+              <Help setPage={setPage} />
+            </Suspense>
           )}
           </div>
         </div>
@@ -842,29 +908,25 @@ function App() {
           )
         })()}
       </main>
-      <RecentPapersFinder
-        open={recentsOpen}
-        onClose={() => setRecentsOpen(false)}
-        onSelectPaper={(paper) => {
-          openPaper(paper)
-          setRecentsOpen(false)
-        }}
-      />
-      <GlobalSearchPalette
-        open={quickSearchOpen}
-        onClose={() => setQuickSearchOpen(false)}
-        currentPage={page}
-        onSelectPaper={(paper) => {
-          openPaper(paper)
-          setQuickSearchOpen(false)
-        }}
-        onCommand={(cmd) => {
-          if (['home', 'search', 'dashboard', 'settings', 'help'].includes(cmd.id)) {
-            navigateTo(cmd.id)
-          }
-          setQuickSearchOpen(false)
-        }}
-      />
+      {quickSearchOpen && (
+        <Suspense fallback={null}>
+          <GlobalSearchPalette
+            open
+            onClose={() => setQuickSearchOpen(false)}
+            currentPage={page}
+            onSelectPaper={(paper) => {
+              openPaper(paper)
+              setQuickSearchOpen(false)
+            }}
+            onCommand={(cmd) => {
+              if (['home', 'search', 'dashboard', 'settings', 'help'].includes(cmd.id)) {
+                navigateTo(cmd.id)
+              }
+              setQuickSearchOpen(false)
+            }}
+          />
+        </Suspense>
+      )}
       {canvasOpen && (
         <Suspense fallback={null}>
           <GlobalCanvas

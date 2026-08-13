@@ -129,6 +129,43 @@ export default function SearchWorkbench({
     )
   }
 
+  const openInSystemBrowser = (url) => {
+    if (!url) return false
+    if (window.electron?.openExternal) window.electron.openExternal(url)
+    else window.open(url, '_blank', 'noopener,noreferrer')
+    return true
+  }
+
+  const paperSourceUrl = (paper = selectedPaper) => paper?.url
+    || (paper?.id && !paper.id.startsWith('local') ? `https://arxiv.org/abs/${paper.id}` : null)
+
+  const handleOpenInBrowser = () => {
+    const url = paperSourceUrl()
+    if (!openInSystemBrowser(url)) {
+      addToast?.('No paper link available', 'error')
+      return
+    }
+    captureAction('open_paper_in_browser', { route: 'search', paperId: selectedPaper.id, url })
+  }
+
+  const handleOpenPublishedNotes = async () => {
+    if (!selectedPaper?.id) return
+    try {
+      const currentPublication = publication?.publishedUrl
+        ? publication
+        : (await axios.get(`/api/publish/${encodeURIComponent(selectedPaper.id)}`)).data
+      if (!currentPublication?.publishedUrl) {
+        addToast?.('Notes have not been published', 'info')
+        return
+      }
+      openInSystemBrowser(currentPublication.publishedUrl)
+      captureAction('open_published_notes', { route: 'search', paperId: selectedPaper.id })
+    } catch (error) {
+      captureAppError(error, { route: 'search', source: 'open_published_notes', paperId: selectedPaper.id })
+      addToast?.('Could not open published notes', 'error')
+    }
+  }
+
   const handleUnpublishNotes = async () => {
     if (!selectedPaper?.id || publicationLoading) return
     if (!window.confirm(`Remove the published notes for "${selectedPaper.title || selectedPaper.id}"?`)) return
@@ -265,6 +302,7 @@ export default function SearchWorkbench({
     { label: 'State', value: Number(selectedPaper.offline_pinned) === 1 ? 'Offline' : 'Online' },
     { label: 'ID', value: selectedPaper.id || 'Unknown' },
     { label: 'Year', value: selectedPaper.year || 'Unknown' },
+    { label: 'Pages', value: selectedPaper.total_pages || selectedPaper.page_count || 'Unknown' },
     { label: 'Date added', value: formatDateAdded(selectedPaper.created_at) },
     { label: 'Schedule', value: selectedScheduleState },
     { label: 'Authors', value: selectedPaper.authors || 'Unknown', multiline: true },
@@ -418,10 +456,7 @@ export default function SearchWorkbench({
 
   const handleCopyLink = () => {
     if (!selectedPaper) return
-    const url = selectedPaper.url
-      || (selectedPaper.id && !selectedPaper.id.startsWith('local')
-          ? `https://arxiv.org/abs/${selectedPaper.id}`
-          : null)
+    const url = paperSourceUrl()
     if (!url) { addToast?.('No link available', 'error'); return }
     navigator.clipboard.writeText(url)
       .then(() => {
@@ -653,6 +688,16 @@ export default function SearchWorkbench({
         handleCopyLink()
         return
       }
+      if (lower === 'b') {
+        event.preventDefault()
+        handleOpenInBrowser()
+        return
+      }
+      if (lower === 'n') {
+        event.preventDefault()
+        handleOpenPublishedNotes()
+        return
+      }
       if (lower === 'd') {
         event.preventDefault()
         if (!actionsOpen) setActionsOpen(true)
@@ -867,9 +912,10 @@ export default function SearchWorkbench({
                   disabled: selectedMetadataFetching,
                 } : null,
                 { name:'Copy Link', sub:null, key:'C', onClick: handleCopyLink },
+                { name:'Open in Browser', sub:'System browser', key:'B', onClick: handleOpenInBrowser },
                 { name:'Cycle Status', sub:null, key:'S', onClick: handleCycleStatus },
                 { name: publication?.published ? 'Preview & Update Notes' : 'Preview & Publish Notes', sub: publication?.changed ? 'Local changes' : 'Opens full-page preview', key:'P', onClick: handlePreviewNotes, disabled: publicationLoading || !publication },
-                publication?.publishedUrl ? { name:'Open Published Notes', sub:null, key:null, onClick: () => window.open(publication.publishedUrl, '_blank', 'noopener,noreferrer') } : null,
+                publication?.publishedUrl ? { name:'Open Published Notes', sub:null, key:'N', onClick: handleOpenPublishedNotes } : null,
                 publication?.published ? { name:'Unpublish Notes', sub:null, key:null, danger:true, onClick: handleUnpublishNotes, disabled: publicationLoading } : null,
                 { name: selectedPaper?.scheduled_date === new Date().toISOString().slice(0, 10) ? 'Clear Today Reminder' : 'Remind Me Today', sub:'90-minute reminder', key:'R', onClick: handleToggleTodayReminder },
                 { name: paperHasTodoistTask(selectedPaper) ? 'Edit Schedule' : 'Schedule', sub:null, key:'D', onClick: () => selectedPaper && setTodoistModalPaper(selectedPaper) },

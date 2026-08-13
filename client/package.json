@@ -9,11 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@lexical/react": "^0.35.0",
     "@mdxeditor/editor": "^3.55.0",
     "axios": "^1.6.2",
     "fuse.js": "^7.0.0",
     "katex": "^0.16.40",
+    "lexical": "^0.35.0",
     "markdown-it": "^14.1.1",
+    "mdast-util-math": "^3.0.0",
+    "micromark-extension-math": "^3.1.0",
     "pdfjs-dist": "^5.4.624",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

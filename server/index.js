@@ -29,7 +29,7 @@ app.use(express.json());
 
 // Initialize database (async)
 let isDbReady = false;
-initDB().then(() => {
+const dbReadyPromise = initDB().then(() => {
   isDbReady = true;
   console.log('✅ Database ready');
   checkScheduledBackup();
@@ -38,11 +38,14 @@ initDB().then(() => {
   process.exit(1);
 });
 
-app.use((req, res, next) => {
-  if (!isDbReady && req.path !== '/health') {
-    return res.status(503).json({ error: 'Database is still initializing' });
+app.use(async (req, res, next) => {
+  if (isDbReady || req.path === '/health') return next();
+  try {
+    await dbReadyPromise;
+    return next();
+  } catch (error) {
+    return next(error);
   }
-  return next();
 });
 
 // Routes
@@ -64,9 +67,18 @@ app.get('/health', (req, res) => {
 });
 
 if (fs.existsSync(clientDistPath)) {
-  app.use(express.static(clientDistPath));
+  app.use(express.static(clientDistPath, {
+    setHeaders(res, filePath) {
+      if (path.basename(filePath) === 'index.html') {
+        res.setHeader('Cache-Control', 'no-store');
+      } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
+    res.setHeader('Cache-Control', 'no-store');
     return res.sendFile(path.join(clientDistPath, 'index.html'));
   });
 } else {

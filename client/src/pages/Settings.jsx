@@ -218,14 +218,8 @@ export default function Settings({ settings, setSettings, setPage, addToast }) {
   }
 
   const themes = [
-    { id: 'mist', name: 'Mist — sage gray' },
-    { id: 'plum', name: 'Plum — violet' },
-    { id: 'periwinkle', name: 'Periwinkle — ink & blue' },
-    { id: 'lichen', name: 'Lichen — gray & sage' },
-    { id: 'cinder', name: 'Cinder — graphite & mauve' },
     { id: 'monochrome', name: 'Black & White' },
-    { id: 'blue', name: 'Black & Blue' },
-    { id: 'noir', name: 'Noir' },
+    { id: 'umber', name: 'Umber — warm brown' },
     { id: 'olive', name: 'Olive' },
   ]
 
@@ -505,7 +499,7 @@ export default function Settings({ settings, setSettings, setPage, addToast }) {
                 <div className="text-sm text-muted mt-1">Those who use light mode need help</div>
               </div>
               <select
-                value={settings.theme || 'mist'}
+                value={settings.theme || 'monochrome'}
                 onChange={(e) => setSettings((prev) => ({ ...prev, theme: e.target.value }))}
                 className="w-40 pl-3 pr-8 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer appearance-none shrink-0"
                 style={{
