@@ -18,7 +18,6 @@ import {
 const Reader = lazy(() => import('./pages/Reader'))
 const SearchWorkbench = lazy(() => import('./pages/SearchWorkbench'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
-const GlobalCanvas = lazy(() => import('./components/GlobalCanvas'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Help = lazy(() => import('./pages/Help'))
 const GlobalSearchPalette = lazy(() => import('./components/GlobalSearchPalette'))
@@ -108,8 +107,6 @@ function App() {
   const [readerInitialTab, setReaderInitialTab] = useState('edit')
   const [toasts, setToasts] = useState([])
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
-  const [canvasOpen, setCanvasOpen] = useState(false)
-  const [pendingCanvasSource, setPendingCanvasSource] = useState(null)
   const [pendingG, setPendingG] = useState(false)
   const readerRef = useRef(null)
   /** Mirror chord flags so the next key is recognized before React re-renders (fixes Space then o). */
@@ -415,11 +412,6 @@ function App() {
           readerRef.current?.togglePdfDarkMode?.()
           pendingGRef.current = false
           setPendingG(false)
-        } else if (k === 'a') {
-          event.preventDefault()
-          setCanvasOpen(true)
-          pendingGRef.current = false
-          setPendingG(false)
         } else if (k === 'm' && page === 'reader') {
           event.preventDefault()
           readerRef.current?.maximizePdf?.()
@@ -672,7 +664,6 @@ function App() {
           ['r', 'Recent'],
           [',', 'Settings'],
           ['?', 'Help'],
-          ['a', 'Canvas'],
         ]
     : null
 
@@ -855,17 +846,6 @@ function App() {
                 settings={settings}
                 initialTab={readerInitialTab}
                 addToast={addToast}
-                onSendToCanvas={(imageData) => {
-                  setPendingCanvasSource({
-                    sourceType: 'pdf-page',
-                    paperId: selectedPaper?.id,
-                    paperTitle: selectedPaper?.title || selectedPaper?.id,
-                    page: imageData.page,
-                    collectedAt: new Date().toISOString(),
-                  })
-                  setCanvasOpen(true)
-                  addToast(`Page ${imageData.page} added to Canvas`, 'success')
-                }}
                 onExit={() => navigateTo(readerOrigin || 'home')}
               />
             </Suspense>
@@ -923,20 +903,6 @@ function App() {
                 navigateTo(cmd.id)
               }
               setQuickSearchOpen(false)
-            }}
-          />
-        </Suspense>
-      )}
-      {canvasOpen && (
-        <Suspense fallback={null}>
-          <GlobalCanvas
-            open
-            onClose={() => setCanvasOpen(false)}
-            pendingSource={pendingCanvasSource}
-            onSourceConsumed={() => setPendingCanvasSource(null)}
-            onOpenSource={(source) => {
-              setCanvasOpen(false)
-              if (source?.paperId) openPaperById(source.paperId, { page: source.page })
             }}
           />
         </Suspense>

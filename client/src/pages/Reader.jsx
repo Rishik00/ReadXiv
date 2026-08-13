@@ -402,7 +402,7 @@ function isPlaceholderPaperTitle(paper) {
 }
 
 const Reader = forwardRef(function Reader(
-  { paper, setSelectedPaper, setPage, settings, initialTab = 'edit', addToast, onSendToCanvas, onExit },
+  { paper, setSelectedPaper, setPage, settings, initialTab = 'edit', addToast, onExit },
   ref
 ) {
   const renderCountRef = useRef(0);
@@ -1181,7 +1181,6 @@ const Reader = forwardRef(function Reader(
                   initialPage={readerPaper?.current_page || 1}
                   onPageProgress={saveReadingProgress}
                   onInsertQuote={insertQuoteFromHighlight}
-                  onSendToCanvas={onSendToCanvas}
                   onToolbarState={handleToolbarState}
                 />
               ) : (
