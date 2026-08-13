@@ -45,7 +45,6 @@ const PdfViewer = forwardRef(function PdfViewer(
     initialPage = 1,
     onPageProgress,
     onInsertQuote,
-    onSendToCanvas,
     onToolbarState,
   },
   ref
