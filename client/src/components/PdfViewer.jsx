@@ -36,6 +36,12 @@ function normalizeZoomPreset(value) {
   return VALID_ZOOM_PRESETS.has(value) ? value : 'actual';
 }
 
+function toPdfJsZoomPreset(value) {
+  // "actual" is our settings label; PDF.js calls the same preset
+  // "page-actual". Passing the label through produces a console error.
+  return value === 'actual' ? 'page-actual' : value;
+}
+
 const PdfViewer = forwardRef(function PdfViewer(
   {
     paperId,
@@ -151,7 +157,7 @@ const PdfViewer = forwardRef(function PdfViewer(
     linkService.setViewer(pdfViewer);
 
     const applyDefaultZoom = () => {
-      pdfViewer.currentScaleValue = defaultZoomRef.current;
+      pdfViewer.currentScaleValue = toPdfJsZoomPreset(defaultZoomRef.current);
       setScale(pdfViewer.currentScale || 1);
     };
 
@@ -580,7 +586,7 @@ const PdfViewer = forwardRef(function PdfViewer(
       } else if ((event.ctrlKey || event.metaKey) && event.key === '0') {
         event.preventDefault();
         if (pdfViewerRef.current) {
-          pdfViewerRef.current.currentScaleValue = defaultZoomRef.current;
+          pdfViewerRef.current.currentScaleValue = toPdfJsZoomPreset(defaultZoomRef.current);
           setScale(pdfViewerRef.current.currentScale || 1);
         }
       } else if (event.key === 'G' && event.shiftKey) {
