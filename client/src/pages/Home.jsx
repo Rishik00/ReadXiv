@@ -19,7 +19,6 @@ function getArxivPreviewKey(val) {
 }
 
 const SLASH_COMMANDS = [
-  { id: 'dashboard', slug: 'dashboard', label: 'Dashboard', prefix: null },
   { id: 'search', slug: 'library', label: 'Library', prefix: '/library ' },
   { id: 'add', slug: 'add', label: 'Add from ArXiv', prefix: '/add ' },
   { id: 'upload', slug: 'upload', label: 'Upload', prefix: null },
@@ -73,7 +72,7 @@ export default function Home({
   const [memorySelectedIndex, setMemorySelectedIndex] = useState(0)
   const [liveResults, setLiveResults] = useState([])
   const [liveSelectedIndex, setLiveSelectedIndex] = useState(0)
-  const [dashboardSummary, setDashboardSummary] = useState(null)
+  const [homeSummary, setHomeSummary] = useState(null)
   const [deskView, setDeskView] = useState('now')
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -123,10 +122,10 @@ export default function Home({
       axios.get('/api/papers/recents', { params: { limit: 10 } }),
       axios.get('/api/dashboard/summary', { params: { days: 182 } }),
     ])
-      .then(([recentsResponse, dashboardResponse]) => {
+      .then(([recentsResponse, summaryResponse]) => {
         if (cancelled) return
         setMemoryPapers(Array.isArray(recentsResponse.data) ? recentsResponse.data : [])
-        setDashboardSummary(dashboardResponse.data)
+        setHomeSummary(summaryResponse.data)
       })
       .catch(() => {})
     return () => { cancelled = true }
@@ -154,10 +153,10 @@ export default function Home({
   )
   const memoryItems = useMemo(
     () => {
-      const editorialContinue = dashboardSummary?.continuePaper || continuePaper
+      const editorialContinue = homeSummary?.continuePaper || continuePaper
       return [editorialContinue, ...memoryPapers.filter((paper) => paper.id !== editorialContinue?.id)].filter(Boolean)
     },
-    [continuePaper, dashboardSummary, memoryPapers]
+    [continuePaper, homeSummary, memoryPapers]
   )
   const liveQuery = currentMode === 'normal' && !isArxivInput(input) && !input.trim().startsWith('/')
     ? input.trim()
@@ -354,11 +353,6 @@ export default function Home({
       setInput('')
       return
     }
-    if (cmd.id === 'dashboard') {
-      setPage('dashboard')
-      setInput('')
-      return
-    }
     if (cmd.id === 'backup') {
       setInput('')
       setLoading(true)
@@ -477,13 +471,6 @@ export default function Home({
 
     if (normalizedCmd === '/bindings' || normalizedCmd === '/help') {
       setPage('help')
-      setInput('')
-      setCurrentMode('normal')
-      return
-    }
-
-    if (normalizedCmd === '/dashboard' || normalizedCmd === '/dash') {
-      setPage('dashboard')
       setInput('')
       setCurrentMode('normal')
       return
@@ -634,7 +621,7 @@ export default function Home({
       )}
 
       <EditorialLanding
-        summary={dashboardSummary}
+        summary={homeSummary}
         fallbackContinue={continuePaper}
         recentPapers={memoryPapers}
         openPaper={openPaper}

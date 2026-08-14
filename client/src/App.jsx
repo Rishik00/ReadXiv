@@ -17,13 +17,12 @@ import {
 } from './lib/instrumentation'
 const Reader = lazy(() => import('./pages/Reader'))
 const SearchWorkbench = lazy(() => import('./pages/SearchWorkbench'))
-const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Help = lazy(() => import('./pages/Help'))
 const GlobalSearchPalette = lazy(() => import('./components/GlobalSearchPalette'))
 
 const DESKTOP_SESSION_KEY = 'readxiv-desktop-session-v1'
-const RESTORABLE_DESKTOP_PAGES = new Set(['home', 'search', 'dashboard', 'settings', 'help', 'reader'])
+const RESTORABLE_DESKTOP_PAGES = new Set(['home', 'search', 'settings', 'help', 'reader'])
 
 function readDesktopSession() {
   if (!window.electron?.isElectron) return null
@@ -289,9 +288,6 @@ function App() {
           captureAction('navigate', { route: pageRef.current, target: 'search', source: 'navigateTo' })
           setPage('search')
           setSearchFocusNonce((n) => n + 1)
-        } else if (target === 'dashboard') {
-          captureAction('navigate', { route: pageRef.current, target: 'dashboard', source: 'navigateTo' })
-          setPage('dashboard')
         } else if (target === 'settings') {
           captureAction('navigate', { route: pageRef.current, target: 'settings', source: 'navigateTo' })
           setPage('settings')
@@ -375,11 +371,6 @@ function App() {
         } else if (k === 'l') {
           event.preventDefault()
           navigateTo('search')
-          pendingGRef.current = false
-          setPendingG(false)
-        } else if (k === 'd') {
-          event.preventDefault()
-          navigateTo('dashboard')
           pendingGRef.current = false
           setPendingG(false)
         } else if (page === 'reader' && k === '1') {
@@ -522,7 +513,7 @@ function App() {
         setPage('search')
         setSearchFocusNonce((n) => n + 1)
       } else if (isDashboardPath(window.location.pathname)) {
-        setPage('dashboard')
+        setPage('home')
       } else {
         const session = readDesktopSession()
         if (session?.page === 'reader' && session.paperId) {
@@ -560,7 +551,7 @@ function App() {
           })
         } else if (isDashboardPath(window.location.pathname)) {
           runWithViewTransition(() => {
-            setPage('dashboard')
+            setPage('home')
             setSelectedPaper(null)
           })
         } else {
@@ -591,10 +582,6 @@ function App() {
         window.history.pushState({ readxiv: 'library' }, '', '/library')
       } else if (window.location.pathname.startsWith('/search')) {
         window.history.replaceState({ readxiv: 'library' }, '', '/library')
-      }
-    } else if (page === 'dashboard') {
-      if (!isDashboardPath(window.location.pathname)) {
-        window.history.pushState({ readxiv: 'dashboard' }, '', '/dashboard')
       }
     } else if (page === 'home' && isDashboardPath(window.location.pathname)) {
       window.history.replaceState(null, '', '/')
@@ -649,7 +636,6 @@ function App() {
       ? [
           ['h', 'Home'],
           ['l', 'Library'],
-          ['d', 'Dashboard'],
           ['r', 'Recent'],
           [',', 'Settings'],
           ['?', 'Help'],
@@ -660,7 +646,6 @@ function App() {
       : [
           ['h', 'Home'],
           ['l', 'Library'],
-          ['d', 'Dashboard'],
           ['r', 'Recent'],
           [',', 'Settings'],
           ['?', 'Help'],
@@ -796,7 +781,7 @@ function App() {
         )}
         <div className={`flex-1 overflow-auto ${activeExternalTabId ? 'hidden' : ''}`}>
           <div key={supportsViewTransitions ? 'app-page-shell' : page} className={`relative z-10 ${
-            page === 'reader' || page === 'search' || page === 'home' || page === 'dashboard' ? '' : 'brutalist-container pl-6 pr-6 pt-6 pb-16'
+            page === 'reader' || page === 'search' || page === 'home' ? '' : 'brutalist-container pl-6 pr-6 pt-6 pb-16'
           } ${supportsViewTransitions ? '' : 'animate-view-fade'}`}>
           {page === 'home' && (
             <Home
@@ -850,18 +835,6 @@ function App() {
               />
             </Suspense>
           )}
-          {page === 'dashboard' && (
-            <Suspense fallback={
-              <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 animate-fade-in">
-                <div className="h-2 w-48 rounded-full overflow-hidden bg-surface">
-                  <div className="h-full w-1/3 skeleton-shimmer" />
-                </div>
-                <span className="text-sm text-muted uppercase tracking-widest">Loading dashboard...</span>
-              </div>
-            }>
-              <Dashboard openPaper={openPaper} />
-            </Suspense>
-          )}
           {page === 'settings' && (
             <Suspense fallback={null}>
               <Settings settings={settings} setSettings={setSettings} setPage={setPage} addToast={addToast} />
@@ -899,7 +872,7 @@ function App() {
               setQuickSearchOpen(false)
             }}
             onCommand={(cmd) => {
-              if (['home', 'search', 'dashboard', 'settings', 'help'].includes(cmd.id)) {
+              if (['home', 'search', 'settings', 'help'].includes(cmd.id)) {
                 navigateTo(cmd.id)
               }
               setQuickSearchOpen(false)
