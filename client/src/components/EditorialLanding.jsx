@@ -200,6 +200,7 @@ export default function EditorialLanding({
                     onClick={() => openPaper?.(paper)}
                   >
                     <span className="editorial-jrow-n">{String(index + 1).padStart(2, '0')}</span>
+                    {Number(paper.important) === 1 && <span className="editorial-jrow-star" aria-label="Important">★</span>}
                     <span className="editorial-jrow-t">{paper.title || paper.id}</span>
                     <time>{relativeTime(paper.last_accessed_at || paper.created_at)}</time>
                   </button>

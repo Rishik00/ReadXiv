@@ -69,6 +69,7 @@ export default function Home({
   const [previewQuery, setPreviewQuery] = useState('')
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   const [memoryPapers, setMemoryPapers] = useState([])
+  const [importantPapers, setImportantPapers] = useState([])
   const [memorySelectedIndex, setMemorySelectedIndex] = useState(0)
   const [liveResults, setLiveResults] = useState([])
   const [liveSelectedIndex, setLiveSelectedIndex] = useState(0)
@@ -120,11 +121,13 @@ export default function Home({
     let cancelled = false
     Promise.all([
       axios.get('/api/papers/recents', { params: { limit: 10 } }),
+      axios.get('/api/papers/important'),
       axios.get('/api/dashboard/summary', { params: { days: 182 } }),
     ])
-      .then(([recentsResponse, summaryResponse]) => {
+      .then(([recentsResponse, importantResponse, summaryResponse]) => {
         if (cancelled) return
         setMemoryPapers(Array.isArray(recentsResponse.data) ? recentsResponse.data : [])
+        setImportantPapers(Array.isArray(importantResponse.data) ? importantResponse.data : [])
         setHomeSummary(summaryResponse.data)
       })
       .catch(() => {})
@@ -154,9 +157,10 @@ export default function Home({
   const memoryItems = useMemo(
     () => {
       const editorialContinue = homeSummary?.continuePaper || continuePaper
-      return [editorialContinue, ...memoryPapers.filter((paper) => paper.id !== editorialContinue?.id)].filter(Boolean)
+      const papers = [editorialContinue, ...importantPapers, ...memoryPapers].filter(Boolean)
+      return [...new Map(papers.map((paper) => [paper.id, paper])).values()]
     },
-    [continuePaper, homeSummary, memoryPapers]
+    [continuePaper, homeSummary, importantPapers, memoryPapers]
   )
   const liveQuery = currentMode === 'normal' && !isArxivInput(input) && !input.trim().startsWith('/')
     ? input.trim()

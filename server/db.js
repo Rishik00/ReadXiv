@@ -102,6 +102,8 @@ export async function initDB() {
       pdf_url TEXT,
       source TEXT DEFAULT 'arxiv',
       status TEXT DEFAULT 'queued',
+      important INTEGER DEFAULT 0,
+      important_at TEXT,
       tags TEXT DEFAULT '[]',
       year INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
@@ -175,6 +177,12 @@ export async function initDB() {
   if (!papersCols.includes('scheduled_date')) {
     db.run('ALTER TABLE papers ADD COLUMN scheduled_date TEXT');
   }
+  if (!papersCols.includes('important')) {
+    db.run('ALTER TABLE papers ADD COLUMN important INTEGER DEFAULT 0');
+  }
+  if (!papersCols.includes('important_at')) {
+    db.run('ALTER TABLE papers ADD COLUMN important_at TEXT');
+  }
   if (!papersCols.includes('citation_count')) {
     db.run('ALTER TABLE papers ADD COLUMN citation_count INTEGER');
   }
@@ -212,6 +220,8 @@ export async function initDB() {
   if (!colNames.includes('todoist_task_id')) {
     db.run('ALTER TABLE papers ADD COLUMN todoist_task_id TEXT');
   }
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_papers_important ON papers(important, important_at)');
 
   db.run('DROP TABLE IF EXISTS reading_queue');
 
