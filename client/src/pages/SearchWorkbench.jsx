@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import TodoistTaskModal, { paperHasTodoistTask } from '../components/TodoistTaskModal'
 import { captureAction, captureAppError, captureTiming, elapsedSince, startTimer } from '../lib/instrumentation'
-import { requestNotificationPermission } from '../lib/notifications'
 
 function getStatusColor(status) {
   switch (status) {
@@ -184,28 +183,17 @@ export default function SearchWorkbench({
     }
   }
 
-  const handleToggleTodayReminder = async () => {
+  const handleToggleImportant = async () => {
     if (!selectedPaper?.id) return
-    const today = new Date().toISOString().slice(0, 10)
-    const scheduledDate = selectedPaper.scheduled_date === today ? null : today
+    const nextImportant = Number(selectedPaper.important) !== 1
     try {
-      const notificationsEnabled = scheduledDate
-        ? await requestNotificationPermission()
-        : true
       const { data } = await axios.patch(`/api/papers/${encodeURIComponent(selectedPaper.id)}`, {
-        scheduled_date: scheduledDate,
+        important: nextImportant,
       })
       updateSelectedPaper(() => ({ ...selectedPaper, ...data }))
-      addToast?.(
-        scheduledDate && !notificationsEnabled
-          ? `Reminder saved for “${selectedPaper.title || selectedPaper.id}”, but browser notifications are blocked`
-          : scheduledDate
-          ? `Reminder set for “${selectedPaper.title || selectedPaper.id}” — every 90 minutes until today ends`
-          : `Today reminder cleared for “${selectedPaper.title || selectedPaper.id}”`,
-        'success'
-      )
+      addToast?.(nextImportant ? 'Marked as important' : 'Removed from important papers', 'success')
     } catch (error) {
-      addToast?.('Could not update reminder', 'error')
+      addToast?.(error.response?.data?.error || 'Could not update important papers', 'error')
     }
   }
 
@@ -715,7 +703,7 @@ export default function SearchWorkbench({
       }
       if (lower === 'r' && actionsOpen) {
         event.preventDefault()
-        handleToggleTodayReminder()
+        handleToggleImportant()
         return
       }
       if (lower === 'e') {
@@ -830,6 +818,7 @@ export default function SearchWorkbench({
                       }}
                     >
                       <div className="rx-paper-title" style={{ marginBottom:'6px' }}>
+                        {Number(paper.important) === 1 && <span title="Important" style={{ color:'#f5c451', marginRight:'6px' }}>★</span>}
                         {paper.title}
                       </div>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px' }}>
@@ -915,12 +904,12 @@ export default function SearchWorkbench({
                   disabled: selectedMetadataFetching,
                 } : null,
                 { name:'Copy Link', sub:null, key:'C', onClick: handleCopyLink },
-                { name:'Open in Browser', sub:'System browser', key:'B', onClick: handleOpenInBrowser },
+                { name:'Open in browser', sub:null, key:'B', onClick: handleOpenInBrowser },
                 { name:'Cycle Status', sub:null, key:'S', onClick: handleCycleStatus },
-                { name: publication?.published ? 'Preview & Update Notes' : 'Preview & Publish Notes', sub: publication?.changed ? 'Local changes' : 'Opens full-page preview', key:'P', onClick: handlePreviewNotes, disabled: publicationLoading || !publication },
+                { name:'Preview and publish notes', sub:null, key:'P', onClick: handlePreviewNotes, disabled: publicationLoading || !publication },
                 publication?.publishedUrl ? { name:'Open Published Notes', sub:null, key:'N', onClick: handleOpenPublishedNotes } : null,
                 publication?.published ? { name:'Unpublish Notes', sub:null, key:null, danger:true, onClick: handleUnpublishNotes, disabled: publicationLoading } : null,
-                { name: selectedPaper?.scheduled_date === new Date().toISOString().slice(0, 10) ? 'Clear Today Reminder' : 'Remind Me Today', sub:'90-minute reminder', key:'R', onClick: handleToggleTodayReminder },
+                { name: Number(selectedPaper?.important) === 1 ? 'Remove important mark' : 'Mark as important', sub:null, key:'R', onClick: handleToggleImportant },
                 { name: paperHasTodoistTask(selectedPaper) ? 'Edit Schedule' : 'Schedule', sub:null, key:'D', onClick: () => selectedPaper && setTodoistModalPaper(selectedPaper) },
                 { name: Number(selectedPaper?.offline_pinned) === 1 ? 'Remove Offline Copy' : 'Pin Offline', sub:null, key:'F', onClick: handleOfflineToggle },
                 { name:'Delete Paper', sub:null, key:'Del', danger: true, onClick: handleDeletePaper, disabled: deletingPaperId === selectedPaper?.id, busyLabel:'Deleting...' },

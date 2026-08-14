@@ -306,6 +306,26 @@ router.post('/:id/access', async (req, res) => {
   }
 });
 
+// Important papers are intentionally capped at ten by the PATCH handler.
+router.get('/important', async (_req, res) => {
+  try {
+    const db = await getDB();
+    const result = db.exec(
+      `SELECT * FROM papers
+       WHERE important = 1
+       ORDER BY COALESCE(important_at, updated_at, created_at) DESC
+       LIMIT 10`
+    );
+    const columns = result.length > 0 ? result[0].columns : [];
+    const papers = result.length > 0
+      ? result[0].values.map((row) => rowToObject(row, columns))
+      : [];
+    return res.json(papers);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 router.put('/:id/progress', async (req, res) => {
   try {
     const page = Math.max(1, Number.parseInt(req.body?.page, 10) || 1);
@@ -416,8 +436,26 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const db = await getDB();
-    const updates = req.body;
-    const allowedFields = ['title', 'authors', 'abstract', 'status', 'tags', 'year', 'deadline', 'scheduled_date', 'citation_count', 'page_count'];
+    const updates = { ...(req.body || {}) };
+    const allowedFields = ['title', 'authors', 'abstract', 'status', 'tags', 'year', 'deadline', 'scheduled_date', 'citation_count', 'page_count', 'important'];
+    let importantChanged = false;
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'important')) {
+      const existing = db.exec('SELECT important FROM papers WHERE id = ?', [req.params.id]);
+      if (existing.length === 0 || existing[0].values.length === 0) {
+        return res.status(404).json({ error: 'Paper not found' });
+      }
+      const wasImportant = Number(existing[0].values[0][0]) === 1;
+      const nextImportant = updates.important === true || updates.important === 1 || updates.important === '1';
+      if (nextImportant && !wasImportant) {
+        const count = Number(db.exec('SELECT COUNT(*) FROM papers WHERE important = 1')[0]?.values[0]?.[0] || 0);
+        if (count >= 10) {
+          return res.status(409).json({ error: 'You can mark up to 10 papers as important.' });
+        }
+      }
+      updates.important = nextImportant ? 1 : 0;
+      importantChanged = wasImportant !== nextImportant;
+    }
     
     const setParts = [];
     const values = [];
@@ -428,6 +466,10 @@ router.patch('/:id', async (req, res) => {
         values.push(key === 'tags' ? JSON.stringify(updates[key]) : updates[key]);
       }
     });
+
+    if (importantChanged) {
+      setParts.push(updates.important ? "important_at = datetime('now')" : 'important_at = NULL');
+    }
     
     if (setParts.length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
