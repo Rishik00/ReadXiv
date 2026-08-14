@@ -4,9 +4,11 @@ import { getDB, scheduleSaveDB } from '../db.js';
 import { recordReadingHeartbeat } from '../readingSessions.js';
 
 const router = express.Router();
-const MAX_ANALYTICS_EVENTS = 10000;
-const ANALYTICS_PRUNE_INTERVAL = 100;
-let eventsSincePrune = 0;
+const MAX_ANALYTICS_EVENTS = 2000;
+const ANALYTICS_PRUNE_INTERVAL = 25;
+// Start at the threshold so the first new event after an upgrade prunes a
+// previously overgrown telemetry table instead of waiting for 25 more writes.
+let eventsSincePrune = ANALYTICS_PRUNE_INTERVAL;
 const KNOWN_ROUTES = ['home', 'search', 'dashboard', 'reader', 'settings', 'help'];
 const ALLOWED_EVENTS = new Set([
   'page_view',

@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const SESSION_KEY = 'readxiv-analytics-session-id';
+const SLOW_API_REQUEST_MS = 1000;
 let axiosInstrumentationReady = false;
 
 function createId() {
@@ -136,7 +137,11 @@ export function setupAxiosInstrumentation() {
       const startedAt = response.config?.metadata?.readxivStartedAt;
       const durationMs = startedAt ? now() - startedAt : null;
       const url = response.config?.url || '';
-      if (durationMs != null && !url.includes('/api/instrumentation')) {
+      // Routine API calls happen on nearly every keypress and page change. Recording
+      // each one turns telemetry into a constant stream of database writes, which can
+      // stall the local server. Keep the useful signal: requests slow enough to affect
+      // the user experience, while errors are still recorded below.
+      if (durationMs != null && durationMs >= SLOW_API_REQUEST_MS && !url.includes('/api/instrumentation')) {
         captureTiming('api_latency', durationMs, {
           route: window.__readxivCurrentRoute || null,
           url,
