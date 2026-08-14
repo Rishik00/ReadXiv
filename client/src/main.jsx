@@ -1,3 +1,6 @@
+// Development-only render profiler. Its import must precede React and ReactDOM.
+import { scan } from 'react-scan'
+
 // Question (answered): why axios? Any specific reasons? Are there alternatives?
 import axios from 'axios'
 
@@ -19,6 +22,10 @@ import { setupAxiosInstrumentation, setupGlobalErrorInstrumentation } from './li
 // Review (answered): do we need a new component for this? Is this the Normal Error page when something goes wrong in the app? 
 // Review (answered): on that topic, does the client side have an error page that shows stuff when something goes wrong? As far as I have seen it's not there (because i haven't seen it while using the product)
 import InstrumentationErrorBoundary from './components/InstrumentationErrorBoundary'
+
+if (import.meta.env.DEV) {
+  scan({ enabled: true, showToolbar: true, animationSpeed: 'off' })
+}
 
 setupAxiosInstrumentation()
 setupGlobalErrorInstrumentation()
