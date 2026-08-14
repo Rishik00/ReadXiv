@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
 
 /** Ensure /p/:id hits the SPA in dev (arxiv ids contain dots). */
 function paperPathSpaFallback() {
@@ -17,16 +16,9 @@ function paperPathSpaFallback() {
   }
 }
 
-export default defineConfig(({ command }) => ({
+export default defineConfig({
   base: './',
   plugins: [react(), paperPathSpaFallback()],
-  // React Scan is useful while running Vite locally, but must not become part
-  // of the shipped Electron/web bundle.
-  resolve: {
-    alias: command === 'build'
-      ? { 'react-scan': path.resolve(__dirname, 'src/lib/reactScanProductionShim.js') }
-      : {},
-  },
   server: {
     port: 5173,
     host: true, // Listen on 0.0.0.0 so iPad/other devices on LAN can connect
@@ -37,4 +29,4 @@ export default defineConfig(({ command }) => ({
       }
     }
   }
-}))
+})
