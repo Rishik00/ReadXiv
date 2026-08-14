@@ -13,6 +13,8 @@ function getStatusColor(status) {
       return 'border-red-500/50 text-red-400 bg-red-500/10'
     case 'reading':
       return 'border-green-500/50 text-green-400 bg-green-500/10'
+    case 'writing':
+      return 'border-violet-500/50 text-violet-300 bg-violet-500/10'
     default:
       return 'border-white/40 text-white bg-white/10'
   }
@@ -20,7 +22,8 @@ function getStatusColor(status) {
 
 function cycleStatus(status) {
   if (status === 'queued') return 'reading'
-  if (status === 'reading') return 'done'
+  if (status === 'reading') return 'writing'
+  if (status === 'writing') return 'done'
   return 'queued'
 }
 

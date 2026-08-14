@@ -209,12 +209,13 @@ export default function Dashboard({ openPaper }) {
         )}
 
         {/* Stat tiles */}
-        <section className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+        <section className="grid grid-cols-2 gap-2 lg:grid-cols-6">
           <StatTile index={0} label="Streak" value={consistency.currentStreak || 0} detail={`best: ${consistency.longestStreak || 0}d`} />
           <StatTile index={1} label="Active days" value={consistency.activeDays || 0} detail="last 30d" />
           <StatTile index={2} label="In progress" value={totals.readingNow || 0} denominator={totals.totalPapers || 0} />
-          <StatTile index={3} label="Finished" value={totals.completed || 0} denominator={totals.totalPapers || 0} />
-          <StatTile index={4} label="This week" value={totals.addedThisWeek || 0} detail={`${totals.totalPapers || 0} total`} />
+          <StatTile index={3} label="Writing" value={totals.writingNow || 0} denominator={totals.totalPapers || 0} />
+          <StatTile index={4} label="Finished" value={totals.completed || 0} denominator={totals.totalPapers || 0} />
+          <StatTile index={5} label="This week" value={totals.addedThisWeek || 0} detail={`${totals.totalPapers || 0} total`} />
         </section>
 
         {/* Activity chart */}

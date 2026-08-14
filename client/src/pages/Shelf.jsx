@@ -271,6 +271,8 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', ad
         return 'border-slate-400/50 text-slate-300 bg-slate-400/10'
       case 'reading':
         return 'border-green-500/50 text-green-400 bg-green-500/10'
+      case 'writing':
+        return 'border-violet-500/50 text-violet-300 bg-violet-500/10'
       default:
         return 'border-white/40 text-white bg-white/10'
     }
@@ -403,6 +405,7 @@ export default function Shelf({ setPage, setSelectedPaper, initialQuery = '', ad
                 >
                   <option value="queued">Queued</option>
                   <option value="reading">Reading</option>
+                  <option value="writing">Writing</option>
                   <option value="done">Done</option>
                 </select>
               </div>
