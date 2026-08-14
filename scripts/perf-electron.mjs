@@ -112,6 +112,33 @@ try {
   await libraryInput.fill('');
   await resetSearchPromise;
 
+  // Regression check for issue #1: returning from Reader must retain the
+  // active Library page instead of remounting the Workbench at page one.
+  const fifthPageResponse = window.waitForResponse(
+    (response) =>
+      response.url().includes('/api/papers') &&
+      new URL(response.url()).searchParams.get('page') === '5'
+  );
+  await window.getByRole('button', { name: '5', exact: true }).click();
+  await fifthPageResponse;
+  await window.locator('[data-index="0"]').waitFor({ state: 'visible' });
+  await window.locator('[data-index="0"]').click();
+  await window.keyboard.press('Enter');
+  await window.locator('.reader-workspace').waitFor({ state: 'visible' });
+  await window.keyboard.press('g');
+  await libraryInput.waitFor({ state: 'visible' });
+  const restoredPage = window.getByRole('button', { name: '5', exact: true });
+  await restoredPage.waitFor({ state: 'visible' });
+  const libraryStateRestoration = {
+    expectedPage: 5,
+    restoredPage: Number(await restoredPage.innerText()),
+    isActive: (await restoredPage.getAttribute('data-active')) === 'true',
+    backShortcut: 'g',
+  };
+  if (!libraryStateRestoration.isActive) {
+    throw new Error('Library did not restore page 5 after returning from Reader');
+  }
+
   // Exercise the same reader lifecycle that users reported as intermittent:
   // select different papers, wait for Reader work to settle, switch tabs,
   // move through PDF pages, then return to Library.
@@ -184,6 +211,7 @@ try {
     helpChordWorks,
     navigation: summarize(navSamples),
     searchIncludingDebounce: summarize(searchSamples),
+    libraryStateRestoration,
     readerFlows,
     processMetrics: memory,
     rendererErrors: errors,
