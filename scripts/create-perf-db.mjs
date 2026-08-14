@@ -9,7 +9,7 @@ const sourceDir = path.join(os.homedir(), '.papyrus');
 const sourceDbPath = path.join(sourceDir, 'papyrus.db');
 const outputDir = path.join(root, '.perf', 'data');
 const outputDbPath = path.join(outputDir, 'papyrus.db');
-const sampleSize = 25;
+const sampleSize = 55;
 
 if (!(await fs.pathExists(sourceDbPath))) {
   throw new Error(`ReadXiv database not found at ${sourceDbPath}`);
@@ -44,8 +44,8 @@ const sample = objects(
 );
 const ids = sample.map((paper) => paper.id);
 
-if (ids.length < 20) {
-  throw new Error(`Expected at least 20 papers, found ${ids.length}`);
+if (ids.length < 50) {
+  throw new Error(`Expected at least 50 papers, found ${ids.length}`);
 }
 
 const placeholders = ids.map(() => '?').join(',');

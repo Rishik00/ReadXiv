@@ -91,6 +91,7 @@ export default function SearchWorkbench({
   const dosBodyRef = useRef(null)
   const prevPaperIdRef = useRef(null)
   const pageBarRef = useRef(null)
+  const previousQueryRef = useRef(query)
   const workspaceSnapshotRef = useRef({
     query,
     currentPage,
@@ -217,6 +218,8 @@ export default function SearchWorkbench({
   }, [focusNonce])
 
   useEffect(() => {
+    if (previousQueryRef.current === query) return
+    previousQueryRef.current = query
     setCurrentPage(1)
   }, [query])
 
