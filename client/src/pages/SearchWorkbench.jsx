@@ -91,6 +91,13 @@ export default function SearchWorkbench({
   const dosBodyRef = useRef(null)
   const prevPaperIdRef = useRef(null)
   const pageBarRef = useRef(null)
+  const workspaceSnapshotRef = useRef({
+    query,
+    currentPage,
+    selectedPaperId: workspaceState?.selectedPaperId || null,
+    listScrollTop: workspaceState?.listScrollTop || 0,
+  })
+  const shouldRestoreScrollRef = useRef(Number(workspaceState?.listScrollTop) > 0)
   const selectedPaper = results[selectedIndex] || null
 
   useEffect(() => {
@@ -276,8 +283,34 @@ export default function SearchWorkbench({
       query,
       currentPage,
       selectedPaperId: selectedPaper?.id || null,
+      listScrollTop: listRef.current?.scrollTop || 0,
     })
   }, [currentPage, loading, onWorkspaceStateChange, query, selectedPaper?.id])
+
+  useEffect(() => {
+    workspaceSnapshotRef.current = {
+      query,
+      currentPage,
+      selectedPaperId: selectedPaper?.id || null,
+      listScrollTop: listRef.current?.scrollTop || workspaceSnapshotRef.current.listScrollTop || 0,
+    }
+  }, [currentPage, query, selectedPaper?.id])
+
+  useEffect(() => () => {
+    onWorkspaceStateChange?.({
+      ...workspaceSnapshotRef.current,
+      listScrollTop: listRef.current?.scrollTop || workspaceSnapshotRef.current.listScrollTop || 0,
+    })
+  }, [onWorkspaceStateChange])
+
+  useEffect(() => {
+    if (loading || !shouldRestoreScrollRef.current) return
+    const frame = requestAnimationFrame(() => {
+      if (listRef.current) listRef.current.scrollTop = workspaceState?.listScrollTop || 0
+      shouldRestoreScrollRef.current = false
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [loading, workspaceState?.listScrollTop])
 
   const selectedNeedsMetadata = needsMetadataFetch(selectedPaper)
   const selectedMetadataFetching = fetchingMetadataId === selectedPaper?.id
@@ -370,6 +403,7 @@ export default function SearchWorkbench({
       query,
       currentPage,
       selectedPaperId: selectedPaper.id,
+      listScrollTop: listRef.current?.scrollTop || 0,
     })
     captureAction('search_open_selected_paper', {
       route: 'search',
