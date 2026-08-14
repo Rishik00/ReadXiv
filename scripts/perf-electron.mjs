@@ -125,7 +125,7 @@ try {
   await window.locator('[data-index="0"]').click();
   await window.keyboard.press('Enter');
   await window.locator('.reader-workspace').waitFor({ state: 'visible' });
-  await window.keyboard.press('Escape');
+  await window.keyboard.press('g');
   await libraryInput.waitFor({ state: 'visible' });
   const restoredPage = window.getByRole('button', { name: '5', exact: true });
   await restoredPage.waitFor({ state: 'visible' });
@@ -133,6 +133,7 @@ try {
     expectedPage: 5,
     restoredPage: Number(await restoredPage.innerText()),
     isActive: (await restoredPage.getAttribute('data-active')) === 'true',
+    backShortcut: 'g',
   };
   if (!libraryStateRestoration.isActive) {
     throw new Error('Library did not restore page 5 after returning from Reader');
