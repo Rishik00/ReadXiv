@@ -9,6 +9,7 @@ export default function Help() {
         ['Space l', 'Open Library'],
         ['Space ,', 'Go to Settings'],
         ['Space p', 'Open Help'],
+        ['g', 'Go back (outside text inputs and notes)'],
         ['t', 'On home: toggle the desk between Reading and Stats'],
         ['/', 'On home: open the slash command menu'],
         ['Esc', 'Close overlay or go back one surface'],

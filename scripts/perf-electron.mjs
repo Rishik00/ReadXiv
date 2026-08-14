@@ -59,6 +59,12 @@ try {
     await homeInput.waitFor({ state: 'visible' });
   }
 
+  await chord('p');
+  await window.getByRole('heading', { name: 'Help', exact: true }).waitFor({ state: 'visible' });
+  const helpChordWorks = true;
+  await chord('h');
+  await homeInput.waitFor({ state: 'visible' });
+
   const navSamples = [];
   for (let run = 0; run < 8; run += 1) {
     const started = performance.now();
@@ -138,13 +144,15 @@ try {
     }
 
     const closedAt = performance.now();
-    await window.keyboard.press('Escape');
+    const backShortcut = run === 0 ? 'g' : 'Escape';
+    await window.keyboard.press(backShortcut);
     await libraryInput.waitFor({ state: 'visible' });
     readerFlows.push({
       run: run + 1,
       openedMs: Number((closedAt - openedAt).toFixed(2)),
       returnedToLibraryMs: Number((performance.now() - closedAt).toFixed(2)),
       exercisedPdfNavigation: hasPdfPanel,
+      backShortcut,
     });
   }
 
@@ -173,6 +181,7 @@ try {
     firstWindowMs: Number(firstWindowMs.toFixed(2)),
     homeUsableMs: Number(homeUsableMs.toFixed(2)),
     startupRoute,
+    helpChordWorks,
     navigation: summarize(navSamples),
     searchIncludingDebounce: summarize(searchSamples),
     readerFlows,

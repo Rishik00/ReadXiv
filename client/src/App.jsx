@@ -339,6 +339,17 @@ function App() {
     [runWithViewTransition]
   )
 
+  const navigateBack = useCallback(() => {
+    if (page === 'reader') {
+      navigateTo(readerOrigin || 'home')
+      return
+    }
+
+    if (page === 'search' || page === 'settings' || page === 'help') {
+      navigateTo('home')
+    }
+  }, [navigateTo, page, readerOrigin])
+
   // Review: holy fuck this is....a VERY LARGE effect call. Is this normal? Any way we can simplify this? 
   // I think i see a way, everything inside every branch looks like it can be made into a function and then we can do switch case statements to make our lives easier. 
 
@@ -353,10 +364,10 @@ function App() {
         setPendingG(false)
         if (!isInputFocused && page === 'reader') {
           event.preventDefault()
-          navigateTo('search')
+          navigateBack()
         } else if (!isInputFocused && (page === 'settings' || page === 'help')) {
           event.preventDefault()
-          navigateTo('home')
+          navigateBack()
         }
         return
       }
@@ -430,6 +441,18 @@ function App() {
         return
       }
 
+      if (
+        event.key.toLowerCase() === 'g' &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !isInputFocused
+      ) {
+        event.preventDefault()
+        navigateBack()
+        return
+      }
+
       // Question: what is this doing? 
       if (event.key === ' ' && !event.ctrlKey && !event.metaKey && !event.altKey && !isInputFocused) {
         event.preventDefault()
@@ -451,7 +474,7 @@ function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [navigateTo, page])
+  }, [navigateBack, navigateTo, page])
 
   // Question: again, why not store this in a callbacks.js? 
   const addToast = useCallback((message, type = 'info') => {
@@ -831,7 +854,7 @@ function App() {
                 settings={settings}
                 initialTab={readerInitialTab}
                 addToast={addToast}
-                onExit={() => navigateTo(readerOrigin || 'home')}
+                onExit={navigateBack}
               />
             </Suspense>
           )}

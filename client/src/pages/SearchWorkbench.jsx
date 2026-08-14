@@ -592,6 +592,7 @@ export default function SearchWorkbench({
     }
 
     const onKeyDown = (event) => {
+      if (event.defaultPrevented) return
       const inputFocused = isTextInputFocused()
 
       if (event.key === 'Escape') {
