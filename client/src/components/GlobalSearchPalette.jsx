@@ -7,7 +7,7 @@ const APP_COMMANDS = [
   { id: 'home', label: 'Go Home', shortcut: 'Space h', keywords: ['home', 'landing', 'h'] },
   { id: 'search', label: 'Open Library', shortcut: 'Space l', keywords: ['library', 'search', 'papers', 'l'] },
   { id: 'settings', label: 'Go to Settings', shortcut: 'Space ,', keywords: ['settings', 'config', 'preferences', ','] },
-  { id: 'help', label: 'Help', shortcut: 'Space p', keywords: ['help', 'shortcuts', 'keys', 'p'] },
+  { id: 'help', label: 'Help', shortcut: 'Space j', keywords: ['help', 'shortcuts', 'keys', 'j'] },
 ]
 
 function filterCommands(query) {

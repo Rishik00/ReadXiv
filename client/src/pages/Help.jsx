@@ -8,7 +8,7 @@ export default function Help() {
         ['Space h', 'Go home'],
         ['Space l', 'Open Library'],
         ['Space ,', 'Go to Settings'],
-        ['Space p', 'Open Help'],
+        ['Space j', 'Open Help'],
         ['b', 'Go back (outside text inputs and notes)'],
         ['t', 'On home: toggle the desk between Reading and Stats'],
         ['/', 'On home: open the slash command menu'],
@@ -104,7 +104,7 @@ export default function Help() {
 
       <p className="mt-12 text-sm text-muted">
         From Home, Library, and other pages outside the reader, press{' '}
-        <kbd className="px-1.5 py-0.5 rounded bg-border font-mono text-sm">Space p</kbd> to open Help.
+        <kbd className="px-1.5 py-0.5 rounded bg-border font-mono text-sm">Space j</kbd> to open Help.
       </p>
     </div>
   )
