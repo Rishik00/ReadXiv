@@ -32,8 +32,12 @@ function paperMeta(paper) {
    same percentages, so cursor/dot/tooltip always line up regardless of width. */
 function ReadsChart({ activity, thisWeek }) {
   const [hover, setHover] = useState(null)
-  const n = activity.length
-  const vals = useMemo(() => activity.map((day) => Number(day.views || 0)), [activity])
+  const safeActivity = useMemo(
+    () => (Array.isArray(activity) ? activity.filter((day) => day && typeof day === 'object') : []),
+    [activity]
+  )
+  const n = safeActivity.length
+  const vals = useMemo(() => safeActivity.map((day) => Number(day.views || 0)), [safeActivity])
   const max = Math.max(1, ...vals)
   const padTop = 12
   const padBottom = 6
@@ -50,10 +54,14 @@ function ReadsChart({ activity, thisWeek }) {
   const ticks = useMemo(() => {
     if (!n) return []
     return [0, Math.floor(n / 3), Math.floor((2 * n) / 3), n - 1]
-      .map((i) => formatShortDate(activity[i].date))
-  }, [activity, n])
+      .map((i) => formatShortDate(safeActivity[i]?.date))
+  }, [safeActivity, n])
 
   const onMove = (event) => {
+    if (!n) {
+      setHover(null)
+      return
+    }
     const rect = event.currentTarget.getBoundingClientRect()
     const rel = (event.clientX - rect.left) / rect.width
     setHover(Math.max(0, Math.min(n - 1, Math.round(rel * (n - 1)))))
@@ -84,16 +92,20 @@ function ReadsChart({ activity, thisWeek }) {
             <path className="editorial-chart-area" d={area} />
             <path className="editorial-chart-line" d={line} vectorEffect="non-scaling-stroke" />
           </svg>
-          {hover != null && (
+          {hover != null && safeActivity[hover] && (
             <>
               <span className="editorial-chart-cursor" style={{ left: `${xAt(hover)}%` }} />
               <span className="editorial-chart-dot" style={{ left: `${xAt(hover)}%`, top: `${yAt(vals[hover])}%` }} />
               <span className="editorial-chart-pop" style={{ left: `${xAt(hover)}%`, top: `${yAt(vals[hover])}%` }}>
-                {vals[hover]} opened · {formatShortDate(activity[hover].date)}
+                {vals[hover]} opened · {formatShortDate(safeActivity[hover].date)}
               </span>
             </>
           )}
-          <span className="editorial-chart-hit" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
+          {n > 0 ? (
+            <span className="editorial-chart-hit" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
+          ) : (
+            <span className="editorial-chart-empty">No reading activity yet.</span>
+          )}
         </div>
         <div className="editorial-chart-xticks">
           {ticks.map((tick, index) => <span key={index}>{tick}</span>)}

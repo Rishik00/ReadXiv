@@ -1848,6 +1848,7 @@ mjx-container[display="true"] {
 .editorial-chart-cursor { position: absolute; top: 12%; bottom: 6%; width: 1px; background: color-mix(in srgb, var(--foreground) 32%, transparent); transform: translateX(-.5px); pointer-events: none; }
 .editorial-chart-dot { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--secondary); border: 2px solid var(--surface); transform: translate(-50%, -50%); pointer-events: none; }
 .editorial-chart-pop { position: absolute; padding: 4px 9px; border-radius: 7px; white-space: nowrap; transform: translate(-50%, -140%); background: var(--foreground); color: var(--background); font: 600 .68rem/1 var(--font-mono); box-shadow: 0 8px 22px rgba(0,0,0,.4); pointer-events: none; }
+.editorial-chart-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font: .72rem/1 var(--font-mono); }
 .editorial-chart-xticks { display: flex; justify-content: space-between; margin-top: .6rem; color: color-mix(in srgb, var(--foreground) 55%, var(--muted)); font-family: var(--font-mono); font-size: .68rem; }
 
 /* library status split */
