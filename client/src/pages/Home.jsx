@@ -119,18 +119,23 @@ export default function Home({
 
   const refreshHomeData = useCallback(() => {
     let cancelled = false
-    Promise.all([
+    Promise.allSettled([
       axios.get('/api/papers/recents', { params: { limit: 10 } }),
       axios.get('/api/papers/important'),
       axios.get('/api/dashboard/summary', { params: { days: 182 } }),
     ])
-      .then(([recentsResponse, importantResponse, summaryResponse]) => {
+      .then(([recentsResult, importantResult, summaryResult]) => {
         if (cancelled) return
-        setMemoryPapers(Array.isArray(recentsResponse.data) ? recentsResponse.data : [])
-        setImportantPapers(Array.isArray(importantResponse.data) ? importantResponse.data : [])
-        setHomeSummary(summaryResponse.data)
+        if (recentsResult.status === 'fulfilled') {
+          setMemoryPapers(Array.isArray(recentsResult.value.data) ? recentsResult.value.data : [])
+        }
+        if (importantResult.status === 'fulfilled') {
+          setImportantPapers(Array.isArray(importantResult.value.data) ? importantResult.value.data : [])
+        }
+        if (summaryResult.status === 'fulfilled') {
+          setHomeSummary(summaryResult.value.data)
+        }
       })
-      .catch(() => {})
     return () => { cancelled = true }
   }, [])
 
