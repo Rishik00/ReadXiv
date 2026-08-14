@@ -162,10 +162,10 @@ export default function Home({
   const memoryItems = useMemo(
     () => {
       const editorialContinue = homeSummary?.continuePaper || continuePaper
-      const papers = [editorialContinue, ...importantPapers, ...memoryPapers].filter(Boolean)
+      const papers = [editorialContinue, ...importantPapers].filter(Boolean)
       return [...new Map(papers.map((paper) => [paper.id, paper])).values()]
     },
-    [continuePaper, homeSummary, importantPapers, memoryPapers]
+    [continuePaper, homeSummary, importantPapers]
   )
   const liveQuery = currentMode === 'normal' && !isArxivInput(input) && !input.trim().startsWith('/')
     ? input.trim()

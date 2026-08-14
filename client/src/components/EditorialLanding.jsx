@@ -138,9 +138,11 @@ export default function EditorialLanding({
   const progress = totalPages > 1 ? Math.min(100, Math.round((currentPage / totalPages) * 100)) : 0
 
   const activeDays30 = activity.filter((day) => Number(day.views) > 0).length
-  const jumpBack = recentPapers.filter((paper) => paper.id !== continuePaper?.id).slice(0, 10)
+  const jumpBack = recentPapers
+    .filter((paper) => paper.id !== continuePaper?.id && Number(paper.important) === 1)
+    .slice(0, 10)
 
-  // keep the keyboard-selected paper visible as you arrow through Jump back
+  // keep the keyboard-selected paper visible as you arrow through Important papers
   const jumpListRef = useRef(null)
   useEffect(() => {
     if (view !== 'now' || !selectedPaperId) return
@@ -200,7 +202,7 @@ export default function EditorialLanding({
             )}
 
             <div className="editorial-jump">
-              <span className="editorial-cap">Jump back</span>
+              <span className="editorial-cap">Important papers</span>
               <div className="editorial-jump-list" ref={jumpListRef}>
                 {jumpBack.length ? jumpBack.map((paper, index) => (
                   <button
@@ -216,7 +218,7 @@ export default function EditorialLanding({
                     <span className="editorial-jrow-t">{paper.title || paper.id}</span>
                     <time>{relativeTime(paper.last_accessed_at || paper.created_at)}</time>
                   </button>
-                )) : <span className="editorial-empty-copy">Open a paper and it will appear here.</span>}
+                )) : <span className="editorial-empty-copy">Mark a paper important and it will appear here.</span>}
               </div>
             </div>
           </div>
