@@ -8,8 +8,8 @@ export default function Help() {
         ['Space h', 'Go home'],
         ['Space l', 'Open Library'],
         ['Space ,', 'Go to Settings'],
-        ['Space g', 'Open Help'],
-        ['b', 'Go back (outside text inputs and notes)'],
+        ['Space p', 'Open Help'],
+        ['g', 'Go back (outside text inputs and notes)'],
         ['t', 'On home: toggle the desk between Reading and Stats'],
         ['/', 'On home: open the slash command menu'],
         ['Esc', 'Close overlay or go back one surface'],
@@ -25,7 +25,7 @@ export default function Help() {
         ['Enter / o', 'Open selected paper in the reader'],
         ['Tab', 'Toggle the actions rail'],
         ['h / l', 'Move focus between results, details, and actions'],
-        ['Open in browser', 'Use the selected paper action'],
+        ['b', 'Open the selected paper in your system browser'],
         ['n', 'Open the selected paper’s published notes'],
         ['s / d / f / Delete', 'Status, schedule, offline, delete on the selected paper'],
         ['[ / ]', 'Previous / next result page'],
@@ -104,7 +104,7 @@ export default function Help() {
 
       <p className="mt-12 text-sm text-muted">
         From Home, Library, and other pages outside the reader, press{' '}
-        <kbd className="px-1.5 py-0.5 rounded bg-border font-mono text-sm">Space g</kbd> to open Help.
+        <kbd className="px-1.5 py-0.5 rounded bg-border font-mono text-sm">Space p</kbd> to open Help.
       </p>
     </div>
   )

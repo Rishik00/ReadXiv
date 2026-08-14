@@ -404,7 +404,7 @@ function App() {
           navigateTo('settings')
           pendingGRef.current = false
           setPendingG(false)
-        } else if (k === 'g') {
+        } else if (k === 'p') {
           event.preventDefault()
           setPage('help')
           pendingGRef.current = false
@@ -442,7 +442,7 @@ function App() {
       }
 
       if (
-        event.key.toLowerCase() === 'b' &&
+        event.key.toLowerCase() === 'g' &&
         !event.ctrlKey &&
         !event.metaKey &&
         !event.altKey &&
@@ -661,7 +661,7 @@ function App() {
           ['l', 'Library'],
           ['r', 'Recent'],
           [',', 'Settings'],
-          ['g', 'Help'],
+          ['p', 'Help'],
           ['1/2/3', 'Views'],
           ['b', 'Dark'],
           ['t', 'Page'],
@@ -671,7 +671,7 @@ function App() {
           ['l', 'Library'],
           ['r', 'Recent'],
           [',', 'Settings'],
-          ['g', 'Help'],
+          ['p', 'Help'],
         ]
     : null
 
