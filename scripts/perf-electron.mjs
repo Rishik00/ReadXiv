@@ -59,6 +59,12 @@ try {
     await homeInput.waitFor({ state: 'visible' });
   }
 
+  await chord('g');
+  await window.getByRole('heading', { name: 'Help', exact: true }).waitFor({ state: 'visible' });
+  const helpChordWorks = true;
+  await chord('h');
+  await homeInput.waitFor({ state: 'visible' });
+
   const navSamples = [];
   for (let run = 0; run < 8; run += 1) {
     const started = performance.now();
@@ -173,6 +179,7 @@ try {
     firstWindowMs: Number(firstWindowMs.toFixed(2)),
     homeUsableMs: Number(homeUsableMs.toFixed(2)),
     startupRoute,
+    helpChordWorks,
     navigation: summarize(navSamples),
     searchIncludingDebounce: summarize(searchSamples),
     readerFlows,

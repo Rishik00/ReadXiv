@@ -404,7 +404,7 @@ function App() {
           navigateTo('settings')
           pendingGRef.current = false
           setPendingG(false)
-        } else if (k === 'j') {
+        } else if (k === 'g') {
           event.preventDefault()
           setPage('help')
           pendingGRef.current = false
@@ -661,7 +661,7 @@ function App() {
           ['l', 'Library'],
           ['r', 'Recent'],
           [',', 'Settings'],
-          ['j', 'Help'],
+          ['g', 'Help'],
           ['1/2/3', 'Views'],
           ['b', 'Dark'],
           ['t', 'Page'],
@@ -671,7 +671,7 @@ function App() {
           ['l', 'Library'],
           ['r', 'Recent'],
           [',', 'Settings'],
-          ['j', 'Help'],
+          ['g', 'Help'],
         ]
     : null
 
