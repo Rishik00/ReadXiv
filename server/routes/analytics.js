@@ -4,22 +4,16 @@ import { getDB, scheduleSaveDB } from '../db.js';
 import { recordReadingHeartbeat } from '../readingSessions.js';
 
 const router = express.Router();
-const MAX_ANALYTICS_EVENTS = 2000;
+const MAX_ANALYTICS_EVENTS = 1000;
 const ANALYTICS_PRUNE_INTERVAL = 25;
 // Start at the threshold so the first new event after an upgrade prunes a
 // previously overgrown telemetry table instead of waiting for 25 more writes.
 let eventsSincePrune = ANALYTICS_PRUNE_INTERVAL;
 const KNOWN_ROUTES = ['home', 'search', 'dashboard', 'reader', 'settings', 'help'];
 const ALLOWED_EVENTS = new Set([
-  'page_view',
-  'page_load',
   'paper_view',
-  'paper_load',
-  'pdf_load',
-  'api_latency',
   'app_error',
   'api_error',
-  'ui_action',
 ]);
 
 function rowToObject(row, columns) {
@@ -35,6 +29,22 @@ function rowsToObjects(result) {
 function safeMetadata(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return '{}';
   return JSON.stringify(value);
+}
+
+function pruneAnalyticsEvents(db) {
+  // Remove legacy product-analytics noise before applying the retention cap.
+  // Paper views support Home's reading history; errors remain available for
+  // debugging. Everything else is unused and was the source of most writes.
+  db.run(`DELETE FROM analytics_events WHERE event_name NOT IN ('paper_view', 'app_error', 'api_error')`);
+  db.run(
+    `DELETE FROM analytics_events
+     WHERE id IN (
+       SELECT id FROM analytics_events
+       ORDER BY created_at DESC
+       LIMIT -1 OFFSET ?
+     )`,
+    [MAX_ANALYTICS_EVENTS]
+  );
 }
 
 export async function recordAnalyticsEvent({
@@ -65,15 +75,7 @@ export async function recordAnalyticsEvent({
   );
   eventsSincePrune += 1;
   if (eventsSincePrune >= ANALYTICS_PRUNE_INTERVAL) {
-    db.run(
-      `DELETE FROM analytics_events
-       WHERE id IN (
-         SELECT id FROM analytics_events
-         ORDER BY created_at DESC
-         LIMIT -1 OFFSET ?
-       )`,
-      [MAX_ANALYTICS_EVENTS]
-    );
+    pruneAnalyticsEvents(db);
     eventsSincePrune = 0;
   }
   scheduleSaveDB();

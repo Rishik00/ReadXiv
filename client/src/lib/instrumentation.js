@@ -1,7 +1,10 @@
 import axios from 'axios';
 
 const SESSION_KEY = 'readxiv-analytics-session-id';
-const SLOW_API_REQUEST_MS = 1000;
+// Persistent analytics are intentionally small. Home needs paper openings for
+// reading history; errors are useful for diagnosis. Navigation, button clicks,
+// and timings are not used by the current product and should not create disk IO.
+const PERSISTED_EVENT_NAMES = new Set(['paper_view', 'app_error', 'api_error']);
 let axiosInstrumentationReady = false;
 
 function createId() {
@@ -60,6 +63,7 @@ function captureLocal(eventName, payload) {
 }
 
 export function captureEvent(eventName, properties = {}) {
+  if (!PERSISTED_EVENT_NAMES.has(eventName)) return;
   const props = cleanProperties({
     ...properties,
     sessionId: getInstrumentationSessionId(),
@@ -133,24 +137,7 @@ export function setupAxiosInstrumentation() {
   });
 
   axios.interceptors.response.use(
-    (response) => {
-      const startedAt = response.config?.metadata?.readxivStartedAt;
-      const durationMs = startedAt ? now() - startedAt : null;
-      const url = response.config?.url || '';
-      // Routine API calls happen on nearly every keypress and page change. Recording
-      // each one turns telemetry into a constant stream of database writes, which can
-      // stall the local server. Keep the useful signal: requests slow enough to affect
-      // the user experience, while errors are still recorded below.
-      if (durationMs != null && durationMs >= SLOW_API_REQUEST_MS && !url.includes('/api/instrumentation')) {
-        captureTiming('api_latency', durationMs, {
-          route: window.__readxivCurrentRoute || null,
-          url,
-          method: response.config?.method || 'get',
-          status: response.status,
-        });
-      }
-      return response;
-    },
+    (response) => response,
     (error) => {
       const startedAt = error.config?.metadata?.readxivStartedAt;
       const durationMs = startedAt ? now() - startedAt : null;
