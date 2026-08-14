@@ -234,6 +234,28 @@ router.get('/recents', async (req, res) => {
   }
 });
 
+// Important papers are intentionally capped at ten by the PATCH handler.
+// This static route must be registered before /:id so Express does not treat
+// "important" as a paper identifier and return a false 404.
+router.get('/important', async (_req, res) => {
+  try {
+    const db = await getDB();
+    const result = db.exec(
+      `SELECT * FROM papers
+       WHERE important = 1
+       ORDER BY COALESCE(important_at, updated_at, created_at) DESC
+       LIMIT 10`
+    );
+    const columns = result.length > 0 ? result[0].columns : [];
+    const papers = result.length > 0
+      ? result[0].values.map((row) => rowToObject(row, columns))
+      : [];
+    return res.json(papers);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // Copy PDF into ~/.papyrus/offline and mark paper for offline reading
 router.post('/:id/offline', async (req, res) => {
   try {
@@ -301,26 +323,6 @@ router.post('/:id/access', async (req, res) => {
     const columns = result[0].columns;
     const paper = rowToObject(result[0].values[0], columns);
     return res.json(paper);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-// Important papers are intentionally capped at ten by the PATCH handler.
-router.get('/important', async (_req, res) => {
-  try {
-    const db = await getDB();
-    const result = db.exec(
-      `SELECT * FROM papers
-       WHERE important = 1
-       ORDER BY COALESCE(important_at, updated_at, created_at) DESC
-       LIMIT 10`
-    );
-    const columns = result.length > 0 ? result[0].columns : [];
-    const papers = result.length > 0
-      ? result[0].values.map((row) => rowToObject(row, columns))
-      : [];
-    return res.json(papers);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

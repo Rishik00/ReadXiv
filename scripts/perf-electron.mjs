@@ -31,10 +31,16 @@ try {
   activeWindow = window;
   const firstWindowMs = performance.now() - launchStarted;
   const errors = [];
+  const failedRequests = [];
   window.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text());
   });
   window.on('pageerror', (error) => errors.push(error.message));
+  window.on('response', (response) => {
+    if (response.status() >= 400) {
+      failedRequests.push({ status: response.status(), url: response.url() });
+    }
+  });
   await window.waitForLoadState('domcontentloaded');
 
   const homeInput = window.getByPlaceholder('Type / for commands...');
@@ -94,6 +100,54 @@ try {
     searchSamples.push(performance.now() - started);
   }
 
+  const resetSearchPromise = window.waitForResponse(
+    (response) => response.url().includes('/api/papers') && new URL(response.url()).searchParams.get('q') === ''
+  );
+  await libraryInput.fill('');
+  await resetSearchPromise;
+
+  // Exercise the same reader lifecycle that users reported as intermittent:
+  // select different papers, wait for Reader work to settle, switch tabs,
+  // move through PDF pages, then return to Library.
+  const readerFlows = [];
+  for (let run = 0; run < 3; run += 1) {
+    const row = window.locator(`[data-index="${run}"]`);
+    await row.waitFor({ state: 'visible' });
+    await row.click();
+
+    const openedAt = performance.now();
+    await window.keyboard.press('Enter');
+    const reader = window.locator('.reader-workspace');
+    await reader.waitFor({ state: 'visible' });
+    await window.waitForTimeout(750);
+
+    const referencesTab = window.locator('button').filter({ hasText: 'References' }).first();
+    const notesTab = window.locator('button').filter({ hasText: 'Notes' }).first();
+    await referencesTab.click();
+    await window.waitForTimeout(150);
+    await notesTab.click();
+
+    const pdfPanel = window.locator('[aria-label^="PDF viewer"]');
+    const hasPdfPanel = await pdfPanel.count() > 0;
+    if (hasPdfPanel) {
+      await pdfPanel.click();
+      for (let pageMove = 0; pageMove < 5; pageMove += 1) {
+        await window.keyboard.press('ArrowRight');
+      }
+      await window.waitForTimeout(250);
+    }
+
+    const closedAt = performance.now();
+    await window.keyboard.press('Escape');
+    await libraryInput.waitFor({ state: 'visible' });
+    readerFlows.push({
+      run: run + 1,
+      openedMs: Number((closedAt - openedAt).toFixed(2)),
+      returnedToLibraryMs: Number((performance.now() - closedAt).toFixed(2)),
+      exercisedPdfNavigation: hasPdfPanel,
+    });
+  }
+
   const memory = await electronApp.evaluate(({ app }) =>
     app.getAppMetrics().map((metric) => ({
       type: metric.type,
@@ -121,8 +175,10 @@ try {
     startupRoute,
     navigation: summarize(navSamples),
     searchIncludingDebounce: summarize(searchSamples),
+    readerFlows,
     processMetrics: memory,
     rendererErrors: errors,
+    failedRequests,
   };
   await fs.writeJson(outputPath, results, { spaces: 2 });
   console.log(JSON.stringify(results, null, 2));
