@@ -745,7 +745,9 @@ export default function SearchWorkbench({
         handlePreviewNotes()
         return
       }
-      if (lower === 'r') {
+      // A direct R is useful in the Library itself, but must not mutate the
+      // selected paper while a scheduling or metadata dialog is in progress.
+      if (lower === 'r' && !todoistModalPaper && !metadataEditPaper) {
         event.preventDefault()
         handleToggleImportant()
         return
@@ -783,7 +785,7 @@ export default function SearchWorkbench({
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [actionsOpen, currentPage, fetchingMetadataId, focusPanel, query, results.length, selectedNeedsMetadata, selectedPaper, setPage, totalPages])
+  }, [actionsOpen, currentPage, fetchingMetadataId, focusPanel, metadataEditPaper, query, results.length, selectedNeedsMetadata, selectedPaper, setPage, todoistModalPaper, totalPages])
 
   // ── inline style helpers ──────────────────────────────────────────────────────
   const paneBase = (active) => ({
