@@ -14,11 +14,10 @@ readxiv - research CLI
 
 Usage:
   readxiv
-  readxiv --app
-  readxiv app:start
+  readxiv start
+  readxiv start:app
   readxiv init
   readxiv serve
-  readxiv start:client
   readxiv add:<arxiv_link_or_id>
   readxiv add <arxiv_link_or_id>
   readxiv remove:<arxiv_link_or_id>
@@ -48,6 +47,9 @@ async function main() {
   const first = args[0];
   const colon = parseColonSyntax(first);
 
+  if (first === 'start') return startClientCommand();
+  if (first === 'start:app') return startAppCommand();
+  // Legacy aliases remain accepted so existing local command history keeps working.
   if (first === '--app' || first === 'app') return startAppCommand();
   if (first === 'init') return initCommand();
   if (first === 'serve') return serveCommand();
@@ -57,6 +59,7 @@ async function main() {
   if (first === 'remove') return removeCommand(args[1]);
 
   if (colon?.head === 'start' && colon.tail === 'client') return startClientCommand();
+  if (colon?.head === 'start' && colon.tail === 'app') return startAppCommand();
   if (colon?.head === 'app' && colon.tail === 'start') return startAppCommand();
   if (colon?.head === 'add') return addCommand(colon.tail);
   if (colon?.head === 'remove') return removeCommand(colon.tail);

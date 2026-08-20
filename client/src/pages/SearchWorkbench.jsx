@@ -57,6 +57,7 @@ function formatDateAdded(value) {
 export default function SearchWorkbench({
   initialQuery = '',
   focusNonce,
+  focusOnMount = true,
   setPage,
   openPaper,
   addToast,
@@ -213,9 +214,10 @@ export default function SearchWorkbench({
   }, [initialQuery, workspaceState?.query])
 
   useEffect(() => {
-    if (!focusNonce) return
-    setTimeout(() => inputRef.current?.focus(), 0)
-  }, [focusNonce])
+    if (!focusNonce || !focusOnMount) return undefined
+    const timer = setTimeout(() => inputRef.current?.focus(), 0)
+    return () => clearTimeout(timer)
+  }, [focusNonce, focusOnMount])
 
   useEffect(() => {
     if (previousQueryRef.current === query) return
@@ -638,9 +640,10 @@ export default function SearchWorkbench({
       const inputFocused = isTextInputFocused()
 
       if (event.key === 'Escape') {
-        if (inputFocused && query) {
+        if (inputFocused) {
           event.preventDefault()
-          setQuery('')
+          inputRef.current?.blur()
+          setFocusPanel('stack')
           return
         }
         if (actionsOpen) {
@@ -744,7 +747,7 @@ export default function SearchWorkbench({
         handlePreviewNotes()
         return
       }
-      if (lower === 'r' && actionsOpen) {
+      if (lower === 'r') {
         event.preventDefault()
         handleToggleImportant()
         return
@@ -764,7 +767,7 @@ export default function SearchWorkbench({
         if (selectedNeedsMetadata) handleFetchMetadata(selectedPaper)
         return
       }
-      if (key === 'Delete' || key === 'Backspace') {
+      if (key === 'Backspace') {
         event.preventDefault()
         handleDeletePaper()
         return
@@ -787,7 +790,7 @@ export default function SearchWorkbench({
   // ── inline style helpers ──────────────────────────────────────────────────────
   const paneBase = (active) => ({
     background: 'color-mix(in srgb, var(--surface) 94%, var(--background))',
-    border: `1px solid ${active ? 'color-mix(in srgb, var(--secondary) 32%, var(--border))' : 'var(--border)'}`,
+    border: '1px solid var(--border)',
     borderRadius: '8px',
     overflow: 'hidden',
     display: 'flex',
@@ -816,7 +819,7 @@ export default function SearchWorkbench({
               style={{ flex:1, minWidth:0, background:'transparent', border:0, outline:0, color:'var(--foreground)', fontFamily:'var(--font-sans)', fontSize:'.92rem', fontWeight:500 }}
             />
             <div style={{ display:'flex', alignItems:'center', gap:'6px', flexShrink:0, borderLeft:'1px solid var(--border)', paddingLeft:'8px' }}>
-              <span style={{ fontSize:'.63rem', color:'var(--muted)', whiteSpace:'nowrap' }}>{totalLabel}</span>
+              <span style={{ fontSize:'.76rem', color:'var(--muted)', whiteSpace:'nowrap', fontFamily:'var(--font-mono)' }}>{totalLabel}</span>
             </div>
           </div>
 
@@ -889,7 +892,7 @@ export default function SearchWorkbench({
               </div>
             ) : (
               <>
-                <h2 style={{ fontSize:'clamp(1.25rem, 1.7vw, 1.72rem)', fontWeight:500, lineHeight:1.18, letterSpacing:'0', margin:0, color:'var(--foreground)', maxWidth:'56rem' }}>
+                <h2 style={{ fontSize:'clamp(1.25rem, 1.7vw, 1.72rem)', fontWeight:500, lineHeight:1.18, letterSpacing:'0', margin:0, paddingBottom:'14px', borderBottom:'1px solid var(--border)', color:'var(--foreground)', maxWidth:'56rem' }}>
                   {selectedPaper.title || selectedPaper.id}
                 </h2>
 
@@ -942,7 +945,7 @@ export default function SearchWorkbench({
                 <div style={{ fontSize:'.72rem', fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase', color:'color-mix(in srgb, var(--muted) 90%, var(--foreground))' }}>
                   Abstract
                 </div>
-                <p style={{ flex:1, fontSize:'.9rem', lineHeight:1.72, color:'color-mix(in srgb, var(--foreground) 86%, transparent)', margin:0, overflowY:'auto', paddingRight:'4px' }}>
+                <p style={{ flex:1, fontSize:'1rem', lineHeight:1.72, color:'color-mix(in srgb, var(--foreground) 86%, transparent)', margin:0, overflowY:'auto', paddingRight:'4px' }}>
                   {selectedPaper.abstract || 'No abstract available.'}
                 </p>
               </>
@@ -975,7 +978,7 @@ export default function SearchWorkbench({
                 { name: Number(selectedPaper?.important) === 1 ? 'Remove important mark' : 'Mark as important', sub:null, key:'R', onClick: handleToggleImportant },
                 { name: paperHasTodoistTask(selectedPaper) ? 'Edit Schedule' : 'Schedule', sub:null, key:'D', onClick: () => selectedPaper && setTodoistModalPaper(selectedPaper) },
                 { name: Number(selectedPaper?.offline_pinned) === 1 ? 'Remove Offline Copy' : 'Pin Offline', sub:null, key:'F', onClick: handleOfflineToggle },
-                { name:'Delete Paper', sub:null, key:'Del', danger: true, onClick: handleDeletePaper, disabled: deletingPaperId === selectedPaper?.id, busyLabel:'Deleting...' },
+                { name:'Delete Paper', sub:null, key:'Backspace', danger: true, onClick: handleDeletePaper, disabled: deletingPaperId === selectedPaper?.id, busyLabel:'Deleting...' },
               ].filter(Boolean).map((act) => (
                 <button
                   key={act.name}
@@ -1010,6 +1013,7 @@ export default function SearchWorkbench({
                       <div style={{
                         color:'color-mix(in srgb, var(--foreground) 88%, transparent)',
                         fontSize:'.76rem',
+                        fontFamily:'var(--font-mono)',
                         minWidth:0,
                         overflow:'hidden',
                         textOverflow: item.multiline ? 'clip' : 'ellipsis',

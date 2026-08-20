@@ -236,6 +236,21 @@ export default function Home({
     inputRef.current?.focus()
   }, [focusNonce])
 
+  useEffect(() => {
+    const onSlashKeyDown = (event) => {
+      if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable) return
+      event.preventDefault()
+      setInput('/')
+      setCurrentMode('normal')
+      setIsFocused(true)
+      requestAnimationFrame(() => inputRef.current?.focus())
+    }
+    window.addEventListener('keydown', onSlashKeyDown)
+    return () => window.removeEventListener('keydown', onSlashKeyDown)
+  }, [])
+
   // `t` toggles the desk between Reading and Stats (ignored while typing/focused)
   useEffect(() => {
     if (isFocused) return undefined
@@ -827,13 +842,15 @@ export default function Home({
         }}
       />
 
+      {isFocused && <div className="home-command-backdrop" aria-hidden="true" />}
+
       <div style={{ flex: 0.12 }} aria-hidden="true" />
 
       <div
         className={`command-area home-bar-animated ${isFocused ? 'focused' : ''}`}
         style={{
           position: 'relative',
-          zIndex: 2,
+          zIndex: 4,
           width: 'min(760px, 100%)',
           alignSelf: 'center',
           transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), margin-bottom 0.5s cubic-bezier(0.16, 1, 0.3, 1)',

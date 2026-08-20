@@ -78,7 +78,6 @@ export async function initDB() {
   fs.ensureDirSync(path.join(PAPYRUS_DIR, 'pdfs'));
   fs.ensureDirSync(path.join(PAPYRUS_DIR, 'offline'));
   fs.ensureDirSync(path.join(PAPYRUS_DIR, 'notes'));
-  fs.ensureDirSync(path.join(PAPYRUS_DIR, 'canvas'));
 
   // Initialize sql.js
   if (!SQL) {

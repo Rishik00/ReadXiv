@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { pipeline } from 'stream/promises';
 import { getDB, saveDB, PAPYRUS_DIR } from '../db.js';
 import { getSemanticScholarApiKey } from '../todoistConfig.js';
+import { buildPaperDigestNotes } from '../utils/noteTemplates.js';
 
 const router = express.Router();
 
@@ -279,8 +280,8 @@ async function syncPlaceholderNoteTitle(arxivId, title) {
   const notesPath = path.join(PAPYRUS_DIR, 'notes', `${arxivId}.md`);
   if (!(await fs.pathExists(notesPath))) return;
   const notes = await fs.readFile(notesPath, 'utf8');
-  if (notes.trim() !== `# arXiv:${arxivId}`) return;
-  await fs.writeFile(notesPath, `# ${title}\n\n`, 'utf8');
+  if (!notes.trim().startsWith(`# arXiv:${arxivId}`)) return;
+  await fs.writeFile(notesPath, notes.replace(/^#\s+.+?\s*$/m, `# ${title}`), 'utf8');
 }
 
 async function preparePaperMetadata(arxivId, paper) {
@@ -407,7 +408,7 @@ router.post('/add', async (req, res) => {
     
     // Create notes file
     const notesPath = path.join(PAPYRUS_DIR, 'notes', `${arxivId}.md`);
-    await fs.writeFile(notesPath, `# ${metadata.title}\n\n`);
+    await fs.writeFile(notesPath, buildPaperDigestNotes({ title: metadata.title, id: arxivId }));
     
     // Insert immediately without metadata lookup. Metadata fetches are rate
     // limited hard enough that they should be explicit, not part of /add.

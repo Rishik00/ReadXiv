@@ -36,6 +36,7 @@ import {
   startTimer,
 } from '../lib/instrumentation';
 import useReadingSession from '../lib/useReadingSession';
+import { buildTitleOnlyNote, getPaperNoteTitle, NOTE_TEMPLATES } from '../lib/noteTemplates';
 
 const DEFAULT_SPLIT = 68;
 const PERF_FLAG = 'readxiv-perf';
@@ -46,106 +47,6 @@ const md = new MarkdownIt({
   breaks: true,
   typographer: true
 });
-
-const NOTE_TEMPLATES = [
-  {
-    id: 'none',
-    label: 'None',
-    build: (paper) => `# ${paper?.title || 'Untitled paper'}\n`,
-  },
-  {
-    id: 'paper-digest',
-    label: 'Paper Digest',
-    build: (paper) => `# ${paper?.title || 'Untitled paper'}
-
-## One-line takeaway
-
-## Problem
-
-## Core idea
-
-## Method
-
-## Results
-
-## Limitations
-
-## Useful quotes
-
-## Follow-up questions
-`,
-  },
-  {
-    id: 'critical-reading',
-    label: 'Critical Reading',
-    build: (paper) => `# ${paper?.title || 'Untitled paper'}
-
-## Claim
-
-## Evidence
-
-## Method quality
-
-## What is actually new?
-
-## What could be wrong?
-
-## Reproducibility notes
-
-## My verdict
-`,
-  },
-  {
-    id: 'flashcards',
-    label: 'Flashcards',
-    build: (paper) => `# ${paper?.title || 'Untitled paper'}
-
-## Key Takeaway Cards
-
-### Q
-What is the main problem this paper addresses?
-
-### A
-
----
-
-### Q
-What is the paper's core contribution?
-
-### A
-
----
-
-### Q
-What method or architecture does the paper use?
-
-### A
-
----
-
-### Q
-What evidence supports the main claim?
-
-### A
-
----
-
-### Q
-What are the main limitations?
-
-### A
-
----
-
-## Cloze Cards
-
-- The paper's central idea is {{c1::...}}.
-- The method improves on {{c1::...}} by {{c2::...}}.
-- The strongest result is {{c1::...}} on {{c2::...}}.
-- A key limitation is {{c1::...}}.
-`,
-  },
-];
 
 // Add task list support
 md.use((md) => {
@@ -349,14 +250,6 @@ function extractMarkdownTitle(markdown) {
   return null;
 }
 
-function getPaperNoteTitle(paper) {
-  return paper?.title || (paper?.id ? `arXiv:${paper.id}` : 'Untitled paper');
-}
-
-function buildTitleOnlyNote(paper) {
-  return `# ${getPaperNoteTitle(paper)}\n`;
-}
-
 function normalizeMarkdownForComparison(markdown) {
   return String(markdown || '').replace(/\r\n/g, '\n').trim();
 }
@@ -433,7 +326,7 @@ const Reader = forwardRef(function Reader(
   const [referencesLoadedForPaperId, setReferencesLoadedForPaperId] = useState(null);
   const [addingReferenceKeys, setAddingReferenceKeys] = useState(() => new Set());
   const [addedReferenceKeys, setAddedReferenceKeys] = useState(() => new Set());
-  const [selectedNoteTemplate, setSelectedNoteTemplate] = useState(NOTE_TEMPLATES[0].id);
+  const [selectedNoteTemplate, setSelectedNoteTemplate] = useState('paper-digest');
   const splitRootRef = useRef(null);
   const saveTimerRef = useRef(null);
   const pdfPanelRef = useRef(null);
@@ -1084,7 +977,7 @@ const Reader = forwardRef(function Reader(
   if (!paperId) {
     return (
       <div className="p-8 max-w-[980px] mx-auto flex flex-col items-center justify-center min-h-[50vh]">
-        <p className="text-muted text-sm">Select a paper from search or use <kbd className="px-1.5 py-0.5 rounded bg-border text-sm font-mono">Ctrl+P</kbd> to search.</p>
+        <p className="text-muted text-sm">Select a paper from the Library to begin reading.</p>
       </div>
     );
   }

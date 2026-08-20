@@ -135,6 +135,14 @@ router.get('/summary', async (req, res) => {
       )
     );
 
+    const totalActiveDays = firstRow(
+      db.exec(
+        `SELECT COUNT(DISTINCT date(created_at)) AS count
+         FROM analytics_events
+         WHERE event_name = 'paper_view'`
+      )
+    );
+
     const recentlyAdded = rowsToObjects(
       db.exec(
         `SELECT id, title, authors, year, status, created_at
@@ -219,6 +227,7 @@ router.get('/summary', async (req, res) => {
       consistency: {
         days,
         activeDays: readsByDay.filter((day) => day.views > 0).length,
+        totalActiveDays: Number(totalActiveDays.count || 0),
         totalViews: readsByDay.reduce((sum, day) => sum + day.views, 0),
         distinctPapers: readsByDay.reduce((sum, day) => sum + day.distinctPapers, 0),
         ...streaks,
