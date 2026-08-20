@@ -73,7 +73,24 @@ function parseByteRange(range, fileSize) {
 }
 
 function buildDefaultNotesTemplate(paper) {
-  return `# ${paper.title}\n`;
+  return `# ${paper.title || 'Untitled paper'}
+
+## One-line takeaway
+
+## Problem
+
+## Core idea
+
+## Method
+
+## Results
+
+## Limitations
+
+## Useful quotes
+
+## Follow-up questions
+`;
 }
 
 router.get('/:id/references', async (req, res) => {

@@ -19,7 +19,6 @@ const Reader = lazy(() => import('./pages/Reader'))
 const SearchWorkbench = lazy(() => import('./pages/SearchWorkbench'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Help = lazy(() => import('./pages/Help'))
-const GlobalSearchPalette = lazy(() => import('./components/GlobalSearchPalette'))
 
 const DESKTOP_SESSION_KEY = 'readxiv-desktop-session-v1'
 const RESTORABLE_DESKTOP_PAGES = new Set(['home', 'search', 'settings', 'help', 'reader'])
@@ -40,7 +39,7 @@ function readDesktopSession() {
 
 // Question: does this still apply? If not, explain
 // Settings button: kept in code but not in use. User will specify placement later.
-// See Settings page and setPage('settings') - accessible via Ctrl+P > "settings" for now.
+// Settings remains available through the normal navigation and Space , shortcut.
 function parsePaperDeepLink(pathname) {
   const m = pathname.match(/^\/p\/([^/]+)\/?$/)
   if (!m) return null
@@ -105,7 +104,6 @@ function App() {
   const [searchFocusNonce, setSearchFocusNonce] = useState(0)
   const [readerInitialTab, setReaderInitialTab] = useState('edit')
   const [toasts, setToasts] = useState([])
-  const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [pendingG, setPendingG] = useState(false)
   const readerRef = useRef(null)
   /** Mirror chord flags so the next key is recognized before React re-renders (fixes Space then o). */
@@ -278,7 +276,7 @@ function App() {
   }
 
   const navigateTo = useCallback(
-    (target) => {
+    (target, { focusLibrarySearch = true } = {}) => {
       runWithViewTransition(() => {
         if (target === 'home') {
           captureAction('navigate', { route: pageRef.current, target: 'home', source: 'navigateTo' })
@@ -287,7 +285,7 @@ function App() {
         } else if (target === 'search') {
           captureAction('navigate', { route: pageRef.current, target: 'search', source: 'navigateTo' })
           setPage('search')
-          setSearchFocusNonce((n) => n + 1)
+          if (focusLibrarySearch) setSearchFocusNonce((n) => n + 1)
         } else if (target === 'settings') {
           captureAction('navigate', { route: pageRef.current, target: 'settings', source: 'navigateTo' })
           setPage('settings')
@@ -341,7 +339,9 @@ function App() {
 
   const navigateBack = useCallback(() => {
     if (page === 'reader') {
-      navigateTo(readerOrigin || 'home')
+      // Preserve the selected Library row as the return target instead of
+      // forcing focus back into the Library search input.
+      navigateTo(readerOrigin || 'home', { focusLibrarySearch: false })
       return
     }
 
@@ -464,11 +464,6 @@ function App() {
       if ((event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'k') || (event.ctrlKey && event.key.toLowerCase() === 'k')) {
         event.preventDefault()
         navigateTo('search')
-        return
-      }
-      if (event.ctrlKey && event.key.toLowerCase() === 'p') {
-        event.preventDefault()
-        setQuickSearchOpen(true)
         return
       }
     }
@@ -884,25 +879,6 @@ function App() {
           )
         })()}
       </main>
-      {quickSearchOpen && (
-        <Suspense fallback={null}>
-          <GlobalSearchPalette
-            open
-            onClose={() => setQuickSearchOpen(false)}
-            currentPage={page}
-            onSelectPaper={(paper) => {
-              openPaper(paper)
-              setQuickSearchOpen(false)
-            }}
-            onCommand={(cmd) => {
-              if (['home', 'search', 'settings', 'help'].includes(cmd.id)) {
-                navigateTo(cmd.id)
-              }
-              setQuickSearchOpen(false)
-            }}
-          />
-        </Suspense>
-      )}
     </div>
   )
 }

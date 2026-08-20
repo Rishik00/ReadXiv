@@ -23,6 +23,27 @@ let lastArxivApiRequestAt = 0;
 let arxivRateLimitedUntil = 0;
 let arxivApiQueue = Promise.resolve();
 
+function buildPaperDigestNotes(title) {
+  return `# ${title || 'Untitled paper'}
+
+## One-line takeaway
+
+## Problem
+
+## Core idea
+
+## Method
+
+## Results
+
+## Limitations
+
+## Useful quotes
+
+## Follow-up questions
+`;
+}
+
 class ArxivRateLimitError extends Error {
   constructor(message) {
     super(message);
@@ -279,8 +300,8 @@ async function syncPlaceholderNoteTitle(arxivId, title) {
   const notesPath = path.join(PAPYRUS_DIR, 'notes', `${arxivId}.md`);
   if (!(await fs.pathExists(notesPath))) return;
   const notes = await fs.readFile(notesPath, 'utf8');
-  if (notes.trim() !== `# arXiv:${arxivId}`) return;
-  await fs.writeFile(notesPath, `# ${title}\n\n`, 'utf8');
+  if (!notes.trim().startsWith(`# arXiv:${arxivId}`)) return;
+  await fs.writeFile(notesPath, notes.replace(/^#\s+.+?\s*$/m, `# ${title}`), 'utf8');
 }
 
 async function preparePaperMetadata(arxivId, paper) {
@@ -407,7 +428,7 @@ router.post('/add', async (req, res) => {
     
     // Create notes file
     const notesPath = path.join(PAPYRUS_DIR, 'notes', `${arxivId}.md`);
-    await fs.writeFile(notesPath, `# ${metadata.title}\n\n`);
+    await fs.writeFile(notesPath, buildPaperDigestNotes(metadata.title));
     
     // Insert immediately without metadata lookup. Metadata fetches are rate
     // limited hard enough that they should be explicit, not part of /add.

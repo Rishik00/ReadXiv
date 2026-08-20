@@ -567,10 +567,21 @@ const PdfViewer = forwardRef(function PdfViewer(
       }
       if (event.key === 'ArrowRight') {
         event.preventDefault();
-        pdfViewerRef.current?.nextPage();
+        const container = containerRef.current;
+        const maxLeft = Math.max(0, (container?.scrollWidth || 0) - (container?.clientWidth || 0));
+        if (container && container.scrollLeft < maxLeft - 1) {
+          container.scrollBy({ left: Math.min(180, maxLeft - container.scrollLeft), behavior: 'auto' });
+        } else {
+          pdfViewerRef.current?.nextPage();
+        }
       } else if (event.key === 'ArrowLeft') {
         event.preventDefault();
-        pdfViewerRef.current?.previousPage();
+        const container = containerRef.current;
+        if (container && container.scrollLeft > 1) {
+          container.scrollBy({ left: -Math.min(180, container.scrollLeft), behavior: 'auto' });
+        } else {
+          pdfViewerRef.current?.previousPage();
+        }
       } else if (event.key === 'j' || event.key === 'ArrowDown') {
         event.preventDefault();
         containerRef.current?.scrollBy({ top: 140, behavior: 'smooth' });

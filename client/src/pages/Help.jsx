@@ -3,7 +3,6 @@ export default function Help() {
     {
       title: 'Navigation',
       items: [
-        ['Ctrl+P', 'Command palette - search papers and navigate'],
         ['Ctrl+K', 'Open Library'],
         ['Space h', 'Go home'],
         ['Space l', 'Open Library'],
@@ -27,7 +26,7 @@ export default function Help() {
         ['h / l', 'Move focus between results, details, and actions'],
         ['b', 'Open the selected paper in your system browser'],
         ['n', 'Open the selected paper’s published notes'],
-        ['s / d / f / Delete', 'Status, schedule, offline, delete on the selected paper'],
+        ['r / s / d / f / Backspace', 'Important, status, schedule, offline, delete on the selected paper'],
         ['[ / ]', 'Previous / next result page'],
       ],
     },
@@ -51,15 +50,6 @@ export default function Help() {
         ['Ctrl+Shift+1 / 2', 'Heading 1 / 2'],
         ['Ctrl+Shift+L', 'List item'],
         ['Ctrl+Shift+K', 'Inline code'],
-      ],
-    },
-    {
-      title: 'Command Palette',
-      items: [
-        ['Up / Down / j / k', 'Navigate results'],
-        ['Enter', 'Open selected result'],
-        ['Tab', 'Switch between paper search and app commands'],
-        ['>', 'Search commands like home, library, settings'],
       ],
     },
   ]

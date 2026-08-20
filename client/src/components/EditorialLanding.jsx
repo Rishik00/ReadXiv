@@ -137,7 +137,7 @@ export default function EditorialLanding({
   const totalPages = Math.max(currentPage, Number(continuePaper?.total_pages) || currentPage)
   const progress = totalPages > 1 ? Math.min(100, Math.round((currentPage / totalPages) * 100)) : 0
 
-  const activeDays30 = activity.filter((day) => Number(day.views) > 0).length
+  const totalActiveDays = Number(consistency.totalActiveDays || 0)
   const jumpBack = recentPapers
     .filter((paper) => paper.id !== continuePaper?.id && Number(paper.important) === 1)
     .slice(0, 10)
@@ -236,9 +236,9 @@ export default function EditorialLanding({
                 <span className="editorial-tile-sub">best {consistency.longestStreak || 0}d</span>
               </div>
               <div className="editorial-tile">
-                <span className="editorial-fig">{activeDays30}<span className="editorial-u">/{activity.length || 30}</span></span>
-                <span className="editorial-cap">Active days</span>
-                <span className="editorial-tile-sub">last 30 days</span>
+                <span className="editorial-fig">{totalActiveDays}</span>
+                <span className="editorial-cap">Total active days</span>
+                <span className="editorial-tile-sub">all time</span>
               </div>
             </div>
 
