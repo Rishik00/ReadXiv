@@ -18,6 +18,13 @@ function isHttpsUrl(val) {
   }
 }
 
+function splitImportInputs(value) {
+  return value
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
 function getArxivPreviewKey(val) {
   const trimmed = val?.trim() || ''
   const urlMatch = trimmed.match(/arxiv\.org\/(?:abs|pdf)\/(\d{4}\.\d{4,5})(?:v\d+)?/i)
@@ -68,6 +75,7 @@ export default function Home({
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [batchImport, setBatchImport] = useState(null)
   const [previewData, setPreviewData] = useState(null)
   const [showHowtoModal, setShowHowtoModal] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
@@ -503,6 +511,110 @@ export default function Home({
     }
   }
 
+  const handleBulkUrlImport = async (queries) => {
+    const entries = queries.map((query) => ({ query, status: 'waiting' }))
+    setLoading(true)
+    setError(null)
+    setBatchImport({ total: entries.length, completed: 0, entries })
+
+    for (let index = 0; index < queries.length; index += 1) {
+      const query = queries[index]
+      entries[index] = { query, status: 'importing' }
+      setBatchImport({ total: entries.length, completed: index, entries: [...entries] })
+      try {
+        let response
+        if (isArxivInput(query)) {
+          response = await axios.post('/api/arxiv/add', { input: query })
+        } else if (isHttpsUrl(query)) {
+          response = await axios.post('/api/papers/import-url', { url: query })
+        } else {
+          throw new Error('Enter an arXiv ID or URL, or an HTTPS PDF link.')
+        }
+        const paper = response.data
+        entries[index] = {
+          query,
+          status: paper?.alreadyExists ? 'duplicate' : 'success',
+          title: paper?.title || query,
+          readerSupported: paper?.readerSupported !== false,
+        }
+        captureAction('add_paper', {
+          route: 'home',
+          source: paper?.source || (isArxivInput(query) ? 'arxiv' : 'external'),
+          paperId: paper?.id,
+          batch: true,
+        })
+      } catch (err) {
+        entries[index] = {
+          query,
+          status: 'failed',
+          error: err.response?.data?.error || err.message || 'Import failed',
+        }
+        captureAppError(err, { route: 'home', source: 'bulk_import', input: query })
+      }
+      setBatchImport({ total: entries.length, completed: index + 1, entries: [...entries] })
+    }
+
+    const added = entries.filter((entry) => entry.status === 'success').length
+    const duplicates = entries.filter((entry) => entry.status === 'duplicate').length
+    const failures = entries.filter((entry) => entry.status === 'failed').length
+    const summary = [
+      `${added} added`,
+      duplicates ? `${duplicates} already in library` : null,
+      failures ? `${failures} failed` : null,
+    ].filter(Boolean).join(', ')
+    addToast?.(
+      summary,
+      failures ? 'info' : 'success'
+    )
+    setInput('')
+    setLoading(false)
+  }
+
+  const handleBulkPdfUpload = async (files) => {
+    const entries = files.map((file) => ({ query: file.name, status: 'waiting' }))
+    setLoading(true)
+    setError(null)
+    setBatchImport({ total: entries.length, completed: 0, entries })
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index]
+      entries[index] = { query: file.name, status: 'importing' }
+      setBatchImport({ total: entries.length, completed: index, entries: [...entries] })
+      try {
+        const formData = new FormData()
+        formData.append('pdf', file)
+        const response = await axios.post('/api/papers/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        entries[index] = {
+          query: file.name,
+          status: response.data?.alreadyExists ? 'duplicate' : 'success',
+          title: response.data?.title || file.name,
+        }
+        captureAction('upload_pdf_complete', { route: 'home', paperId: response.data?.id, batch: true })
+      } catch (err) {
+        entries[index] = {
+          query: file.name,
+          status: 'failed',
+          error: err.response?.data?.error || 'Upload failed',
+        }
+        captureAppError(err, { route: 'home', source: 'bulk_pdf_upload', fileName: file.name })
+      }
+      setBatchImport({ total: entries.length, completed: index + 1, entries: [...entries] })
+    }
+
+    const uploaded = entries.filter((entry) => entry.status === 'success').length
+    const duplicates = entries.filter((entry) => entry.status === 'duplicate').length
+    const failures = entries.filter((entry) => entry.status === 'failed').length
+    const summary = [
+      `${uploaded} uploaded`,
+      duplicates ? `${duplicates} already in library` : null,
+      failures ? `${failures} failed` : null,
+    ].filter(Boolean).join(', ')
+    addToast?.(summary, failures ? 'info' : 'success')
+    setLoading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!input.trim()) return
@@ -538,7 +650,10 @@ export default function Home({
 
     if (currentMode === 'add') {
       if (!addQuery.trim()) return
-      if (isArxivInput(addQuery)) {
+      const imports = splitImportInputs(addQuery)
+      if (imports.length > 1) {
+        await handleBulkUrlImport(imports)
+      } else if (isArxivInput(addQuery)) {
         await handleArxivAdd(addQuery)
       } else if (isHttpsUrl(addQuery)) {
         await handleExternalPdfImport(addQuery)
@@ -551,6 +666,12 @@ export default function Home({
     }
 
     if (currentMode === 'preview') {
+      return
+    }
+
+    const imports = splitImportInputs(input)
+    if (imports.length > 1 && imports.every((item) => isArxivInput(item) || isHttpsUrl(item))) {
+      await handleBulkUrlImport(imports)
       return
     }
 
@@ -568,8 +689,13 @@ export default function Home({
   }
 
   const handlePdfUpload = async (event) => {
-    const file = event.target.files?.[0]
+    const files = Array.from(event.target.files || [])
+    const file = files[0]
     if (!file) return
+    if (files.length > 1) {
+      await handleBulkPdfUpload(files)
+      return
+    }
     const startedAt = startTimer()
     captureAction('upload_pdf_start', {
       route: 'home',
@@ -959,10 +1085,56 @@ export default function Home({
         ref={fileInputRef}
         type="file"
         accept=".pdf,application/pdf"
+        multiple
         className="hidden"
         onChange={handlePdfUpload}
         style={{ display: 'none' }}
       />
+
+      {batchImport && (
+        <section
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            right: '1.25rem',
+            bottom: '1.25rem',
+            zIndex: 1000,
+            width: 'min(31rem, calc(100vw - 2.5rem))',
+            maxHeight: 'min(28rem, calc(100vh - 2.5rem))',
+            overflow: 'auto',
+            padding: '1rem',
+            border: '1px solid var(--border)',
+            borderRadius: '10px',
+            background: 'var(--surface)',
+            boxShadow: '0 18px 54px rgba(0, 0, 0, .4)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '.7rem' }}>
+            <strong style={{ fontSize: '.85rem' }}>Importing papers</strong>
+            <button type="button" onClick={() => setBatchImport(null)} style={{ color: 'var(--muted)', fontSize: '.75rem' }}>Dismiss</button>
+          </div>
+          <div style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontSize: '.72rem', marginBottom: '.7rem' }}>
+            {batchImport.completed} / {batchImport.total} processed
+          </div>
+          <div style={{ display: 'grid', gap: '.38rem' }}>
+            {batchImport.entries.map((entry, index) => {
+              const label = entry.title || entry.query
+              const detail = entry.status === 'success' ? 'Added'
+                : entry.status === 'duplicate' ? 'Already in library'
+                  : entry.status === 'failed' ? entry.error
+                    : entry.status === 'importing' ? 'Importing…' : 'Waiting'
+              const color = entry.status === 'failed' ? '#f87171'
+                : entry.status === 'success' || entry.status === 'duplicate' ? '#4ade80' : 'var(--muted)'
+              return (
+                <div key={`${entry.query}-${index}`} style={{ padding: '.55rem .65rem', border: '1px solid var(--border)', borderRadius: '6px' }}>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '.78rem' }}>{label}</div>
+                  <div style={{ color, fontFamily: 'var(--font-mono)', fontSize: '.67rem', marginTop: '.18rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detail}</div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {error && (
         <div style={{
@@ -1015,7 +1187,7 @@ export default function Home({
             <div style={{ display: 'grid', gap: '0.75rem', fontSize: '0.95rem', lineHeight: 1.7 }}>
               <div><code>/library [query]</code> - open the Library</div>
               <div><code>/search [query]</code> - alias for Library</div>
-              <div><code>/add [arXiv id or URL]</code> - fetch and add a paper</div>
+              <div><code>/add [IDs or links]</code> - paste one or more arXiv IDs, URLs, or PDF links</div>
               <div><code>/upload</code> - upload a local PDF</div>
               <div><code>/help</code> - open keyboard shortcuts</div>
               <div><code>plain text</code> - search your library</div>
