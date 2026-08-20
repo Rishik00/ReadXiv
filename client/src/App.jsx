@@ -102,6 +102,7 @@ function App() {
   const [homeArxivInput, setHomeArxivInput] = useState(null)
   const [initialRouteResolved, setInitialRouteResolved] = useState(false)
   const [searchFocusNonce, setSearchFocusNonce] = useState(0)
+  const [focusLibrarySearchOnMount, setFocusLibrarySearchOnMount] = useState(true)
   const [readerInitialTab, setReaderInitialTab] = useState('edit')
   const [toasts, setToasts] = useState([])
   const [pendingG, setPendingG] = useState(false)
@@ -285,6 +286,7 @@ function App() {
         } else if (target === 'search') {
           captureAction('navigate', { route: pageRef.current, target: 'search', source: 'navigateTo' })
           setPage('search')
+          setFocusLibrarySearchOnMount(focusLibrarySearch)
           if (focusLibrarySearch) setSearchFocusNonce((n) => n + 1)
         } else if (target === 'settings') {
           captureAction('navigate', { route: pageRef.current, target: 'settings', source: 'navigateTo' })
@@ -308,6 +310,7 @@ function App() {
         })
         setSearchQuery(query)
         setPage('search')
+        setFocusLibrarySearchOnMount(true)
         setSearchFocusNonce((n) => n + 1)
       })
     },
@@ -529,6 +532,7 @@ function App() {
       }
       if (isLibraryPath(window.location.pathname)) {
         setPage('search')
+        setFocusLibrarySearchOnMount(true)
         setSearchFocusNonce((n) => n + 1)
       } else if (isDashboardPath(window.location.pathname)) {
         setPage('home')
@@ -565,6 +569,7 @@ function App() {
           runWithViewTransition(() => {
             setPage('search')
             setSelectedPaper(null)
+            setFocusLibrarySearchOnMount(true)
             setSearchFocusNonce((n) => n + 1)
           })
         } else if (isDashboardPath(window.location.pathname)) {
@@ -633,7 +638,7 @@ function App() {
   }, [initialRouteResolved, page, selectedPaper?.id])
 
   useEffect(() => {
-    if (!initialRouteResolved || page === 'canvas') return undefined
+    if (!initialRouteResolved) return undefined
     const startedAt = pageTimerRef.current
     const id = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -824,6 +829,7 @@ function App() {
               <SearchWorkbench
                 initialQuery={searchQuery}
                 focusNonce={searchFocusNonce}
+                focusOnMount={focusLibrarySearchOnMount}
                 setPage={navigateTo}
                 openPaper={openPaper}
                 addToast={addToast}

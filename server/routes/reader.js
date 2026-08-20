@@ -4,6 +4,7 @@ import path from 'path';
 import { getDB, saveDB, PAPYRUS_DIR } from '../db.js';
 import { fetchReferencesFromSemanticScholar } from '../semanticScholarReferences.mjs';
 import { ensureArxivPaperReady } from './arxiv.js';
+import { buildPaperDigestNotes } from '../utils/noteTemplates.js';
 
 async function resolvePdfPathForPaper(paper) {
   if (!paper?.id) return null;
@@ -70,27 +71,6 @@ function parseByteRange(range, fileSize) {
   }
 
   return { start, end: Math.min(end, fileSize - 1) };
-}
-
-function buildDefaultNotesTemplate(paper) {
-  return `# ${paper.title || 'Untitled paper'}
-
-## One-line takeaway
-
-## Problem
-
-## Core idea
-
-## Method
-
-## Results
-
-## Limitations
-
-## Useful quotes
-
-## Follow-up questions
-`;
 }
 
 router.get('/:id/references', async (req, res) => {
@@ -169,7 +149,7 @@ router.get('/:id', async (req, res) => {
     const notesPath = getNotesPath(paper.id);
     const notes = (await fs.pathExists(notesPath))
       ? await fs.readFile(notesPath, 'utf8')
-      : buildDefaultNotesTemplate(paper);
+      : buildPaperDigestNotes(paper);
 
     return res.json({
       ...paper,
@@ -189,7 +169,7 @@ router.get('/:id/notes', async (req, res) => {
 
     const notesPath = getNotesPath(req.params.id);
     if (!(await fs.pathExists(notesPath))) {
-      const initial = buildDefaultNotesTemplate(paper);
+      const initial = buildPaperDigestNotes(paper);
       await fs.writeFile(notesPath, initial, 'utf8');
       return res.json({ content: initial, updatedAt: new Date().toISOString() });
     }

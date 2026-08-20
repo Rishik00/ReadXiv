@@ -12,32 +12,12 @@ import multer from 'multer';
 import { PAPYRUS_DIR } from '../db.js';
 import Fuse from 'fuse.js';
 import { extractArxivId, fetchArxivMetadata } from './arxiv.js';
+import { buildPaperDigestNotes } from '../utils/noteTemplates.js';
 
 const router = express.Router();
 const upload = multer({ dest: path.join(PAPYRUS_DIR, 'tmp') });
 const MAX_EXTERNAL_PDF_BYTES = 100 * 1024 * 1024;
 const MAX_EXTERNAL_PDF_REDIRECTS = 5;
-
-function buildPaperDigestNotes(title) {
-  return `# ${title || 'Untitled paper'}
-
-## One-line takeaway
-
-## Problem
-
-## Core idea
-
-## Method
-
-## Results
-
-## Limitations
-
-## Useful quotes
-
-## Follow-up questions
-`;
-}
 
 // Helper to convert sql.js rows to objects
 function rowToObject(row, columns) {
@@ -668,7 +648,7 @@ router.post('/import-url', async (req, res) => {
 
       const title = metadata?.title || `OpenReview paper (${openReviewId})`;
       const now = new Date().toISOString();
-      await fs.writeFile(path.join(PAPYRUS_DIR, 'notes', `${paperId}.md`), buildPaperDigestNotes(title), 'utf8');
+      await fs.writeFile(path.join(PAPYRUS_DIR, 'notes', `${paperId}.md`), buildPaperDigestNotes({ title, id: paperId }), 'utf8');
       db.run(
         `INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, tags, created_at, updated_at, last_accessed_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -714,7 +694,7 @@ router.post('/import-url', async (req, res) => {
     const inputHost = new URL(inputUrl).hostname;
     const source = isOpenReviewHost(inputHost) ? 'openreview' : 'external';
     const title = metadata?.title || downloaded.title;
-    await fs.writeFile(path.join(PAPYRUS_DIR, 'notes', `${paperId}.md`), buildPaperDigestNotes(title), 'utf8');
+    await fs.writeFile(path.join(PAPYRUS_DIR, 'notes', `${paperId}.md`), buildPaperDigestNotes({ title, id: paperId }), 'utf8');
 
     db.run(
       `INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, tags, created_at, updated_at, last_accessed_at)
@@ -839,7 +819,7 @@ router.post('/upload', upload.single('pdf'), async (req, res) => {
     const title = baseTitle || 'Untitled PDF';
     const now = new Date().toISOString();
     const notesPath = path.join(PAPYRUS_DIR, 'notes', `${paperId}.md`);
-    await fs.writeFile(notesPath, buildPaperDigestNotes(title), 'utf8');
+    await fs.writeFile(notesPath, buildPaperDigestNotes({ title, id: paperId }), 'utf8');
 
     db.run(
       `INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, tags, created_at, updated_at, last_accessed_at)

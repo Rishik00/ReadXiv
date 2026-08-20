@@ -36,6 +36,7 @@ import {
   startTimer,
 } from '../lib/instrumentation';
 import useReadingSession from '../lib/useReadingSession';
+import { buildTitleOnlyNote, getPaperNoteTitle, NOTE_TEMPLATES } from '../lib/noteTemplates';
 
 const DEFAULT_SPLIT = 68;
 const PERF_FLAG = 'readxiv-perf';
@@ -46,36 +47,6 @@ const md = new MarkdownIt({
   breaks: true,
   typographer: true
 });
-
-const NOTE_TEMPLATES = [
-  {
-    id: 'none',
-    label: 'None',
-    build: (paper) => `# ${paper?.title || 'Untitled paper'}\n`,
-  },
-  {
-    id: 'paper-digest',
-    label: 'Paper Digest',
-    build: (paper) => `# ${paper?.title || 'Untitled paper'}
-
-## One-line takeaway
-
-## Problem
-
-## Core idea
-
-## Method
-
-## Results
-
-## Limitations
-
-## Useful quotes
-
-## Follow-up questions
-`,
-  },
-];
 
 // Add task list support
 md.use((md) => {
@@ -277,14 +248,6 @@ function extractMarkdownTitle(markdown) {
     return title || null;
   }
   return null;
-}
-
-function getPaperNoteTitle(paper) {
-  return paper?.title || (paper?.id ? `arXiv:${paper.id}` : 'Untitled paper');
-}
-
-function buildTitleOnlyNote(paper) {
-  return `# ${getPaperNoteTitle(paper)}\n`;
 }
 
 function normalizeMarkdownForComparison(markdown) {

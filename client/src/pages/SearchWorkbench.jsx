@@ -57,6 +57,7 @@ function formatDateAdded(value) {
 export default function SearchWorkbench({
   initialQuery = '',
   focusNonce,
+  focusOnMount = true,
   setPage,
   openPaper,
   addToast,
@@ -213,9 +214,10 @@ export default function SearchWorkbench({
   }, [initialQuery, workspaceState?.query])
 
   useEffect(() => {
-    if (!focusNonce) return
-    setTimeout(() => inputRef.current?.focus(), 0)
-  }, [focusNonce])
+    if (!focusNonce || !focusOnMount) return undefined
+    const timer = setTimeout(() => inputRef.current?.focus(), 0)
+    return () => clearTimeout(timer)
+  }, [focusNonce, focusOnMount])
 
   useEffect(() => {
     if (previousQueryRef.current === query) return
@@ -745,9 +747,7 @@ export default function SearchWorkbench({
         handlePreviewNotes()
         return
       }
-      // A direct R is useful in the Library itself, but must not mutate the
-      // selected paper while a scheduling or metadata dialog is in progress.
-      if (lower === 'r' && !todoistModalPaper && !metadataEditPaper) {
+      if (lower === 'r') {
         event.preventDefault()
         handleToggleImportant()
         return
@@ -785,7 +785,7 @@ export default function SearchWorkbench({
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [actionsOpen, currentPage, fetchingMetadataId, focusPanel, metadataEditPaper, query, results.length, selectedNeedsMetadata, selectedPaper, setPage, todoistModalPaper, totalPages])
+  }, [actionsOpen, currentPage, fetchingMetadataId, focusPanel, query, results.length, selectedNeedsMetadata, selectedPaper, setPage, totalPages])
 
   // ── inline style helpers ──────────────────────────────────────────────────────
   const paneBase = (active) => ({

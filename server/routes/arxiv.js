@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { pipeline } from 'stream/promises';
 import { getDB, saveDB, PAPYRUS_DIR } from '../db.js';
 import { getSemanticScholarApiKey } from '../todoistConfig.js';
+import { buildPaperDigestNotes } from '../utils/noteTemplates.js';
 
 const router = express.Router();
 
@@ -22,27 +23,6 @@ const paperPreparationRequests = new Map();
 let lastArxivApiRequestAt = 0;
 let arxivRateLimitedUntil = 0;
 let arxivApiQueue = Promise.resolve();
-
-function buildPaperDigestNotes(title) {
-  return `# ${title || 'Untitled paper'}
-
-## One-line takeaway
-
-## Problem
-
-## Core idea
-
-## Method
-
-## Results
-
-## Limitations
-
-## Useful quotes
-
-## Follow-up questions
-`;
-}
 
 class ArxivRateLimitError extends Error {
   constructor(message) {
@@ -428,7 +408,7 @@ router.post('/add', async (req, res) => {
     
     // Create notes file
     const notesPath = path.join(PAPYRUS_DIR, 'notes', `${arxivId}.md`);
-    await fs.writeFile(notesPath, buildPaperDigestNotes(metadata.title));
+    await fs.writeFile(notesPath, buildPaperDigestNotes({ title: metadata.title, id: arxivId }));
     
     // Insert immediately without metadata lookup. Metadata fetches are rate
     // limited hard enough that they should be explicit, not part of /add.
