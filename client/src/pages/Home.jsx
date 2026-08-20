@@ -485,6 +485,10 @@ export default function Home({
       })
       window.electron?.showNotification?.('ReadXiv', response.data?.alreadyExists ? 'Paper already in library' : 'Paper added')
       setInput('')
+      if (response.data?.readerSupported === false) {
+        addToast?.('OpenReview papers are not supported in Reader yet. Find it in Library and press B to open it in your browser.', 'info')
+        return
+      }
       openPaper?.(response.data)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to import PDF')

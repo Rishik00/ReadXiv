@@ -180,6 +180,14 @@ function normalizeOpenReviewPdfUrl(url) {
   return new URL(`https://openreview.net/pdf?id=${encodeURIComponent(id)}`);
 }
 
+function getOpenReviewNoteId(url) {
+  return isOpenReviewHost(url.hostname) ? url.searchParams.get('id') : null;
+}
+
+function openReviewForumUrl(id) {
+  return `https://openreview.net/forum?id=${encodeURIComponent(id)}`;
+}
+
 function openReviewContentValue(content, field) {
   const value = content?.[field];
   if (typeof value === 'string') return value.trim();
@@ -618,6 +626,50 @@ router.post('/import-url', async (req, res) => {
   try {
     const inputUrl = String(req.body?.url || '').trim();
     if (!inputUrl) return res.status(400).json({ error: 'PDF URL is required.' });
+
+    const suppliedUrl = await assertSafeExternalUrl(inputUrl);
+    const openReviewId = getOpenReviewNoteId(suppliedUrl);
+    if (isOpenReviewHost(suppliedUrl.hostname)) {
+      if (!openReviewId) {
+        return res.status(400).json({ error: 'OpenReview links must include a paper id.' });
+      }
+
+      // OpenReview currently challenges server-side PDF and metadata requests.
+      // Keep the paper in the library without pretending that Reader can open it.
+      const metadata = await fetchOpenReviewMetadata(inputUrl);
+      const paperId = `openreview-${createHash('sha256').update(openReviewId).digest('hex').slice(0, 16)}`;
+      const db = await getDB();
+      const existingResult = db.exec('SELECT * FROM papers WHERE id = ?', [paperId]);
+      if (existingResult.length > 0 && existingResult[0].values.length > 0) {
+        const existing = rowToObject(existingResult[0].values[0], existingResult[0].columns);
+        return res.json({ ...existing, alreadyExists: true, readerSupported: false });
+      }
+
+      const title = metadata?.title || `OpenReview paper (${openReviewId})`;
+      const now = new Date().toISOString();
+      await fs.writeFile(path.join(PAPYRUS_DIR, 'notes', `${paperId}.md`), `# ${title}\n`, 'utf8');
+      db.run(
+        `INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, tags, created_at, updated_at, last_accessed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          paperId,
+          title,
+          metadata?.authors || null,
+          metadata?.abstract || null,
+          openReviewForumUrl(openReviewId),
+          null,
+          null,
+          'openreview',
+          null,
+          '[]',
+          now,
+          now,
+          now,
+        ]
+      );
+      saveDB();
+      return res.status(201).json({ ...(await fetchPaperById(paperId)), readerSupported: false });
+    }
 
     await fs.ensureDir(path.join(PAPYRUS_DIR, 'tmp'));
     temporaryPath = path.join(PAPYRUS_DIR, 'tmp', `external-${randomUUID()}.pdf`);
