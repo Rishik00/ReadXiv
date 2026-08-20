@@ -317,6 +317,7 @@ export default function SearchWorkbench({
 
   const selectedNeedsMetadata = needsMetadataFetch(selectedPaper)
   const selectedMetadataFetching = fetchingMetadataId === selectedPaper?.id
+  const selectedIsOpenReview = selectedPaper?.source === 'openreview'
   const selectedScheduleState = (() => {
     if (!selectedPaper?.todoist_task_id) return 'Unscheduled'
     if (todoistLoading) return 'Checking'
@@ -402,6 +403,10 @@ export default function SearchWorkbench({
 
   const handleOpenSelected = () => {
     if (!selectedPaper) return
+    if (selectedPaper.source === 'openreview') {
+      handleOpenInBrowser()
+      return
+    }
     onWorkspaceStateChange?.({
       query,
       currentPage,
@@ -888,6 +893,26 @@ export default function SearchWorkbench({
                   {selectedPaper.title || selectedPaper.id}
                 </h2>
 
+                {selectedIsOpenReview ? (
+                  <div
+                    role="note"
+                    style={{
+                      border:'1px solid color-mix(in srgb, #f59e0b 46%, var(--border))',
+                      background:'color-mix(in srgb, #f59e0b 9%, transparent)',
+                      borderRadius:'7px',
+                      color:'color-mix(in srgb, #fbbf24 82%, var(--foreground))',
+                      fontSize:'.78rem',
+                      lineHeight:1.55,
+                      padding:'9px 11px',
+                    }}
+                  >
+                    <strong style={{ letterSpacing:'.07em', fontSize:'.68rem' }}>WARNING</strong>
+                    <span style={{ display:'block', marginTop:'3px' }}>
+                      OpenReview papers cannot be opened in ReadXiv yet. Press <kbd style={{ fontFamily:'var(--font-mono)', fontSize:'.72rem' }}>Enter</kbd> to open this paper in your browser.
+                    </span>
+                  </div>
+                ) : null}
+
                 {selectedNeedsMetadata ? (
                   <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
                     <button
@@ -933,7 +958,7 @@ export default function SearchWorkbench({
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'6px', display:'flex', flexDirection:'column', gap:'1px' }}>
               {[
-                { name:'Open in Reader', sub:null, key:'Enter', onClick: handleOpenSelected },
+                { name: selectedIsOpenReview ? 'Open in browser' : 'Open in Reader', sub:null, key:'Enter', onClick: handleOpenSelected },
                 selectedNeedsMetadata ? {
                   name: selectedMetadataFetching ? 'Fetching Metadata...' : 'Fetch Metadata',
                   sub:null,
