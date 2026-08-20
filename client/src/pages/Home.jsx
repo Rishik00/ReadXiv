@@ -516,7 +516,6 @@ export default function Home({
     setLoading(true)
     setError(null)
     setBatchImport({ total: entries.length, completed: 0, entries })
-    const completed = []
 
     for (let index = 0; index < queries.length; index += 1) {
       const query = queries[index]
@@ -538,7 +537,6 @@ export default function Home({
           title: paper?.title || query,
           readerSupported: paper?.readerSupported !== false,
         }
-        completed.push(entries[index])
         captureAction('add_paper', {
           route: 'home',
           source: paper?.source || (isArxivInput(query) ? 'arxiv' : 'external'),
@@ -556,9 +554,16 @@ export default function Home({
       setBatchImport({ total: entries.length, completed: index + 1, entries: [...entries] })
     }
 
+    const added = entries.filter((entry) => entry.status === 'success').length
+    const duplicates = entries.filter((entry) => entry.status === 'duplicate').length
     const failures = entries.filter((entry) => entry.status === 'failed').length
+    const summary = [
+      `${added} added`,
+      duplicates ? `${duplicates} already in library` : null,
+      failures ? `${failures} failed` : null,
+    ].filter(Boolean).join(', ')
     addToast?.(
-      failures ? `${completed.length} added, ${failures} failed` : `${completed.length} papers added`,
+      summary,
       failures ? 'info' : 'success'
     )
     setInput('')
@@ -570,8 +575,6 @@ export default function Home({
     setLoading(true)
     setError(null)
     setBatchImport({ total: entries.length, completed: 0, entries })
-    let successCount = 0
-
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index]
       entries[index] = { query: file.name, status: 'importing' }
@@ -587,7 +590,6 @@ export default function Home({
           status: response.data?.alreadyExists ? 'duplicate' : 'success',
           title: response.data?.title || file.name,
         }
-        successCount += 1
         captureAction('upload_pdf_complete', { route: 'home', paperId: response.data?.id, batch: true })
       } catch (err) {
         entries[index] = {
@@ -600,8 +602,15 @@ export default function Home({
       setBatchImport({ total: entries.length, completed: index + 1, entries: [...entries] })
     }
 
+    const uploaded = entries.filter((entry) => entry.status === 'success').length
+    const duplicates = entries.filter((entry) => entry.status === 'duplicate').length
     const failures = entries.filter((entry) => entry.status === 'failed').length
-    addToast?.(failures ? `${successCount} uploaded, ${failures} failed` : `${successCount} PDFs uploaded`, failures ? 'info' : 'success')
+    const summary = [
+      `${uploaded} uploaded`,
+      duplicates ? `${duplicates} already in library` : null,
+      failures ? `${failures} failed` : null,
+    ].filter(Boolean).join(', ')
+    addToast?.(summary, failures ? 'info' : 'success')
     setLoading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
