@@ -3,6 +3,9 @@ import axios from 'axios';
 import { getDB, saveDB } from '../db.js';
 import { createHash, randomUUID } from 'crypto';
 import { pipeline } from 'stream/promises';
+import { Transform } from 'stream';
+import dns from 'dns/promises';
+import net from 'net';
 import fs from 'fs-extra';
 import path from 'path';
 import multer from 'multer';
@@ -12,6 +15,8 @@ import { extractArxivId, fetchArxivMetadata } from './arxiv.js';
 
 const router = express.Router();
 const upload = multer({ dest: path.join(PAPYRUS_DIR, 'tmp') });
+const MAX_EXTERNAL_PDF_BYTES = 100 * 1024 * 1024;
+const MAX_EXTERNAL_PDF_REDIRECTS = 5;
 
 // Helper to convert sql.js rows to objects
 function rowToObject(row, columns) {
@@ -110,6 +115,186 @@ async function hashFile(filePath) {
     hash.update(chunk);
   }
   return hash.digest('hex');
+}
+
+function isPrivateAddress(address) {
+  const version = net.isIP(address);
+  if (version === 4) {
+    const [a, b] = address.split('.').map(Number);
+    return a === 10 || a === 127 || a === 0 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168);
+  }
+  if (version === 6) {
+    const normalized = address.toLowerCase();
+    return normalized === '::1' || normalized.startsWith('fe80:') ||
+      normalized.startsWith('fc') || normalized.startsWith('fd') ||
+      normalized.startsWith('::ffff:127.');
+  }
+  return true;
+}
+
+async function assertSafeExternalUrl(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw Object.assign(new Error('Enter a valid HTTPS PDF link.'), { status: 400 });
+  }
+
+  if (url.protocol !== 'https:') {
+    throw Object.assign(new Error('Only HTTPS PDF links are supported.'), { status: 400 });
+  }
+  if (url.username || url.password || url.hostname === 'localhost' || url.hostname.endsWith('.local')) {
+    throw Object.assign(new Error('This PDF host is not allowed.'), { status: 400 });
+  }
+
+  const literalIp = net.isIP(url.hostname);
+  if (literalIp && isPrivateAddress(url.hostname)) {
+    throw Object.assign(new Error('This PDF host is not allowed.'), { status: 400 });
+  }
+  if (!literalIp) {
+    let addresses;
+    try {
+      addresses = await dns.lookup(url.hostname, { all: true });
+    } catch {
+      throw Object.assign(new Error('Could not resolve the PDF host.'), { status: 400 });
+    }
+    if (!addresses.length || addresses.some(({ address }) => isPrivateAddress(address))) {
+      throw Object.assign(new Error('This PDF host is not allowed.'), { status: 400 });
+    }
+  }
+  return url;
+}
+
+function isOpenReviewHost(hostname) {
+  return hostname === 'openreview.net' || hostname === 'www.openreview.net';
+}
+
+function normalizeOpenReviewPdfUrl(url) {
+  if (!isOpenReviewHost(url.hostname)) return url;
+  if (url.pathname !== '/forum' && url.pathname !== '/notes') return url;
+  const id = url.searchParams.get('id');
+  if (!id) return url;
+  return new URL(`https://openreview.net/pdf?id=${encodeURIComponent(id)}`);
+}
+
+function getOpenReviewNoteId(url) {
+  return isOpenReviewHost(url.hostname) ? url.searchParams.get('id') : null;
+}
+
+function openReviewForumUrl(id) {
+  return `https://openreview.net/forum?id=${encodeURIComponent(id)}`;
+}
+
+function openReviewContentValue(content, field) {
+  const value = content?.[field];
+  if (typeof value === 'string') return value.trim();
+  if (Array.isArray(value)) return value.join(', ');
+  if (typeof value?.value === 'string') return value.value.trim();
+  if (Array.isArray(value?.value)) return value.value.join(', ');
+  return '';
+}
+
+async function fetchOpenReviewMetadata(inputUrl) {
+  const url = new URL(inputUrl);
+  if (!isOpenReviewHost(url.hostname)) return null;
+  const id = url.searchParams.get('id');
+  if (!id) return null;
+
+  try {
+    const response = await axios.get('https://api.openreview.net/notes', {
+      params: { id },
+      timeout: 10000,
+      headers: { 'User-Agent': 'ReadXiv/1.0' },
+    });
+    const content = response.data?.notes?.[0]?.content;
+    if (!content) return null;
+    const title = openReviewContentValue(content, 'title');
+    const authors = openReviewContentValue(content, 'authors');
+    const abstract = openReviewContentValue(content, 'abstract');
+    return title || authors || abstract ? { title, authors, abstract } : null;
+  } catch {
+    // The PDF is still useful if OpenReview metadata is unavailable.
+    return null;
+  }
+}
+
+function filenameFromResponse(url, contentDisposition) {
+  const headerMatch = String(contentDisposition || '').match(/filename\*?=(?:UTF-8''|\")?([^;\"]+)/i);
+  const rawName = headerMatch?.[1] || path.basename(decodeURIComponent(url.pathname)) || 'Imported PDF';
+  const title = rawName.replace(/\.pdf$/i, '').replace(/[<>:"/\\|?*\x00-\x1F]/g, ' ').trim();
+  return title || 'Imported PDF';
+}
+
+async function downloadExternalPdf(inputUrl, destination) {
+  let currentUrl = normalizeOpenReviewPdfUrl(await assertSafeExternalUrl(inputUrl));
+  for (let redirects = 0; redirects <= MAX_EXTERNAL_PDF_REDIRECTS; redirects += 1) {
+    await assertSafeExternalUrl(currentUrl.toString());
+    let response;
+    try {
+      response = await axios.get(currentUrl.toString(), {
+        responseType: 'stream',
+        timeout: 120000,
+        maxRedirects: 0,
+        validateStatus: (status) => (status >= 200 && status < 300) || (status >= 300 && status < 400),
+        headers: { 'User-Agent': 'ReadXiv/1.0', Accept: 'application/pdf,application/octet-stream;q=0.9' },
+      });
+    } catch (error) {
+      const status = error.response?.status;
+      if (status) throw Object.assign(new Error(`PDF host returned HTTP ${status}.`), { status: 400 });
+      throw error;
+    }
+
+    if (response.status >= 300 && response.status < 400) {
+      response.data.destroy();
+      const location = response.headers.location;
+      if (!location) throw Object.assign(new Error('PDF host returned an invalid redirect.'), { status: 400 });
+      currentUrl = new URL(location, currentUrl);
+      continue;
+    }
+    if (response.status < 200 || response.status >= 300) {
+      response.data.destroy();
+      throw Object.assign(new Error(`PDF host returned HTTP ${response.status}.`), { status: 400 });
+    }
+
+    const contentLength = Number(response.headers['content-length']);
+    if (Number.isFinite(contentLength) && contentLength > MAX_EXTERNAL_PDF_BYTES) {
+      response.data.destroy();
+      throw Object.assign(new Error('PDF is larger than the 100 MB import limit.'), { status: 413 });
+    }
+
+    let bytes = 0;
+    const limit = new Transform({
+      transform(chunk, _encoding, callback) {
+        bytes += chunk.length;
+        if (bytes > MAX_EXTERNAL_PDF_BYTES) {
+          callback(Object.assign(new Error('PDF is larger than the 100 MB import limit.'), { status: 413 }));
+          return;
+        }
+        callback(null, chunk);
+      },
+    });
+    await pipeline(response.data, limit, fs.createWriteStream(destination));
+    const header = await fs.promises.open(destination, 'r').then(async (file) => {
+      try {
+        const buffer = Buffer.alloc(5);
+        await file.read(buffer, 0, buffer.length, 0);
+        return buffer;
+      } finally {
+        await file.close();
+      }
+    });
+    if (!header.equals(Buffer.from('%PDF-'))) {
+      throw Object.assign(new Error('The supplied link did not download a PDF file.'), { status: 400 });
+    }
+    return {
+      finalUrl: currentUrl.toString(),
+      title: filenameFromResponse(currentUrl, response.headers['content-disposition']),
+    };
+  }
+  throw Object.assign(new Error('PDF link redirected too many times.'), { status: 400 });
 }
 
 /** Ensure a non-empty PDF exists at paper.pdf_path (or default pdfs/{id}.pdf); download from pdf_url if needed. Updates DB when downloading. */
@@ -431,6 +616,109 @@ router.post('/', async (req, res) => {
     res.status(201).json(paper);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Import a direct web-hosted PDF. This intentionally stores a local copy so
+// Reader, notes, and offline support keep working after the original host changes.
+router.post('/import-url', async (req, res) => {
+  let temporaryPath = null;
+  try {
+    const inputUrl = String(req.body?.url || '').trim();
+    if (!inputUrl) return res.status(400).json({ error: 'PDF URL is required.' });
+
+    const suppliedUrl = await assertSafeExternalUrl(inputUrl);
+    const openReviewId = getOpenReviewNoteId(suppliedUrl);
+    if (isOpenReviewHost(suppliedUrl.hostname)) {
+      if (!openReviewId) {
+        return res.status(400).json({ error: 'OpenReview links must include a paper id.' });
+      }
+
+      // OpenReview currently challenges server-side PDF and metadata requests.
+      // Keep the paper in the library without pretending that Reader can open it.
+      const metadata = await fetchOpenReviewMetadata(inputUrl);
+      const paperId = `openreview-${createHash('sha256').update(openReviewId).digest('hex').slice(0, 16)}`;
+      const db = await getDB();
+      const existingResult = db.exec('SELECT * FROM papers WHERE id = ?', [paperId]);
+      if (existingResult.length > 0 && existingResult[0].values.length > 0) {
+        const existing = rowToObject(existingResult[0].values[0], existingResult[0].columns);
+        return res.json({ ...existing, alreadyExists: true, readerSupported: false });
+      }
+
+      const title = metadata?.title || `OpenReview paper (${openReviewId})`;
+      const now = new Date().toISOString();
+      await fs.writeFile(path.join(PAPYRUS_DIR, 'notes', `${paperId}.md`), `# ${title}\n`, 'utf8');
+      db.run(
+        `INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, tags, created_at, updated_at, last_accessed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          paperId,
+          title,
+          metadata?.authors || null,
+          metadata?.abstract || null,
+          openReviewForumUrl(openReviewId),
+          null,
+          null,
+          'openreview',
+          null,
+          '[]',
+          now,
+          now,
+          now,
+        ]
+      );
+      saveDB();
+      return res.status(201).json({ ...(await fetchPaperById(paperId)), readerSupported: false });
+    }
+
+    await fs.ensureDir(path.join(PAPYRUS_DIR, 'tmp'));
+    temporaryPath = path.join(PAPYRUS_DIR, 'tmp', `external-${randomUUID()}.pdf`);
+    const downloaded = await downloadExternalPdf(inputUrl, temporaryPath);
+    const metadata = await fetchOpenReviewMetadata(inputUrl);
+    const digest = await hashFile(temporaryPath);
+    const paperId = `external-${digest.slice(0, 16)}`;
+    const db = await getDB();
+    const existingResult = db.exec('SELECT * FROM papers WHERE id = ?', [paperId]);
+    if (existingResult.length > 0 && existingResult[0].values.length > 0) {
+      await fs.remove(temporaryPath);
+      temporaryPath = null;
+      const existing = rowToObject(existingResult[0].values[0], existingResult[0].columns);
+      return res.json({ ...existing, alreadyExists: true });
+    }
+
+    const pdfPath = path.join(PAPYRUS_DIR, 'pdfs', `${paperId}.pdf`);
+    await fs.move(temporaryPath, pdfPath, { overwrite: true });
+    temporaryPath = null;
+    const now = new Date().toISOString();
+    const inputHost = new URL(inputUrl).hostname;
+    const source = isOpenReviewHost(inputHost) ? 'openreview' : 'external';
+    const title = metadata?.title || downloaded.title;
+    await fs.writeFile(path.join(PAPYRUS_DIR, 'notes', `${paperId}.md`), `# ${title}\n`, 'utf8');
+
+    db.run(
+      `INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, tags, created_at, updated_at, last_accessed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        paperId,
+        title,
+        metadata?.authors || null,
+        metadata?.abstract || null,
+        inputUrl,
+        pdfPath,
+        downloaded.finalUrl,
+        source,
+        null,
+        '[]',
+        now,
+        now,
+        now,
+      ]
+    );
+    saveDB();
+    return res.status(201).json(await fetchPaperById(paperId));
+  } catch (error) {
+    if (temporaryPath) await fs.remove(temporaryPath).catch(() => {});
+    return res.status(error.status || 500).json({ error: error.message || 'Could not import this PDF link.' });
   }
 });
 

@@ -10,6 +10,14 @@ function isArxivInput(val) {
   return /arxiv\.org\/(?:abs|pdf)\/\d{4}\.\d{4,5}(?:v\d+)?/i.test(trimmed) || /^\d{4}\.\d{4,5}(?:v\d+)?$/i.test(trimmed)
 }
 
+function isHttpsUrl(val) {
+  try {
+    return new URL(val?.trim()).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 function getArxivPreviewKey(val) {
   const trimmed = val?.trim() || ''
   const urlMatch = trimmed.match(/arxiv\.org\/(?:abs|pdf)\/(\d{4}\.\d{4,5})(?:v\d+)?/i)
@@ -20,7 +28,7 @@ function getArxivPreviewKey(val) {
 
 const SLASH_COMMANDS = [
   { id: 'search', slug: 'library', label: 'Library', prefix: '/library ' },
-  { id: 'add', slug: 'add', label: 'Add from ArXiv', prefix: '/add ' },
+  { id: 'add', slug: 'add', label: 'Add paper', prefix: '/add ' },
   { id: 'upload', slug: 'upload', label: 'Upload', prefix: null },
   { id: 'backup', slug: 'backup', label: 'Backup library', desc: 'Save a local copy of the database', prefix: null },
   { id: 'help', slug: 'help', label: 'Help', prefix: null },
@@ -457,6 +465,44 @@ export default function Home({
     }
   }
 
+  const handleExternalPdfImport = async (query) => {
+    const startedAt = startTimer()
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await axios.post('/api/papers/import-url', { url: query.trim() })
+      captureTiming('paper_load', elapsedSince(startedAt), {
+        route: 'home',
+        source: 'external_pdf_import',
+        paperId: response.data?.id,
+        paperTitle: response.data?.title,
+      })
+      captureAction('add_paper', {
+        route: 'home',
+        source: response.data?.source || 'external',
+        paperId: response.data?.id,
+        paperTitle: response.data?.title,
+      })
+      window.electron?.showNotification?.('ReadXiv', response.data?.alreadyExists ? 'Paper already in library' : 'Paper added')
+      setInput('')
+      if (response.data?.readerSupported === false) {
+        addToast?.('OpenReview papers are not supported in Reader yet. Find it in Library and press B to open it in your browser.', 'info')
+        return
+      }
+      openPaper?.(response.data)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to import PDF')
+      captureAppError(err, {
+        route: 'home',
+        source: 'external_pdf_import',
+        inputKind: isHttpsUrl(query) ? 'https_url' : 'unknown',
+      })
+      console.error('Error importing PDF:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!input.trim()) return
@@ -492,7 +538,13 @@ export default function Home({
 
     if (currentMode === 'add') {
       if (!addQuery.trim()) return
-      await handleArxivAdd(addQuery)
+      if (isArxivInput(addQuery)) {
+        await handleArxivAdd(addQuery)
+      } else if (isHttpsUrl(addQuery)) {
+        await handleExternalPdfImport(addQuery)
+      } else {
+        setError('Enter an arXiv ID or URL, or an HTTPS PDF link.')
+      }
       setAddQuery('')
       setCurrentMode('normal')
       return
@@ -504,6 +556,11 @@ export default function Home({
 
     if (isArxivInput(input)) {
       await handleArxivAdd(input)
+      return
+    }
+
+    if (isHttpsUrl(input)) {
+      await handleExternalPdfImport(input)
       return
     }
 
@@ -571,7 +628,7 @@ export default function Home({
 
   const inputPlaceholder =
     currentMode === 'search' ? 'Search your library...' :
-    currentMode === 'add' ? 'arXiv URL or ID...' :
+    currentMode === 'add' ? 'arXiv URL, ID, or PDF link...' :
     currentMode === 'preview' ? 'arXiv URL or ID...' :
     'Type / for commands...'
 
@@ -962,7 +1019,7 @@ export default function Home({
               <div><code>/upload</code> - upload a local PDF</div>
               <div><code>/help</code> - open keyboard shortcuts</div>
               <div><code>plain text</code> - search your library</div>
-              <div><code>arXiv URL or ID</code> - add directly from the command bar</div>
+              <div><code>arXiv URL, ID, or HTTPS PDF link</code> - add directly from the command bar</div>
             </div>
             <button
               type="button"
