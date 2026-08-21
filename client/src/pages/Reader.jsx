@@ -320,7 +320,8 @@ const Reader = forwardRef(function Reader(
   const [readerToolbarExpanded, setReaderToolbarExpanded] = useState(true);
   const progressSaveTimerRef = useRef(null);
   const lastReadingProgressRef = useRef(null);
-  const [pageJumpMenuNonce, setPageJumpMenuNonce] = useState(0);
+  const [pageInputFocusNonce, setPageInputFocusNonce] = useState(0);
+  const [documentOutline, setDocumentOutline] = useState([]);
   const [paperReferences, setPaperReferences] = useState([]);
   const [referencesLoading, setReferencesLoading] = useState(false);
   const [referencesLoadedForPaperId, setReferencesLoadedForPaperId] = useState(null);
@@ -414,13 +415,17 @@ const Reader = forwardRef(function Reader(
       toggleReaderToolbarExpanded: () => setReaderToolbarExpanded((v) => !v),
       setReaderView,
       setNoteTab: (tab) => setNoteTab(tab === 'references' ? 'references' : 'edit'),
-      openPdfPageJumpMenu: () => setPageJumpMenuNonce((n) => n + 1),
+      openPdfPageJumpMenu: () => setPageInputFocusNonce((value) => value + 1),
     }),
     [setReaderView]
   );
 
   const handleToolbarState = useCallback((metrics) => {
     setPdfToolbarMetrics(metrics);
+  }, []);
+
+  const handleDocumentOutline = useCallback((outline) => {
+    setDocumentOutline(Array.isArray(outline) ? outline : []);
   }, []);
 
   const changeStatus = useCallback(async (nextStatus) => {
@@ -1025,7 +1030,11 @@ const Reader = forwardRef(function Reader(
     toolbarMetrics: pdfToolbarMetrics,
     viewMode: readerView,
     onSetView: setReaderView,
-    pageJumpMenuNonce,
+    pageInputFocusNonce,
+    documentOutline,
+    selectedNoteTemplate,
+    noteTemplates: NOTE_TEMPLATES,
+    onChangeNoteTemplate: applyNoteTemplate,
     status: readerPaper?.status || 'queued',
     onChangeStatus: changeStatus,
   };
@@ -1075,6 +1084,7 @@ const Reader = forwardRef(function Reader(
                   onPageProgress={saveReadingProgress}
                   onInsertQuote={insertQuoteFromHighlight}
                   onToolbarState={handleToolbarState}
+                  onDocumentOutline={handleDocumentOutline}
                 />
               ) : (
                 <div className="h-full w-full flex items-center justify-center bg-[var(--pdf-canvas-bg)] px-6 text-center">
@@ -1175,27 +1185,6 @@ const Reader = forwardRef(function Reader(
                 </button>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <div className="note-template-control flex items-center gap-1.5">
-                  <select
-                    value={selectedNoteTemplate}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => applyNoteTemplate(e.target.value)}
-                    className="note-template-select"
-                    aria-label="Choose note template"
-                    title="Choose note template"
-                  >
-                    {selectedNoteTemplate === 'custom' && (
-                      <option value="custom" disabled>
-                        Custom
-                      </option>
-                    )}
-                    {NOTE_TEMPLATES.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
                 <button
                   type="button"
                   onClick={(e) => {
