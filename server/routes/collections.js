@@ -24,11 +24,12 @@ router.get('/', async (_req, res) => {
 
 router.post('/', async (req, res) => {
   const name = String(req.body?.name || '').trim();
+  const description = String(req.body?.description || '').trim();
   if (!name || name.length > 100) return res.status(400).json({ error: 'Enter a collection name up to 100 characters.' });
   try {
     const db = await getDB();
     const id = randomUUID();
-    db.run("INSERT INTO collections (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))", [id, name]);
+    db.run("INSERT INTO collections (id, name, description, created_at, updated_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))", [id, name, description || null]);
     saveDB();
     return res.status(201).json(rows(db.exec('SELECT *, 0 AS paper_count FROM collections WHERE id = ?', [id]))[0]);
   } catch (error) {

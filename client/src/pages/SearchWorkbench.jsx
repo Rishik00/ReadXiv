@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import TodoistTaskModal, { paperHasTodoistTask } from '../components/TodoistTaskModal'
+import CollectionAssignModal from '../components/CollectionAssignModal'
 import { captureAction, captureAppError, captureTiming, elapsedSince, startTimer } from '../lib/instrumentation'
 
 function getStatusColor(status) {
@@ -63,6 +64,8 @@ export default function SearchWorkbench({
   addToast,
   workspaceState,
   onWorkspaceStateChange,
+  collectionFilter,
+  onClearCollectionFilter,
 }) {
   // Question: Why do we have these many UseState calls? why are we going to track the state of all of these things? 
   const [query, setQuery] = useState(workspaceState?.query ?? initialQuery)
@@ -89,6 +92,7 @@ export default function SearchWorkbench({
   const [paperCollections, setPaperCollections] = useState([])
   const [collectionPickerOpen, setCollectionPickerOpen] = useState(false)
   const [newCollectionName, setNewCollectionName] = useState('')
+  const [collectionModalPaper, setCollectionModalPaper] = useState(null)
   const inputRef = useRef(null)
   const listRef = useRef(null)
   const stackPaneRef = useRef(null)
@@ -284,6 +288,7 @@ export default function SearchWorkbench({
             q: query.trim(),
             page: currentPage,
             pageSize,
+            collectionId: collectionFilter?.id || undefined,
           },
         })
         if (cancelled) return
@@ -328,7 +333,7 @@ export default function SearchWorkbench({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [query, currentPage, pageSize])
+  }, [query, currentPage, pageSize, collectionFilter?.id])
 
   useEffect(() => {
     if (loading) return
@@ -803,9 +808,7 @@ export default function SearchWorkbench({
       }
       if (lower === 'x') {
         event.preventDefault()
-        setActionsOpen(true)
-        setCollectionPickerOpen((open) => !open)
-        loadCollections().catch(() => addToast?.('Could not load collections', 'error'))
+        if (selectedPaper) setCollectionModalPaper(selectedPaper)
         return
       }
       if (lower === 'e') {
@@ -878,6 +881,7 @@ export default function SearchWorkbench({
               <span style={{ fontSize:'.76rem', color:'var(--muted)', whiteSpace:'nowrap', fontFamily:'var(--font-mono)' }}>{totalLabel}</span>
             </div>
           </div>
+          {collectionFilter && <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px', padding:'8px 12px', borderBottom:'1px solid var(--border)', background:'color-mix(in srgb, var(--secondary) 7%, transparent)' }}><span style={{ fontFamily:'var(--font-mono)', fontSize:'.72rem', color:'var(--secondary)' }}>collection: {collectionFilter.name}</span><button type="button" onClick={onClearCollectionFilter} style={{ fontSize:'.72rem', color:'var(--muted)' }}>Clear</button></div>}
 
           <div ref={listRef} style={{ flex:1, overflowY:'auto', padding:'6px' }}>
             {loading ? (
@@ -1034,7 +1038,7 @@ export default function SearchWorkbench({
                 { name: Number(selectedPaper?.important) === 1 ? 'Remove important mark' : 'Mark as important', sub:null, key:'R', onClick: handleToggleImportant },
                 { name: paperHasTodoistTask(selectedPaper) ? 'Edit Schedule' : 'Schedule', sub:null, key:'D', onClick: () => selectedPaper && setTodoistModalPaper(selectedPaper) },
                 { name: Number(selectedPaper?.offline_pinned) === 1 ? 'Remove Offline Copy' : 'Pin Offline', sub:null, key:'F', onClick: handleOfflineToggle },
-                { name:'Assign to collection', sub:null, key:'X', onClick: () => { setCollectionPickerOpen((open) => !open); loadCollections().catch(() => addToast?.('Could not load collections', 'error')) } },
+                { name:'Assign to collection', sub:null, key:'X', onClick: () => selectedPaper && setCollectionModalPaper(selectedPaper) },
                 { name:'Delete Paper', sub:null, key:'Backspace', danger: true, onClick: handleDeletePaper, disabled: deletingPaperId === selectedPaper?.id, busyLabel:'Deleting...' },
               ].filter(Boolean).map((act) => (
                 <button
@@ -1057,16 +1061,6 @@ export default function SearchWorkbench({
                   ) : null}
                 </button>
               ))}
-              {collectionPickerOpen && selectedPaper && (
-                <div style={{ margin:'8px 10px', padding:'10px', border:'1px solid var(--border)', borderRadius:'7px', background:'color-mix(in srgb, var(--surface) 65%, transparent)' }}>
-                  <div style={{ fontSize:'.68rem', color:'var(--muted)', fontFamily:'var(--font-mono)', marginBottom:'7px' }}>Assign {selectedPaper.title || selectedPaper.id}</div>
-                  {collections.length ? collections.map((collection) => {
-                    const assigned = paperCollections.some((item) => item.id === collection.id)
-                    return <button key={collection.id} type="button" onClick={() => toggleCollection(collection)} style={{ display:'flex', width:'100%', justifyContent:'space-between', padding:'6px 2px', color:'var(--foreground)', fontSize:'.78rem', textAlign:'left' }}><span>{collection.name}</span><span style={{ color: assigned ? 'var(--secondary)' : 'var(--muted)' }}>{assigned ? 'Added' : 'Add'}</span></button>
-                  }) : <div style={{ fontSize:'.74rem', color:'var(--muted)', marginBottom:'7px' }}>Create your first collection.</div>}
-                  <div style={{ display:'flex', gap:'5px', marginTop:'8px' }}><input value={newCollectionName} onChange={(event) => setNewCollectionName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); createAndAssignCollection() } }} placeholder="New collection" style={{ minWidth:0, flex:1, border:'1px solid var(--border)', borderRadius:'4px', background:'var(--background)', color:'var(--foreground)', padding:'5px 7px', fontSize:'.75rem' }} /><button type="button" onClick={createAndAssignCollection} style={{ fontSize:'.72rem', color:'var(--secondary)' }}>Create</button></div>
-                </div>
-              )}
               <div style={{ margin:'12px 10px 4px', borderTop:'1px solid var(--border)', paddingTop:'12px' }}>
                 <div style={{ color:'color-mix(in srgb, var(--muted) 90%, var(--foreground))', fontSize:'.68rem', fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'8px' }}>
                   Details
@@ -1156,6 +1150,7 @@ export default function SearchWorkbench({
           onClose={() => setTodoistModalPaper(null)}
         />
       )}
+      {collectionModalPaper && <CollectionAssignModal paper={collectionModalPaper} onClose={() => setCollectionModalPaper(null)} onChanged={() => loadCollections().catch(() => {})} addToast={addToast} />}
       {metadataEditPaper && (
         <div
           className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4"

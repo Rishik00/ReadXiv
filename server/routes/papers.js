@@ -335,23 +335,27 @@ router.get('/', async (req, res) => {
       Object.prototype.hasOwnProperty.call(req.query, 'q') ||
       Object.prototype.hasOwnProperty.call(req.query, 'page') ||
       Object.prototype.hasOwnProperty.call(req.query, 'pageSize') ||
+      Object.prototype.hasOwnProperty.call(req.query, 'collectionId') ||
       req.query.paginate === '1';
 
     const query = String(req.query.q || '').trim();
+    const collectionId = String(req.query.collectionId || '').trim();
     const pageSizeRaw = Number.parseInt(req.query.pageSize, 10);
     const requestedPageSize = Number.isFinite(pageSizeRaw) ? pageSizeRaw : 10;
     const pageSize = Math.max(1, Math.min(requestedPageSize, 50));
 
     if (wantsPaginated && !query) {
-      const countResult = db.exec('SELECT COUNT(*) AS total FROM papers');
+      const collectionJoin = collectionId ? 'JOIN paper_collections pc ON pc.paper_id = papers.id WHERE pc.collection_id = ?' : '';
+      const collectionParams = collectionId ? [collectionId] : [];
+      const countResult = db.exec(`SELECT COUNT(*) AS total FROM papers ${collectionJoin}`, collectionParams);
       const total = Number(countResult[0]?.values[0]?.[0] || 0);
       const totalPages = Math.max(1, Math.ceil(total / pageSize));
       const pageRaw = Number.parseInt(req.query.page, 10);
       const requestedPage = Number.isFinite(pageRaw) ? pageRaw : 1;
       const page = Math.max(1, Math.min(requestedPage, totalPages));
       const result = db.exec(
-        'SELECT * FROM papers ORDER BY created_at DESC LIMIT ? OFFSET ?',
-        [pageSize, (page - 1) * pageSize]
+        `SELECT papers.* FROM papers ${collectionJoin} ORDER BY papers.created_at DESC LIMIT ? OFFSET ?`,
+        [...collectionParams, pageSize, (page - 1) * pageSize]
       );
       const columns = result.length > 0 ? result[0].columns : [];
       const items = result.length > 0
@@ -420,7 +424,6 @@ router.get('/recents', async (req, res) => {
   }
 });
 
-// Important papers are intentionally capped at ten by the PATCH handler.
 // This static route must be registered before /:id so Express does not treat
 // "important" as a paper identifier and return a false 404.
 router.get('/important', async (_req, res) => {
@@ -429,8 +432,7 @@ router.get('/important', async (_req, res) => {
     const result = db.exec(
       `SELECT * FROM papers
        WHERE important = 1
-       ORDER BY COALESCE(important_at, updated_at, created_at) DESC
-       LIMIT 10`
+       ORDER BY COALESCE(important_at, updated_at, created_at) DESC`
     );
     const columns = result.length > 0 ? result[0].columns : [];
     const papers = result.length > 0
@@ -738,12 +740,6 @@ router.patch('/:id', async (req, res) => {
       }
       const wasImportant = Number(existing[0].values[0][0]) === 1;
       const nextImportant = updates.important === true || updates.important === 1 || updates.important === '1';
-      if (nextImportant && !wasImportant) {
-        const count = Number(db.exec('SELECT COUNT(*) FROM papers WHERE important = 1')[0]?.values[0]?.[0] || 0);
-        if (count >= 10) {
-          return res.status(409).json({ error: 'You can mark up to 10 papers as important.' });
-        }
-      }
       updates.important = nextImportant ? 1 : 0;
       importantChanged = wasImportant !== nextImportant;
     }

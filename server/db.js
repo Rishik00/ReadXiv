@@ -147,6 +147,7 @@ export async function initDB() {
     CREATE TABLE IF NOT EXISTS collections (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      description TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -235,6 +236,10 @@ export async function initDB() {
   if (!colNames.includes('todoist_task_id')) {
     db.run('ALTER TABLE papers ADD COLUMN todoist_task_id TEXT');
   }
+
+  const collectionsInfo = db.exec('PRAGMA table_info(collections)');
+  const collectionCols = collectionsInfo.length > 0 ? collectionsInfo[0].values.map((r) => r[1]) : [];
+  if (!collectionCols.includes('description')) db.run('ALTER TABLE collections ADD COLUMN description TEXT');
 
   db.run('CREATE INDEX IF NOT EXISTS idx_papers_important ON papers(important, important_at)');
   db.run('DELETE FROM paper_collections WHERE paper_id NOT IN (SELECT id FROM papers) OR collection_id NOT IN (SELECT id FROM collections)');
