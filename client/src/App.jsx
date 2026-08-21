@@ -19,9 +19,10 @@ const Reader = lazy(() => import('./pages/Reader'))
 const SearchWorkbench = lazy(() => import('./pages/SearchWorkbench'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Help = lazy(() => import('./pages/Help'))
+const Collections = lazy(() => import('./pages/Collections'))
 
 const DESKTOP_SESSION_KEY = 'readxiv-desktop-session-v1'
-const RESTORABLE_DESKTOP_PAGES = new Set(['home', 'search', 'settings', 'help', 'reader'])
+const RESTORABLE_DESKTOP_PAGES = new Set(['home', 'search', 'settings', 'help', 'reader', 'collections'])
 
 function readDesktopSession() {
   if (!window.electron?.isElectron) return null
@@ -294,6 +295,9 @@ function App() {
         } else if (target === 'help') {
           captureAction('navigate', { route: pageRef.current, target: 'help', source: 'navigateTo' })
           setPage('help')
+        } else if (target === 'collections') {
+          captureAction('navigate', { route: pageRef.current, target: 'collections', source: 'navigateTo' })
+          setPage('collections')
         }
       })
     },
@@ -868,6 +872,9 @@ function App() {
             <Suspense fallback={null}>
               <Help setPage={setPage} />
             </Suspense>
+          )}
+          {page === 'collections' && (
+            <Suspense fallback={null}><Collections setPage={navigateTo} openPaper={openPaper} addToast={addToast} /></Suspense>
           )}
           </div>
         </div>

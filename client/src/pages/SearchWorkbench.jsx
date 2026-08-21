@@ -85,6 +85,10 @@ export default function SearchWorkbench({
   const [metadataSaving, setMetadataSaving] = useState(false)
   const [publication, setPublication] = useState(null)
   const [publicationLoading, setPublicationLoading] = useState(false)
+  const [collections, setCollections] = useState([])
+  const [paperCollections, setPaperCollections] = useState([])
+  const [collectionPickerOpen, setCollectionPickerOpen] = useState(false)
+  const [newCollectionName, setNewCollectionName] = useState('')
   const inputRef = useRef(null)
   const listRef = useRef(null)
   const stackPaneRef = useRef(null)
@@ -102,6 +106,37 @@ export default function SearchWorkbench({
   const shouldRestoreScrollRef = useRef(Number(workspaceState?.listScrollTop) > 0)
   const selectedPaper = results[selectedIndex] || null
 
+  const loadCollections = async () => {
+    const [{ data: all }, { data: assigned }] = await Promise.all([
+      axios.get('/api/collections'),
+      selectedPaper?.id ? axios.get(`/api/collections/paper/${encodeURIComponent(selectedPaper.id)}`) : Promise.resolve({ data: [] }),
+    ])
+    setCollections(Array.isArray(all) ? all : [])
+    setPaperCollections(Array.isArray(assigned) ? assigned : [])
+  }
+
+  const toggleCollection = async (collection) => {
+    if (!selectedPaper?.id) return
+    const assigned = paperCollections.some((item) => item.id === collection.id)
+    try {
+      await axios({ method: assigned ? 'delete' : 'put', url: `/api/collections/${collection.id}/papers/${encodeURIComponent(selectedPaper.id)}` })
+      await loadCollections()
+      addToast?.(assigned ? `Removed from ${collection.name}` : `Added to ${collection.name}`, 'success')
+    } catch { addToast?.('Could not update collection', 'error') }
+  }
+
+  const createAndAssignCollection = async () => {
+    const name = newCollectionName.trim()
+    if (!name || !selectedPaper?.id) return
+    try {
+      const { data } = await axios.post('/api/collections', { name })
+      setNewCollectionName('')
+      await axios.put(`/api/collections/${data.id}/papers/${encodeURIComponent(selectedPaper.id)}`)
+      await loadCollections()
+      addToast?.(`Added to ${data.name}`, 'success')
+    } catch (error) { addToast?.(error.response?.data?.error || 'Could not create collection', 'error') }
+  }
+
   useEffect(() => {
     if (!selectedPaper?.id || !actionsOpen) {
       return undefined
@@ -114,6 +149,19 @@ export default function SearchWorkbench({
       .finally(() => { if (!cancelled) setPublicationLoading(false) })
     return () => { cancelled = true }
   }, [selectedPaper?.id, actionsOpen])
+
+  useEffect(() => {
+    if (!collectionPickerOpen || !selectedPaper?.id) return undefined
+    let cancelled = false
+    Promise.all([axios.get('/api/collections'), axios.get(`/api/collections/paper/${encodeURIComponent(selectedPaper.id)}`)])
+      .then(([all, assigned]) => {
+        if (cancelled) return
+        setCollections(Array.isArray(all.data) ? all.data : [])
+        setPaperCollections(Array.isArray(assigned.data) ? assigned.data : [])
+      })
+      .catch(() => { if (!cancelled) addToast?.('Could not load collections', 'error') })
+    return () => { cancelled = true }
+  }, [collectionPickerOpen, selectedPaper?.id])
 
   const handlePublishNotes = async () => {
     if (!selectedPaper?.id || publicationLoading) return
@@ -335,6 +383,7 @@ export default function SearchWorkbench({
     { label: 'Pages', value: selectedPaper.total_pages || selectedPaper.page_count || 'Unknown' },
     { label: 'Date added', value: formatDateAdded(selectedPaper.created_at) },
     { label: 'Schedule', value: selectedScheduleState },
+    { label: 'Collections', value: paperCollections.length ? paperCollections.map((item) => item.name).join(', ') : 'None', multiline: true },
     { label: 'Authors', value: selectedPaper.authors || 'Unknown', multiline: true },
   ] : []
 
@@ -752,6 +801,13 @@ export default function SearchWorkbench({
         handleToggleImportant()
         return
       }
+      if (lower === 'x') {
+        event.preventDefault()
+        setActionsOpen(true)
+        setCollectionPickerOpen((open) => !open)
+        loadCollections().catch(() => addToast?.('Could not load collections', 'error'))
+        return
+      }
       if (lower === 'e') {
         event.preventDefault()
         openMetadataEditor()
@@ -785,7 +841,7 @@ export default function SearchWorkbench({
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [actionsOpen, currentPage, fetchingMetadataId, focusPanel, query, results.length, selectedNeedsMetadata, selectedPaper, setPage, totalPages])
+  }, [actionsOpen, currentPage, fetchingMetadataId, focusPanel, query, results.length, selectedNeedsMetadata, selectedPaper, setPage, totalPages, paperCollections])
 
   // ── inline style helpers ──────────────────────────────────────────────────────
   const paneBase = (active) => ({
@@ -978,6 +1034,7 @@ export default function SearchWorkbench({
                 { name: Number(selectedPaper?.important) === 1 ? 'Remove important mark' : 'Mark as important', sub:null, key:'R', onClick: handleToggleImportant },
                 { name: paperHasTodoistTask(selectedPaper) ? 'Edit Schedule' : 'Schedule', sub:null, key:'D', onClick: () => selectedPaper && setTodoistModalPaper(selectedPaper) },
                 { name: Number(selectedPaper?.offline_pinned) === 1 ? 'Remove Offline Copy' : 'Pin Offline', sub:null, key:'F', onClick: handleOfflineToggle },
+                { name:'Assign to collection', sub:null, key:'X', onClick: () => { setCollectionPickerOpen((open) => !open); loadCollections().catch(() => addToast?.('Could not load collections', 'error')) } },
                 { name:'Delete Paper', sub:null, key:'Backspace', danger: true, onClick: handleDeletePaper, disabled: deletingPaperId === selectedPaper?.id, busyLabel:'Deleting...' },
               ].filter(Boolean).map((act) => (
                 <button
@@ -1000,6 +1057,16 @@ export default function SearchWorkbench({
                   ) : null}
                 </button>
               ))}
+              {collectionPickerOpen && selectedPaper && (
+                <div style={{ margin:'8px 10px', padding:'10px', border:'1px solid var(--border)', borderRadius:'7px', background:'color-mix(in srgb, var(--surface) 65%, transparent)' }}>
+                  <div style={{ fontSize:'.68rem', color:'var(--muted)', fontFamily:'var(--font-mono)', marginBottom:'7px' }}>Assign {selectedPaper.title || selectedPaper.id}</div>
+                  {collections.length ? collections.map((collection) => {
+                    const assigned = paperCollections.some((item) => item.id === collection.id)
+                    return <button key={collection.id} type="button" onClick={() => toggleCollection(collection)} style={{ display:'flex', width:'100%', justifyContent:'space-between', padding:'6px 2px', color:'var(--foreground)', fontSize:'.78rem', textAlign:'left' }}><span>{collection.name}</span><span style={{ color: assigned ? 'var(--secondary)' : 'var(--muted)' }}>{assigned ? 'Added' : 'Add'}</span></button>
+                  }) : <div style={{ fontSize:'.74rem', color:'var(--muted)', marginBottom:'7px' }}>Create your first collection.</div>}
+                  <div style={{ display:'flex', gap:'5px', marginTop:'8px' }}><input value={newCollectionName} onChange={(event) => setNewCollectionName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); createAndAssignCollection() } }} placeholder="New collection" style={{ minWidth:0, flex:1, border:'1px solid var(--border)', borderRadius:'4px', background:'var(--background)', color:'var(--foreground)', padding:'5px 7px', fontSize:'.75rem' }} /><button type="button" onClick={createAndAssignCollection} style={{ fontSize:'.72rem', color:'var(--secondary)' }}>Create</button></div>
+                </div>
+              )}
               <div style={{ margin:'12px 10px 4px', borderTop:'1px solid var(--border)', paddingTop:'12px' }}>
                 <div style={{ color:'color-mix(in srgb, var(--muted) 90%, var(--foreground))', fontSize:'.68rem', fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'8px' }}>
                   Details

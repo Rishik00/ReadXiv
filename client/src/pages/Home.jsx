@@ -39,6 +39,7 @@ const SLASH_COMMANDS = [
   { id: 'upload', slug: 'upload', label: 'Upload', prefix: null },
   { id: 'backup', slug: 'backup', label: 'Backup library', desc: 'Save a local copy of the database', prefix: null },
   { id: 'help', slug: 'help', label: 'Help', prefix: null },
+  { id: 'collections', slug: 'collections', label: 'Collections', prefix: null },
 ]
 
 let greetingIndexForPageLoad = null
@@ -390,6 +391,11 @@ export default function Home({
     }
     if (cmd.id === 'help') {
       setPage('help')
+      setInput('')
+      return
+    }
+    if (cmd.id === 'collections') {
+      setPage('collections')
       setInput('')
       return
     }
