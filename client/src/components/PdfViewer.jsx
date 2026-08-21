@@ -52,6 +52,7 @@ const PdfViewer = forwardRef(function PdfViewer(
     onPageProgress,
     onInsertQuote,
     onToolbarState,
+    onDocumentOutline,
   },
   ref
 ) {
@@ -216,6 +217,8 @@ const PdfViewer = forwardRef(function PdfViewer(
         findController.setDocument(pdfDocument);
         pdfViewer.setDocument(pdfDocument);
         setNumPages(pdfDocument.numPages);
+        const documentOutline = await pdfDocument.getOutline().catch(() => []);
+        if (!cancelled) onDocumentOutline?.(documentOutline || []);
         onPageProgress?.({
           page: clamp(initialPageRef.current, 1, pdfDocument.numPages),
           totalPages: pdfDocument.numPages,
@@ -267,7 +270,7 @@ const PdfViewer = forwardRef(function PdfViewer(
       findControllerRef.current = null;
       eventBusRef.current = null;
     };
-  }, [pdfUrl, continuousScroll, onPageProgress]);
+  }, [pdfUrl, continuousScroll, onPageProgress, onDocumentOutline]);
 
   useEffect(() => {
     onToolbarState?.({
@@ -342,6 +345,26 @@ const PdfViewer = forwardRef(function PdfViewer(
       page: targetPage,
       numPages,
     });
+  }
+
+  async function jumpToDestination(destination) {
+    const viewer = pdfViewerRef.current;
+    const document = pdfDocumentRef.current;
+    if (!destination || !viewer || !document) return;
+
+    try {
+      const resolvedDestination = typeof destination === 'string'
+        ? await document.getDestination(destination)
+        : destination;
+      if (!Array.isArray(resolvedDestination) || !resolvedDestination[0]) return;
+
+      const pageIndex = await document.getPageIndex(resolvedDestination[0]);
+      const pageNumber = pageIndex + 1;
+      viewer.scrollPageIntoView({ pageNumber, destArray: resolvedDestination });
+      captureAction('pdf_jump_to_outline', { route: 'reader', paperId, page: pageNumber });
+    } catch (error) {
+      captureAppError(error, { route: 'reader', source: 'pdf_outline_navigation', paperId });
+    }
   }
 
   function runFind(findPrevious = false) {
@@ -545,6 +568,7 @@ const PdfViewer = forwardRef(function PdfViewer(
     zoomIn: () => setViewerScale((pdfViewerRef.current?.currentScale || scale) * SCALE_STEP),
     zoomOut: () => setViewerScale((pdfViewerRef.current?.currentScale || scale) / SCALE_STEP),
     jumpToPage,
+    jumpToDestination,
     focusScrollArea: () => containerRef.current?.focus(),
     togglePdfDarkMode: () => setPdfDarkMode((value) => !value),
     toggleHighlightMode: () => {
