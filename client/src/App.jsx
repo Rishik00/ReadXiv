@@ -372,7 +372,7 @@ function App() {
         if (!isInputFocused && page === 'reader') {
           event.preventDefault()
           navigateBack()
-        } else if (!isInputFocused && (page === 'settings' || page === 'help')) {
+        } else if (!isInputFocused && (page === 'settings' || page === 'help' || page === 'collections')) {
           event.preventDefault()
           navigateBack()
         }
@@ -409,6 +409,11 @@ function App() {
         } else if (k === ',') {
           event.preventDefault()
           navigateTo('settings')
+          pendingGRef.current = false
+          setPendingG(false)
+        } else if (k === 'c') {
+          event.preventDefault()
+          navigateTo('collections')
           pendingGRef.current = false
           setPendingG(false)
         } else if (k === 'p') {
@@ -666,6 +671,7 @@ function App() {
           ['r', 'Recent'],
           [',', 'Settings'],
           ['p', 'Help'],
+          ['c', 'Collections'],
           ['1/2/3', 'Views'],
           ['b', 'Dark'],
           ['t', 'Page'],
@@ -676,6 +682,7 @@ function App() {
           ['r', 'Recent'],
           [',', 'Settings'],
           ['p', 'Help'],
+          ['c', 'Collections'],
         ]
     : null
 
