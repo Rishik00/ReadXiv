@@ -19,9 +19,10 @@ const Reader = lazy(() => import('./pages/Reader'))
 const SearchWorkbench = lazy(() => import('./pages/SearchWorkbench'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Help = lazy(() => import('./pages/Help'))
+const Collections = lazy(() => import('./pages/Collections'))
 
 const DESKTOP_SESSION_KEY = 'readxiv-desktop-session-v1'
-const RESTORABLE_DESKTOP_PAGES = new Set(['home', 'search', 'settings', 'help', 'reader'])
+const RESTORABLE_DESKTOP_PAGES = new Set(['home', 'search', 'settings', 'help', 'reader', 'collections'])
 
 function readDesktopSession() {
   if (!window.electron?.isElectron) return null
@@ -102,6 +103,8 @@ function App() {
   const [homeArxivInput, setHomeArxivInput] = useState(null)
   const [initialRouteResolved, setInitialRouteResolved] = useState(false)
   const [searchFocusNonce, setSearchFocusNonce] = useState(0)
+  const [collectionFilter, setCollectionFilter] = useState(null)
+  const [addToCollection, setAddToCollection] = useState(null)
   const [focusLibrarySearchOnMount, setFocusLibrarySearchOnMount] = useState(true)
   const [readerInitialTab, setReaderInitialTab] = useState('edit')
   const [toasts, setToasts] = useState([])
@@ -294,6 +297,9 @@ function App() {
         } else if (target === 'help') {
           captureAction('navigate', { route: pageRef.current, target: 'help', source: 'navigateTo' })
           setPage('help')
+        } else if (target === 'collections') {
+          captureAction('navigate', { route: pageRef.current, target: 'collections', source: 'navigateTo' })
+          setPage('collections')
         }
       })
     },
@@ -316,6 +322,19 @@ function App() {
     },
     [runWithViewTransition]
   )
+
+  const openCollectionLibrary = useCallback((collection) => {
+    setCollectionFilter(collection)
+    setSearchQuery('')
+    setFocusLibrarySearchOnMount(false)
+    setPage('search')
+  }, [])
+
+  const openCollectionAdd = useCallback((collection) => {
+    setAddToCollection(collection)
+    setHomeFocusNonce((value) => value + 1)
+    setPage('home')
+  }, [])
 
   // Teach me: how does UseCallBack work? why do we have multiple callbacks doing these things and why do we not have a utils.js file or something or a callbacks.js to store all the callbacks throughout the app (assuming there are more)
   const openPaper = useCallback(
@@ -368,7 +387,7 @@ function App() {
         if (!isInputFocused && page === 'reader') {
           event.preventDefault()
           navigateBack()
-        } else if (!isInputFocused && (page === 'settings' || page === 'help')) {
+        } else if (!isInputFocused && (page === 'settings' || page === 'help' || page === 'collections')) {
           event.preventDefault()
           navigateBack()
         }
@@ -405,6 +424,11 @@ function App() {
         } else if (k === ',') {
           event.preventDefault()
           navigateTo('settings')
+          pendingGRef.current = false
+          setPendingG(false)
+        } else if (k === 'c') {
+          event.preventDefault()
+          navigateTo('collections')
           pendingGRef.current = false
           setPendingG(false)
         } else if (k === 'p') {
@@ -662,6 +686,7 @@ function App() {
           ['r', 'Recent'],
           [',', 'Settings'],
           ['p', 'Help'],
+          ['c', 'Collections'],
           ['1/2/3', 'Views'],
           ['b', 'Dark'],
           ['t', 'Page'],
@@ -672,6 +697,7 @@ function App() {
           ['r', 'Recent'],
           [',', 'Settings'],
           ['p', 'Help'],
+          ['c', 'Collections'],
         ]
     : null
 
@@ -815,6 +841,8 @@ function App() {
               onInitialArxivInputConsumed={() => setHomeArxivInput(null)}
               addToast={addToast}
               onSearchQuery={openSearch}
+              collectionContext={addToCollection}
+              onClearCollectionContext={() => setAddToCollection(null)}
             />
           )}
           {page === 'search' && (
@@ -835,6 +863,8 @@ function App() {
                 addToast={addToast}
                 workspaceState={searchWorkspaceState}
                 onWorkspaceStateChange={setSearchWorkspaceState}
+                collectionFilter={collectionFilter}
+                onClearCollectionFilter={() => setCollectionFilter(null)}
               />
             </Suspense>
           )}
@@ -868,6 +898,9 @@ function App() {
             <Suspense fallback={null}>
               <Help setPage={setPage} />
             </Suspense>
+          )}
+          {page === 'collections' && (
+            <Suspense fallback={null}><Collections onOpenCollection={openCollectionLibrary} onAddToCollection={openCollectionAdd} addToast={addToast} /></Suspense>
           )}
           </div>
         </div>

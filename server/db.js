@@ -88,6 +88,7 @@ export async function initDB() {
   const dbData = loadDatabaseData();
 
   db = new SQL.Database(dbData);
+  db.run('PRAGMA foreign_keys = ON');
 
   // Create tables
   db.run(`
@@ -143,6 +144,22 @@ export async function initDB() {
       updated_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS collections (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      description TEXT,
+      color TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS paper_collections (
+      paper_id TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+      collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+      created_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (paper_id, collection_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_papers_status ON papers(status);
     CREATE INDEX IF NOT EXISTS idx_papers_created ON papers(created_at);
     CREATE INDEX IF NOT EXISTS idx_highlights_paper ON highlights(paper_id);
@@ -152,6 +169,7 @@ export async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at);
     CREATE INDEX IF NOT EXISTS idx_reading_sessions_paper ON reading_sessions(paper_id);
     CREATE INDEX IF NOT EXISTS idx_reading_sessions_updated ON reading_sessions(updated_at);
+    CREATE INDEX IF NOT EXISTS idx_paper_collections_collection ON paper_collections(collection_id);
   `);
 
   // Lightweight migration for existing DBs that were created before
@@ -220,7 +238,20 @@ export async function initDB() {
     db.run('ALTER TABLE papers ADD COLUMN todoist_task_id TEXT');
   }
 
+  const collectionsInfo = db.exec('PRAGMA table_info(collections)');
+  const collectionCols = collectionsInfo.length > 0 ? collectionsInfo[0].values.map((r) => r[1]) : [];
+  if (!collectionCols.includes('description')) db.run('ALTER TABLE collections ADD COLUMN description TEXT');
+  if (!collectionCols.includes('color')) db.run('ALTER TABLE collections ADD COLUMN color TEXT');
+  const legacyCollectionRows = db.exec('SELECT id, color FROM collections ORDER BY created_at ASC, name COLLATE NOCASE ASC');
+  const collectionPalette = ['#e7645b', '#df9940', '#c9ad43', '#79a969', '#4b9d98', '#4e8dcb', '#776ac6', '#a065bd', '#cf6e99', '#9a785b'];
+  if (legacyCollectionRows[0]) {
+    legacyCollectionRows[0].values.forEach(([id, color], index) => {
+      if (!color) db.run('UPDATE collections SET color = ? WHERE id = ?', [collectionPalette[index % collectionPalette.length], id]);
+    });
+  }
+
   db.run('CREATE INDEX IF NOT EXISTS idx_papers_important ON papers(important, important_at)');
+  db.run('DELETE FROM paper_collections WHERE paper_id NOT IN (SELECT id FROM papers) OR collection_id NOT IN (SELECT id FROM collections)');
 
   db.run('DROP TABLE IF EXISTS reading_queue');
 

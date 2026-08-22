@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import TodoistTaskModal, { paperHasTodoistTask } from '../components/TodoistTaskModal'
+import CollectionAssignModal from '../components/CollectionAssignModal'
 import { captureAction, captureAppError, captureTiming, elapsedSince, startTimer } from '../lib/instrumentation'
 
 function getStatusColor(status) {
@@ -63,6 +64,8 @@ export default function SearchWorkbench({
   addToast,
   workspaceState,
   onWorkspaceStateChange,
+  collectionFilter,
+  onClearCollectionFilter,
 }) {
   // Question: Why do we have these many UseState calls? why are we going to track the state of all of these things? 
   const [query, setQuery] = useState(workspaceState?.query ?? initialQuery)
@@ -85,6 +88,11 @@ export default function SearchWorkbench({
   const [metadataSaving, setMetadataSaving] = useState(false)
   const [publication, setPublication] = useState(null)
   const [publicationLoading, setPublicationLoading] = useState(false)
+  const [collections, setCollections] = useState([])
+  const [paperCollections, setPaperCollections] = useState([])
+  const [collectionPickerOpen, setCollectionPickerOpen] = useState(false)
+  const [newCollectionName, setNewCollectionName] = useState('')
+  const [collectionModalPaper, setCollectionModalPaper] = useState(null)
   const inputRef = useRef(null)
   const listRef = useRef(null)
   const stackPaneRef = useRef(null)
@@ -102,6 +110,37 @@ export default function SearchWorkbench({
   const shouldRestoreScrollRef = useRef(Number(workspaceState?.listScrollTop) > 0)
   const selectedPaper = results[selectedIndex] || null
 
+  const loadCollections = async () => {
+    const [{ data: all }, { data: assigned }] = await Promise.all([
+      axios.get('/api/collections'),
+      selectedPaper?.id ? axios.get(`/api/collections/paper/${encodeURIComponent(selectedPaper.id)}`) : Promise.resolve({ data: [] }),
+    ])
+    setCollections(Array.isArray(all) ? all : [])
+    setPaperCollections(Array.isArray(assigned) ? assigned : [])
+  }
+
+  const toggleCollection = async (collection) => {
+    if (!selectedPaper?.id) return
+    const assigned = paperCollections.some((item) => item.id === collection.id)
+    try {
+      await axios({ method: assigned ? 'delete' : 'put', url: `/api/collections/${collection.id}/papers/${encodeURIComponent(selectedPaper.id)}` })
+      await loadCollections()
+      addToast?.(assigned ? `Removed from ${collection.name}` : `Added to ${collection.name}`, 'success')
+    } catch { addToast?.('Could not update collection', 'error') }
+  }
+
+  const createAndAssignCollection = async () => {
+    const name = newCollectionName.trim()
+    if (!name || !selectedPaper?.id) return
+    try {
+      const { data } = await axios.post('/api/collections', { name })
+      setNewCollectionName('')
+      await axios.put(`/api/collections/${data.id}/papers/${encodeURIComponent(selectedPaper.id)}`)
+      await loadCollections()
+      addToast?.(`Added to ${data.name}`, 'success')
+    } catch (error) { addToast?.(error.response?.data?.error || 'Could not create collection', 'error') }
+  }
+
   useEffect(() => {
     if (!selectedPaper?.id || !actionsOpen) {
       return undefined
@@ -114,6 +153,19 @@ export default function SearchWorkbench({
       .finally(() => { if (!cancelled) setPublicationLoading(false) })
     return () => { cancelled = true }
   }, [selectedPaper?.id, actionsOpen])
+
+  useEffect(() => {
+    if (!collectionPickerOpen || !selectedPaper?.id) return undefined
+    let cancelled = false
+    Promise.all([axios.get('/api/collections'), axios.get(`/api/collections/paper/${encodeURIComponent(selectedPaper.id)}`)])
+      .then(([all, assigned]) => {
+        if (cancelled) return
+        setCollections(Array.isArray(all.data) ? all.data : [])
+        setPaperCollections(Array.isArray(assigned.data) ? assigned.data : [])
+      })
+      .catch(() => { if (!cancelled) addToast?.('Could not load collections', 'error') })
+    return () => { cancelled = true }
+  }, [collectionPickerOpen, selectedPaper?.id])
 
   const handlePublishNotes = async () => {
     if (!selectedPaper?.id || publicationLoading) return
@@ -236,6 +288,7 @@ export default function SearchWorkbench({
             q: query.trim(),
             page: currentPage,
             pageSize,
+            collectionId: collectionFilter?.id || undefined,
           },
         })
         if (cancelled) return
@@ -280,7 +333,7 @@ export default function SearchWorkbench({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [query, currentPage, pageSize])
+  }, [query, currentPage, pageSize, collectionFilter?.id])
 
   useEffect(() => {
     if (loading) return
@@ -335,6 +388,7 @@ export default function SearchWorkbench({
     { label: 'Pages', value: selectedPaper.total_pages || selectedPaper.page_count || 'Unknown' },
     { label: 'Date added', value: formatDateAdded(selectedPaper.created_at) },
     { label: 'Schedule', value: selectedScheduleState },
+    { label: 'Collections', value: paperCollections.length ? paperCollections.map((item) => item.name).join(', ') : 'None', multiline: true },
     { label: 'Authors', value: selectedPaper.authors || 'Unknown', multiline: true },
   ] : []
 
@@ -752,6 +806,11 @@ export default function SearchWorkbench({
         handleToggleImportant()
         return
       }
+      if (lower === 'x') {
+        event.preventDefault()
+        if (selectedPaper) setCollectionModalPaper(selectedPaper)
+        return
+      }
       if (lower === 'e') {
         event.preventDefault()
         openMetadataEditor()
@@ -785,7 +844,7 @@ export default function SearchWorkbench({
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [actionsOpen, currentPage, fetchingMetadataId, focusPanel, query, results.length, selectedNeedsMetadata, selectedPaper, setPage, totalPages])
+  }, [actionsOpen, currentPage, fetchingMetadataId, focusPanel, query, results.length, selectedNeedsMetadata, selectedPaper, setPage, totalPages, paperCollections])
 
   // ── inline style helpers ──────────────────────────────────────────────────────
   const paneBase = (active) => ({
@@ -822,6 +881,7 @@ export default function SearchWorkbench({
               <span style={{ fontSize:'.76rem', color:'var(--muted)', whiteSpace:'nowrap', fontFamily:'var(--font-mono)' }}>{totalLabel}</span>
             </div>
           </div>
+          {collectionFilter && <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px', padding:'8px 12px', borderBottom:'1px solid var(--border)', background:'color-mix(in srgb, var(--secondary) 7%, transparent)' }}><span style={{ fontFamily:'var(--font-mono)', fontSize:'.72rem', color:'var(--secondary)' }}>collection: {collectionFilter.name}</span><button type="button" onClick={onClearCollectionFilter} style={{ fontSize:'.72rem', color:'var(--muted)' }}>Clear</button></div>}
 
           <div ref={listRef} style={{ flex:1, overflowY:'auto', padding:'6px' }}>
             {loading ? (
@@ -859,8 +919,10 @@ export default function SearchWorkbench({
                       onClick={() => { setSelectedIndex(idx); setFocusPanel('stack') }}
                       className="rx-paper-row animate-stagger-fade"
                       data-active={active}
+                      data-collection-colored={Boolean(paper.collection_color)}
                       style={{
                         animationDelay: `${Math.min(idx, 7) * 30}ms`,
+                        ...(paper.collection_color ? { '--collection-color': paper.collection_color } : {}),
                       }}
                     >
                       <div className="rx-paper-title" style={{ marginBottom:'6px' }}>
@@ -869,7 +931,7 @@ export default function SearchWorkbench({
                       </div>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px' }}>
                         <span className="rx-paper-row-meta rx-meta">{paper.id}</span>
-                        <span className="rx-status-mark" data-status={paper.status || 'queued'}>
+                        <span className="rx-status-mark" data-status={paper.status || 'queued'} style={paper.collection_color ? { color: paper.collection_color } : undefined}>
                           <span className="rx-status-dot" />
                           <span>{paper.status || 'queued'}</span>
                         </span>
@@ -978,6 +1040,7 @@ export default function SearchWorkbench({
                 { name: Number(selectedPaper?.important) === 1 ? 'Remove important mark' : 'Mark as important', sub:null, key:'R', onClick: handleToggleImportant },
                 { name: paperHasTodoistTask(selectedPaper) ? 'Edit Schedule' : 'Schedule', sub:null, key:'D', onClick: () => selectedPaper && setTodoistModalPaper(selectedPaper) },
                 { name: Number(selectedPaper?.offline_pinned) === 1 ? 'Remove Offline Copy' : 'Pin Offline', sub:null, key:'F', onClick: handleOfflineToggle },
+                { name:'Assign to collection', sub:null, key:'X', onClick: () => selectedPaper && setCollectionModalPaper(selectedPaper) },
                 { name:'Delete Paper', sub:null, key:'Backspace', danger: true, onClick: handleDeletePaper, disabled: deletingPaperId === selectedPaper?.id, busyLabel:'Deleting...' },
               ].filter(Boolean).map((act) => (
                 <button
@@ -1089,6 +1152,7 @@ export default function SearchWorkbench({
           onClose={() => setTodoistModalPaper(null)}
         />
       )}
+      {collectionModalPaper && <CollectionAssignModal paper={collectionModalPaper} onClose={() => setCollectionModalPaper(null)} onChanged={() => loadCollections().catch(() => {})} addToast={addToast} />}
       {metadataEditPaper && (
         <div
           className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4"
