@@ -343,9 +343,10 @@ router.get('/', async (req, res) => {
     const pageSizeRaw = Number.parseInt(req.query.pageSize, 10);
     const requestedPageSize = Number.isFinite(pageSizeRaw) ? pageSizeRaw : 10;
     const pageSize = Math.max(1, Math.min(requestedPageSize, 50));
+    const hiddenCollectionClause = `NOT EXISTS (SELECT 1 FROM paper_collections hidden_pc JOIN collections hidden_collection ON hidden_collection.id = hidden_pc.collection_id WHERE hidden_pc.paper_id = papers.id AND hidden_collection.hidden_in_library = 1)`;
 
     if (wantsPaginated && !query) {
-      const collectionJoin = collectionId ? 'JOIN paper_collections pc ON pc.paper_id = papers.id WHERE pc.collection_id = ?' : '';
+      const collectionJoin = collectionId ? 'JOIN paper_collections pc ON pc.paper_id = papers.id WHERE pc.collection_id = ?' : `WHERE ${hiddenCollectionClause}`;
       const collectionParams = collectionId ? [collectionId] : [];
       const countResult = db.exec(`SELECT COUNT(*) AS total FROM papers ${collectionJoin}`, collectionParams);
       const total = Number(countResult[0]?.values[0]?.[0] || 0);
@@ -365,7 +366,7 @@ router.get('/', async (req, res) => {
       return res.json({ items, total, page, pageSize, totalPages, query });
     }
 
-    const result = db.exec(`SELECT papers.*, (SELECT c.color FROM paper_collections paper_collection_color JOIN collections c ON c.id = paper_collection_color.collection_id WHERE paper_collection_color.paper_id = papers.id ORDER BY paper_collection_color.created_at ASC LIMIT 1) AS collection_color FROM papers ORDER BY created_at DESC`);
+    const result = db.exec(`SELECT papers.*, (SELECT c.color FROM paper_collections paper_collection_color JOIN collections c ON c.id = paper_collection_color.collection_id WHERE paper_collection_color.paper_id = papers.id ORDER BY paper_collection_color.created_at ASC LIMIT 1) AS collection_color FROM papers WHERE ${hiddenCollectionClause} ORDER BY created_at DESC`);
     const columns = result.length > 0 ? result[0].columns : [];
     const papers = result.length > 0 ? result[0].values.map(row => rowToObject(row, columns)) : [];
 
