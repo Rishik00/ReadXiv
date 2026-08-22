@@ -845,6 +845,12 @@ mjx-container[display="true"] {
   border-color: color-mix(in srgb, var(--secondary) 34%, var(--border));
 }
 
+.rx-paper-row[data-active='true'][data-collection-colored='true'] {
+  background: color-mix(in srgb, var(--collection-color) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--collection-color) 62%, var(--border));
+  box-shadow: inset 3px 0 0 var(--collection-color);
+}
+
 .rx-paper-title {
   color: var(--foreground);
   font-family: var(--font-sans);

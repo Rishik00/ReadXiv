@@ -919,8 +919,10 @@ export default function SearchWorkbench({
                       onClick={() => { setSelectedIndex(idx); setFocusPanel('stack') }}
                       className="rx-paper-row animate-stagger-fade"
                       data-active={active}
+                      data-collection-colored={Boolean(paper.collection_color)}
                       style={{
                         animationDelay: `${Math.min(idx, 7) * 30}ms`,
+                        ...(paper.collection_color ? { '--collection-color': paper.collection_color } : {}),
                       }}
                     >
                       <div className="rx-paper-title" style={{ marginBottom:'6px' }}>
