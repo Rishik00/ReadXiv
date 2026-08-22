@@ -44,6 +44,15 @@ export default function Help() {
       ],
     },
     {
+      title: 'Collections',
+      items: [
+        ['Arrow keys', 'Choose a collection'],
+        ['Enter', 'Open the selected collection in Library'],
+        ['a', 'Add papers to the selected collection'],
+        ['h', 'Hide or show the selected collection’s papers in Library'],
+      ],
+    },
+    {
       title: 'Notes',
       items: [
         ['Ctrl+Shift+B', 'Bold'],
