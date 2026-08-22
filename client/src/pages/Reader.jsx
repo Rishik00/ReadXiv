@@ -457,6 +457,7 @@ const Reader = forwardRef(function Reader(
 
   const readerView = pdfCollapsed ? 'notes' : notesCollapsed ? 'pdf' : 'split';
   const pdfSolo = readerView === 'pdf';
+  const isWebArticle = readerPaper?.source === 'web' && /^https:\/\//i.test(readerPaper?.url || '');
 
   const addShelfReference = useCallback(
     async (arxivId, dedupeKey) => {
@@ -1073,7 +1074,15 @@ const Reader = forwardRef(function Reader(
             onKeyDown={(e) => focusedPanel === 'pdf' && pdfViewerRef.current?.handleKeyDown(e)}
           >
             <Profiler id="Reader.PdfViewer" onRender={profileRender}>
-              {readerPaper?.hasPdf ? (
+              {isWebArticle ? (
+                <div className="flex h-full min-h-0 flex-col bg-[var(--pdf-canvas-bg)]">
+                  <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-background/90 px-4 py-2.5">
+                    <div className="min-w-0"><div className="font-mono text-[10px] uppercase tracking-[0.13em] text-muted">Live web article</div><div className="truncate text-sm text-foreground">{readerPaper?.url}</div></div>
+                    <a href={readerPaper.url} target="_blank" rel="noreferrer" className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:border-secondary">Open original ↗</a>
+                  </div>
+                  <iframe title={readerPaper?.title || 'Web article'} src={readerPaper.url} className="min-h-0 w-full flex-1 border-0 bg-white" referrerPolicy="no-referrer" />
+                </div>
+              ) : readerPaper?.hasPdf ? (
                 <PdfViewer
                   ref={pdfViewerRef}
                   paperId={paperId}

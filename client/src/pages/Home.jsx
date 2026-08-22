@@ -18,6 +18,15 @@ function isHttpsUrl(val) {
   }
 }
 
+function isSupportedWebArticleUrl(val) {
+  try {
+    const url = new URL(val?.trim())
+    return url.protocol === 'https:' && url.hostname.toLowerCase().endsWith('.pub')
+  } catch {
+    return false
+  }
+}
+
 function splitImportInputs(value) {
   return value
     .split(/\s+/)
@@ -538,6 +547,22 @@ export default function Home({
     }
   }
 
+  const handleWebArticleImport = async (query) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await axios.post('/api/papers/import-web', { url: query.trim() })
+      setInput('')
+      if (collectionContext?.id && response.data?.id) await axios.put(`/api/collections/${collectionContext.id}/papers/${encodeURIComponent(response.data.id)}`)
+      if (collectionContext?.id) addToast?.(`Added to ${collectionContext.name}`, 'success')
+      else openPaper?.(response.data)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to add web article')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleBulkUrlImport = async (queries) => {
     const entries = queries.map((query) => ({ query, status: 'waiting' }))
     setLoading(true)
@@ -552,6 +577,8 @@ export default function Home({
         let response
         if (isArxivInput(query)) {
           response = await axios.post('/api/arxiv/add', { input: query })
+        } else if (isSupportedWebArticleUrl(query)) {
+          response = await axios.post('/api/papers/import-web', { url: query })
         } else if (isHttpsUrl(query)) {
           response = await axios.post('/api/papers/import-url', { url: query })
         } else {
@@ -683,6 +710,8 @@ export default function Home({
         await handleBulkUrlImport(imports)
       } else if (isArxivInput(addQuery)) {
         await handleArxivAdd(addQuery)
+      } else if (isSupportedWebArticleUrl(addQuery)) {
+        await handleWebArticleImport(addQuery)
       } else if (isHttpsUrl(addQuery)) {
         await handleExternalPdfImport(addQuery)
       } else {
@@ -705,6 +734,11 @@ export default function Home({
 
     if (isArxivInput(input)) {
       await handleArxivAdd(input)
+      return
+    }
+
+    if (isSupportedWebArticleUrl(input)) {
+      await handleWebArticleImport(input)
       return
     }
 

@@ -173,6 +173,35 @@ function isOpenReviewHost(hostname) {
   return hostname === 'openreview.net' || hostname === 'www.openreview.net';
 }
 
+function isSupportedWebArticleHost(hostname) {
+  return hostname.toLowerCase().endsWith('.pub');
+}
+
+function decodeHtmlText(value) {
+  return String(value || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
+}
+
+function htmlMeta(html, property) {
+  const escaped = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tag = new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']+)["']`, 'i').exec(html)
+    || new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${escaped}["']`, 'i').exec(html);
+  return decodeHtmlText(tag?.[1]);
+}
+
+async function fetchWebArticleMetadata(url) {
+  const response = await axios.get(url.toString(), {
+    timeout: 20000,
+    maxRedirects: 3,
+    responseType: 'text',
+    headers: { 'User-Agent': 'ReadXiv/1.0', Accept: 'text/html,application/xhtml+xml' },
+  });
+  const html = String(response.data || '').slice(0, 1_500_000);
+  const title = htmlMeta(html, 'og:title') || decodeHtmlText(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1]) || url.hostname;
+  const description = htmlMeta(html, 'og:description') || htmlMeta(html, 'description');
+  const authors = htmlMeta(html, 'author') || htmlMeta(html, 'citation_author');
+  return { title, description, authors };
+}
+
 function normalizeOpenReviewPdfUrl(url) {
   if (!isOpenReviewHost(url.hostname)) return url;
   if (url.pathname !== '/forum' && url.pathname !== '/notes') return url;
@@ -723,6 +752,29 @@ router.post('/import-url', async (req, res) => {
   } catch (error) {
     if (temporaryPath) await fs.remove(temporaryPath).catch(() => {});
     return res.status(error.status || 500).json({ error: error.message || 'Could not import this PDF link.' });
+  }
+});
+
+// Save supported long-form web articles without downloading or flattening their interactive content.
+router.post('/import-web', async (req, res) => {
+  try {
+    const inputUrl = String(req.body?.url || '').trim();
+    const url = await assertSafeExternalUrl(inputUrl);
+    if (!isSupportedWebArticleHost(url.hostname)) return res.status(400).json({ error: 'Only HTTPS articles on .pub domains are supported right now.' });
+    const canonicalUrl = url.toString();
+    const db = await getDB();
+    const existingResult = db.exec('SELECT * FROM papers WHERE url = ? LIMIT 1', [canonicalUrl]);
+    const existing = existingResult[0]?.values?.[0] ? rowToObject(existingResult[0].values[0], existingResult[0].columns) : null;
+    if (existing) return res.json({ ...existing, alreadyExists: true, readerSupported: true });
+    const metadata = await fetchWebArticleMetadata(url);
+    const paperId = `web-${createHash('sha256').update(canonicalUrl).digest('hex').slice(0, 16)}`;
+    const now = new Date().toISOString();
+    await fs.writeFile(path.join(PAPYRUS_DIR, 'notes', `${paperId}.md`), buildPaperDigestNotes({ title: metadata.title, id: paperId }), 'utf8');
+    db.run(`INSERT INTO papers (id, title, authors, abstract, url, pdf_path, pdf_url, source, year, tags, created_at, updated_at, last_accessed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [paperId, metadata.title, metadata.authors || null, metadata.description || null, canonicalUrl, null, null, 'web', null, '[]', now, now, now]);
+    saveDB();
+    return res.status(201).json({ ...(await fetchPaperById(paperId)), readerSupported: true });
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message || 'Could not add this web article.' });
   }
 });
 
