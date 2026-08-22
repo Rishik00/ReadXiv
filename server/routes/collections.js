@@ -43,6 +43,18 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.patch('/:id', async (req, res) => {
+  if (typeof req.body?.hidden_in_library !== 'boolean') return res.status(400).json({ error: 'hidden_in_library must be a boolean.' });
+  try {
+    const db = await getDB();
+    const existing = rows(db.exec('SELECT * FROM collections WHERE id = ?', [req.params.id]))[0];
+    if (!existing) return res.status(404).json({ error: 'Collection not found' });
+    db.run("UPDATE collections SET hidden_in_library = ?, updated_at = datetime('now') WHERE id = ?", [req.body.hidden_in_library ? 1 : 0, req.params.id]);
+    saveDB();
+    return res.json(rows(db.exec('SELECT * FROM collections WHERE id = ?', [req.params.id]))[0]);
+  } catch (error) { return res.status(500).json({ error: error.message }); }
+});
+
 router.get('/paper/:paperId', async (req, res) => {
   try {
     const db = await getDB();
