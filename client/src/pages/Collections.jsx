@@ -12,6 +12,7 @@ export default function Collections({ onOpenCollection, onAddToCollection, addTo
   const [loading, setLoading] = useState(true)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const createNameRef = useRef(null)
+  const visibilityToggleRef = useRef(false)
 
   const refresh = async () => {
     const { data } = await axios.get('/api/collections')
@@ -58,17 +59,20 @@ export default function Collections({ onOpenCollection, onAddToCollection, addTo
   }
 
   const toggleHiddenInLibrary = async (collection) => {
+    if (!collection || visibilityToggleRef.current) return
+    visibilityToggleRef.current = true
     try {
       const { data } = await axios.patch(`/api/collections/${collection.id}`, { hidden_in_library: !Number(collection.hidden_in_library) })
       setCollections((items) => items.map((item) => item.id === data.id ? { ...item, ...data } : item))
       addToast?.(Number(data.hidden_in_library) ? `${data.name} hidden from Library` : `${data.name} shown in Library`, 'success')
     } catch (error) { addToast?.(error.response?.data?.error || 'Could not update collection visibility', 'error') }
+    finally { visibilityToggleRef.current = false }
   }
 
   useEffect(() => {
     const onKeyDown = (event) => {
       const target = event.target
-      if (createOpen || target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable || !collections.length || event.key.toLowerCase() !== 'h') return
+      if (event.repeat || createOpen || target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable || !collections.length || event.key.toLowerCase() !== 'h') return
       event.preventDefault()
       toggleHiddenInLibrary(collections[selectedIndex])
     }

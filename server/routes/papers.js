@@ -366,7 +366,10 @@ router.get('/', async (req, res) => {
       return res.json({ items, total, page, pageSize, totalPages, query });
     }
 
-    const result = db.exec(`SELECT papers.*, (SELECT c.color FROM paper_collections paper_collection_color JOIN collections c ON c.id = paper_collection_color.collection_id WHERE paper_collection_color.paper_id = papers.id ORDER BY paper_collection_color.created_at ASC LIMIT 1) AS collection_color FROM papers WHERE ${hiddenCollectionClause} ORDER BY created_at DESC`);
+    const filteredCollectionJoin = collectionId ? 'JOIN paper_collections pc ON pc.paper_id = papers.id' : '';
+    const filteredCollectionWhere = collectionId ? 'pc.collection_id = ?' : hiddenCollectionClause;
+    const filteredCollectionParams = collectionId ? [collectionId] : [];
+    const result = db.exec(`SELECT papers.*, (SELECT c.color FROM paper_collections paper_collection_color JOIN collections c ON c.id = paper_collection_color.collection_id WHERE paper_collection_color.paper_id = papers.id ORDER BY paper_collection_color.created_at ASC LIMIT 1) AS collection_color FROM papers ${filteredCollectionJoin} WHERE ${filteredCollectionWhere} ORDER BY created_at DESC`, filteredCollectionParams);
     const columns = result.length > 0 ? result[0].columns : [];
     const papers = result.length > 0 ? result[0].values.map(row => rowToObject(row, columns)) : [];
 
