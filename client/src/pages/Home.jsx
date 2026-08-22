@@ -843,7 +843,7 @@ export default function Home({
       <EditorialLanding
         summary={homeSummary}
         fallbackContinue={continuePaper}
-        recentPapers={memoryPapers}
+        recentPapers={importantPapers}
         openPaper={openPaper}
         dimmed={isFocused}
         view={deskView}
