@@ -72,6 +72,8 @@ export default function Home({
   onInitialArxivInputConsumed,
   onSearchQuery,
   addToast,
+  collectionContext,
+  onClearCollectionContext,
 }) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -438,6 +440,7 @@ export default function Home({
     setError(null)
     try {
       const response = await axios.post('/api/arxiv/add', { input: query.trim() })
+      if (collectionContext?.id && response.data?.id) await axios.put(`/api/collections/${collectionContext.id}/papers/${encodeURIComponent(response.data.id)}`)
       captureTiming('paper_load', elapsedSince(startedAt), {
         route: 'home',
         source: 'arxiv_add',
@@ -480,7 +483,8 @@ export default function Home({
       }
 
       setInput('')
-      openPaper?.(response.data)
+      if (collectionContext?.id) addToast?.(`Added to ${collectionContext.name}`, 'success')
+      else openPaper?.(response.data)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to add paper')
       captureAppError(err, {
@@ -500,6 +504,7 @@ export default function Home({
     setError(null)
     try {
       const response = await axios.post('/api/papers/import-url', { url: query.trim() })
+      if (collectionContext?.id && response.data?.id) await axios.put(`/api/collections/${collectionContext.id}/papers/${encodeURIComponent(response.data.id)}`)
       captureTiming('paper_load', elapsedSince(startedAt), {
         route: 'home',
         source: 'external_pdf_import',
@@ -518,7 +523,8 @@ export default function Home({
         addToast?.('OpenReview papers are not supported in Reader yet. Find it in Library and press B to open it in your browser.', 'info')
         return
       }
-      openPaper?.(response.data)
+      if (collectionContext?.id) addToast?.(`Added to ${collectionContext.name}`, 'success')
+      else openPaper?.(response.data)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to import PDF')
       captureAppError(err, {
@@ -552,6 +558,7 @@ export default function Home({
           throw new Error('Enter an arXiv ID or URL, or an HTTPS PDF link.')
         }
         const paper = response.data
+        if (collectionContext?.id && paper?.id) await axios.put(`/api/collections/${collectionContext.id}/papers/${encodeURIComponent(paper.id)}`)
         entries[index] = {
           query,
           status: paper?.alreadyExists ? 'duplicate' : 'success',
@@ -865,6 +872,7 @@ export default function Home({
           marginBottom: isFocused ? '0.75rem' : '2rem'
         }}
       >
+        {collectionContext && <div className="mb-3 flex items-center justify-between rounded-md border px-3 py-2 text-sm" style={{ borderColor: collectionContext.color || 'var(--secondary)', background: 'color-mix(in srgb, var(--surface) 88%, transparent)' }}><span>Adding papers to <strong>{collectionContext.name}</strong></span><button type="button" onClick={onClearCollectionContext} className="font-mono text-xs text-muted hover:text-foreground">Clear</button></div>}
         {liveQuery && (
           <div className="home-editorial-search-results" role="listbox" aria-label="Library results">
             <span className="home-memory-label">Library results</span>

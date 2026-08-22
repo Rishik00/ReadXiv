@@ -104,6 +104,7 @@ function App() {
   const [initialRouteResolved, setInitialRouteResolved] = useState(false)
   const [searchFocusNonce, setSearchFocusNonce] = useState(0)
   const [collectionFilter, setCollectionFilter] = useState(null)
+  const [addToCollection, setAddToCollection] = useState(null)
   const [focusLibrarySearchOnMount, setFocusLibrarySearchOnMount] = useState(true)
   const [readerInitialTab, setReaderInitialTab] = useState('edit')
   const [toasts, setToasts] = useState([])
@@ -327,6 +328,12 @@ function App() {
     setSearchQuery('')
     setFocusLibrarySearchOnMount(false)
     setPage('search')
+  }, [])
+
+  const openCollectionAdd = useCallback((collection) => {
+    setAddToCollection(collection)
+    setHomeFocusNonce((value) => value + 1)
+    setPage('home')
   }, [])
 
   // Teach me: how does UseCallBack work? why do we have multiple callbacks doing these things and why do we not have a utils.js file or something or a callbacks.js to store all the callbacks throughout the app (assuming there are more)
@@ -834,6 +841,8 @@ function App() {
               onInitialArxivInputConsumed={() => setHomeArxivInput(null)}
               addToast={addToast}
               onSearchQuery={openSearch}
+              collectionContext={addToCollection}
+              onClearCollectionContext={() => setAddToCollection(null)}
             />
           )}
           {page === 'search' && (
@@ -891,7 +900,7 @@ function App() {
             </Suspense>
           )}
           {page === 'collections' && (
-            <Suspense fallback={null}><Collections setPage={navigateTo} onOpenCollection={openCollectionLibrary} addToast={addToast} /></Suspense>
+            <Suspense fallback={null}><Collections onOpenCollection={openCollectionLibrary} onAddToCollection={openCollectionAdd} addToast={addToast} /></Suspense>
           )}
           </div>
         </div>

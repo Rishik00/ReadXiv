@@ -148,6 +148,7 @@ export async function initDB() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL COLLATE NOCASE UNIQUE,
       description TEXT,
+      color TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -240,6 +241,14 @@ export async function initDB() {
   const collectionsInfo = db.exec('PRAGMA table_info(collections)');
   const collectionCols = collectionsInfo.length > 0 ? collectionsInfo[0].values.map((r) => r[1]) : [];
   if (!collectionCols.includes('description')) db.run('ALTER TABLE collections ADD COLUMN description TEXT');
+  if (!collectionCols.includes('color')) db.run('ALTER TABLE collections ADD COLUMN color TEXT');
+  const legacyCollectionRows = db.exec('SELECT id, color FROM collections ORDER BY created_at ASC, name COLLATE NOCASE ASC');
+  const collectionPalette = ['#e7645b', '#df9940', '#c9ad43', '#79a969', '#4b9d98', '#4e8dcb', '#776ac6', '#a065bd', '#cf6e99', '#9a785b'];
+  if (legacyCollectionRows[0]) {
+    legacyCollectionRows[0].values.forEach(([id, color], index) => {
+      if (!color) db.run('UPDATE collections SET color = ? WHERE id = ?', [collectionPalette[index % collectionPalette.length], id]);
+    });
+  }
 
   db.run('CREATE INDEX IF NOT EXISTS idx_papers_important ON papers(important, important_at)');
   db.run('DELETE FROM paper_collections WHERE paper_id NOT IN (SELECT id FROM papers) OR collection_id NOT IN (SELECT id FROM collections)');

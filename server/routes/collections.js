@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { getDB, saveDB } from '../db.js';
 
 const router = express.Router();
+const COLLECTION_COLORS = ['#e7645b', '#df9940', '#c9ad43', '#79a969', '#4b9d98', '#4e8dcb', '#776ac6', '#a065bd', '#cf6e99', '#9a785b'];
 
 function rows(result) {
   if (!result?.[0]) return [];
@@ -25,11 +26,16 @@ router.get('/', async (_req, res) => {
 router.post('/', async (req, res) => {
   const name = String(req.body?.name || '').trim();
   const description = String(req.body?.description || '').trim();
+  const requestedColor = String(req.body?.color || '').trim();
   if (!name || name.length > 100) return res.status(400).json({ error: 'Enter a collection name up to 100 characters.' });
+  if (requestedColor && !COLLECTION_COLORS.includes(requestedColor)) return res.status(400).json({ error: 'Choose a collection color from the palette.' });
   try {
     const db = await getDB();
     const id = randomUUID();
-    db.run("INSERT INTO collections (id, name, description, created_at, updated_at) VALUES (?, ?, ?, datetime('now'), datetime('now'))", [id, name, description || null]);
+    const colorCounts = rows(db.exec('SELECT color, COUNT(*) AS count FROM collections GROUP BY color'));
+    const leastUsedColor = COLLECTION_COLORS.slice().sort((a, b) => (Number(colorCounts.find((item) => item.color === a)?.count || 0) - Number(colorCounts.find((item) => item.color === b)?.count || 0)))[0];
+    const color = requestedColor || leastUsedColor;
+    db.run("INSERT INTO collections (id, name, description, color, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))", [id, name, description || null, color]);
     saveDB();
     return res.status(201).json(rows(db.exec('SELECT *, 0 AS paper_count FROM collections WHERE id = ?', [id]))[0]);
   } catch (error) {

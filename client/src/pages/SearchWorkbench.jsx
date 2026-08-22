@@ -929,7 +929,7 @@ export default function SearchWorkbench({
                       </div>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px' }}>
                         <span className="rx-paper-row-meta rx-meta">{paper.id}</span>
-                        <span className="rx-status-mark" data-status={paper.status || 'queued'}>
+                        <span className="rx-status-mark" data-status={paper.status || 'queued'} style={paper.collection_color ? { color: paper.collection_color } : undefined}>
                           <span className="rx-status-dot" />
                           <span>{paper.status || 'queued'}</span>
                         </span>
