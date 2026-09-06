@@ -1,14 +1,10 @@
-import { cn } from '../../lib/utils';
+import { forwardRef } from 'react'
+import { cn } from '../../lib/utils'
 
-export function Textarea({ className, ...props }) {
-  return (
-    <textarea
-      className={cn(
-        'w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground outline-none placeholder:text-muted focus:ring-1 focus:ring-secondary/30',
-        className
-      )}
-      {...props}
-    />
-  );
-}
+export const Textarea = forwardRef(function Textarea({ className, ...props }, ref) {
+  return <textarea ref={ref} className={cn(
+    'w-full rounded-md border border-control-border bg-canvas px-3 py-2 text-small text-text placeholder:text-text-muted focus-visible:border-focus-ring disabled:cursor-not-allowed disabled:opacity-50',
+    className
+  )} {...props} />
+})
 

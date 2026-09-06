@@ -9,6 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/dm-sans": "^5.3.0",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource/atkinson-hyperlegible": "^5.3.0",
+    "@fontsource/source-sans-3": "^5.3.0",
     "@lexical/react": "^0.35.0",
     "@mdxeditor/editor": "^3.55.0",
     "axios": "^1.6.2",

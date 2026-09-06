@@ -5,6 +5,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import TodoistTaskModal, { paperHasTodoistTask } from '../components/TodoistTaskModal'
 import CollectionAssignModal from '../components/CollectionAssignModal'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { Modal, ModalContent, ModalFooter, ModalHeader } from '../components/ui/modal'
+import { Textarea } from '../components/ui/textarea'
 import { captureAction, captureAppError, captureTiming, elapsedSince, startTimer } from '../lib/instrumentation'
 
 function getStatusColor(status) {
@@ -859,29 +863,31 @@ export default function SearchWorkbench({
   })
 
   return (
-    <div className="rx-workbench" style={{ height:'100vh', display:'flex', flexDirection:'column', padding:'11px', gap:'7px' }}>
+    <div className="rx-workbench">
 
       {/* ── Pagination bar — centered, bigger squares ──────────── */}
       {/* ── Board ──────────────────────────────────────────────── */}
-      <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns: actionsOpen ? 'minmax(0,.8fr) minmax(0,1.3fr) minmax(0,.58fr)' : 'minmax(0,.8fr) minmax(0,1.3fr)', gap:'8px' }}>
+      <div className="rx-workbench-board" data-actions-open={actionsOpen}>
 
         {/* Stack - library search lives inside here now */}
         <section ref={stackPaneRef} style={paneBase(focusPanel === 'stack')}>
           {/* Search input as the pane header */}
-          <div style={{ flexShrink:0, display:'flex', alignItems:'center', gap:'8px', padding:'14px 12px', borderBottom:'1px solid var(--border)' }}>
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Your Library..."
-              style={{ flex:1, minWidth:0, background:'transparent', border:0, outline:0, color:'var(--foreground)', fontFamily:'var(--font-sans)', fontSize:'.92rem', fontWeight:500 }}
-            />
-            <div style={{ display:'flex', alignItems:'center', gap:'6px', flexShrink:0, borderLeft:'1px solid var(--border)', paddingLeft:'8px' }}>
-              <span style={{ fontSize:'.76rem', color:'var(--muted)', whiteSpace:'nowrap', fontFamily:'var(--font-mono)' }}>{totalLabel}</span>
+          <div className="flex shrink-0 items-center gap-2 border-b border-divider px-3 py-3.5">
+            <div className="rx-library-search min-w-0 flex-1">
+              <input
+                ref={inputRef}
+                className="readxiv-focus-delegated w-full min-w-0 border-0 bg-transparent font-ui text-medium font-medium text-text"
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Your Library..."
+              />
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5 border-l border-divider pl-2">
+              <span className="whitespace-nowrap font-code text-small text-text-muted">{totalLabel}</span>
             </div>
           </div>
-          {collectionFilter && <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px', padding:'8px 12px', borderBottom:'1px solid var(--border)', background:'color-mix(in srgb, var(--secondary) 7%, transparent)' }}><span style={{ fontFamily:'var(--font-mono)', fontSize:'.72rem', color:'var(--secondary)' }}>collection: {collectionFilter.name}</span><button type="button" onClick={onClearCollectionFilter} style={{ fontSize:'.72rem', color:'var(--muted)' }}>Clear</button></div>}
+          {collectionFilter && <div className="flex items-center justify-between gap-2 border-b border-divider bg-[color-mix(in_srgb,var(--accent)_7%,transparent)] px-3 py-2"><span className="font-code text-very-small text-accent">collection: {collectionFilter.name}</span><Button variant="ghost" size="link" onClick={onClearCollectionFilter}>Clear</Button></div>}
 
           <div ref={listRef} style={{ flex:1, overflowY:'auto', padding:'6px' }}>
             {loading ? (
@@ -949,65 +955,55 @@ export default function SearchWorkbench({
           <div style={{ position:'absolute', inset:0, pointerEvents:'none', background:'linear-gradient(180deg, color-mix(in srgb, var(--foreground) 1.5%, transparent), transparent 42%)', zIndex:0 }} />
           <div ref={dosBodyRef} style={{ flex:1, overflowY:'auto', padding:'28px 22px 16px', display:'flex', flexDirection:'column', gap:'11px', position:'relative', zIndex:1 }}>
             {!selectedPaper ? (
-              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', textAlign:'center', fontFamily:'var(--font-mono)', fontSize:'.78rem' }}>
+              <div className="flex flex-1 items-center justify-center text-center font-code text-small text-text-muted">
                 Select a paper from the results.
               </div>
             ) : (
               <>
-                <h2 style={{ fontSize:'clamp(1.25rem, 1.7vw, 1.72rem)', fontWeight:500, lineHeight:1.18, letterSpacing:'0', margin:0, paddingBottom:'14px', borderBottom:'1px solid var(--border)', color:'var(--foreground)', maxWidth:'56rem' }}>
+                <h2 className="rx-dossier-title m-0 max-w-[56rem] border-b border-divider pb-3.5 font-medium leading-[1.18] text-text">
                   {selectedPaper.title || selectedPaper.id}
                 </h2>
 
                 {selectedIsOpenReview ? (
                   <div
                     role="note"
+                    className="text-very-small"
                     style={{
                       border:'1px solid color-mix(in srgb, #f59e0b 46%, var(--border))',
                       background:'color-mix(in srgb, #f59e0b 9%, transparent)',
                       borderRadius:'7px',
                       color:'color-mix(in srgb, #fbbf24 82%, var(--foreground))',
-                      fontSize:'.78rem',
                       lineHeight:1.55,
                       padding:'9px 11px',
                     }}
                   >
-                    <strong style={{ letterSpacing:'.07em', fontSize:'.68rem' }}>WARNING</strong>
+                    <strong className="text-very-small tracking-[0.07em]">WARNING</strong>
                     <span style={{ display:'block', marginTop:'3px' }}>
-                      OpenReview papers cannot be opened in ReadXiv yet. Press <kbd style={{ fontFamily:'var(--font-mono)', fontSize:'.72rem' }}>Enter</kbd> to open this paper in your browser.
+                      OpenReview papers cannot be opened in ReadXiv yet. Press <kbd className="font-code text-very-small">Enter</kbd> to open this paper in your browser.
                     </span>
                   </div>
                 ) : null}
 
                 {selectedNeedsMetadata ? (
-                  <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-                    <button
-                      type="button"
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="small"
                       onClick={() => handleFetchMetadata(selectedPaper)}
                       disabled={selectedMetadataFetching}
-                      className="hover:bg-foreground/[0.05] hover:border-border disabled:opacity-50 transition-colors"
-                      style={{
-                        border:'1px solid var(--border)',
-                        borderRadius:'7px',
-                        background:'transparent',
-                        color:'var(--foreground)',
-                        fontSize:'.76rem',
-                        fontWeight:600,
-                        padding:'6px 10px',
-                        cursor:'pointer',
-                      }}
                     >
                       {selectedMetadataFetching ? 'Fetching...' : 'Metadata Missing'}
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
 
                 {/* chips — bigger and bolder */}
                 {/* authors */}
                 {/* abstract */}
-                <div style={{ fontSize:'.72rem', fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase', color:'color-mix(in srgb, var(--muted) 90%, var(--foreground))' }}>
+                <div className="text-very-small font-bold uppercase tracking-[0.08em] text-text-muted">
                   Abstract
                 </div>
-                <p style={{ flex:1, fontSize:'1rem', lineHeight:1.72, color:'color-mix(in srgb, var(--foreground) 86%, transparent)', margin:0, overflowY:'auto', paddingRight:'4px' }}>
+                <p className="m-0 flex-1 overflow-y-auto pr-1 text-medium leading-[1.72] text-text">
                   {selectedPaper.abstract || 'No abstract available.'}
                 </p>
               </>
@@ -1018,7 +1014,7 @@ export default function SearchWorkbench({
         {/* Actions rail */}
         {actionsOpen && (
           <aside className="animate-actions-in" style={paneBase(focusPanel === 'actions')}>
-            <div style={{ flexShrink:0, padding:'14px 20px 8px', color:'color-mix(in srgb, var(--muted) 90%, var(--foreground))', fontSize:'.72rem', fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase' }}>
+            <div className="shrink-0 px-5 pb-2 pt-3.5 text-very-small font-bold uppercase tracking-[0.08em] text-text-muted">
               Toolbar
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'6px', display:'flex', flexDirection:'column', gap:'1px' }}>
@@ -1048,43 +1044,38 @@ export default function SearchWorkbench({
                   type="button"
                   onClick={act.onClick}
                   disabled={!selectedPaper || act.disabled}
-                  style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', padding:'9px 10px', borderRadius:'7px', border:'1px solid transparent', width:'100%', textAlign:'left', background:'transparent', cursor:'pointer' }}
                   className={act.danger
-                    ? 'hover:bg-red-500/[0.07] hover:border-red-500/25 disabled:opacity-40 transition-colors'
-                    : 'hover:bg-foreground/[0.05] hover:border-border disabled:opacity-40 transition-colors'
+                    ? 'flex w-full items-center justify-between gap-2.5 rounded-[7px] border border-transparent bg-transparent px-2.5 py-2 text-left transition-colors hover:border-red-500/25 hover:bg-red-500/[0.07] disabled:opacity-40'
+                    : 'flex w-full items-center justify-between gap-2.5 rounded-[7px] border border-transparent bg-transparent px-2.5 py-2 text-left transition-colors hover:border-divider hover:bg-foreground/[0.05] disabled:opacity-40'
                   }
                 >
                   <div>
-                    <div style={{ fontSize:'.83rem', fontWeight:500, color: act.danger ? 'color-mix(in srgb, #e05252 90%, transparent)' : 'var(--foreground)' }}>{act.busyLabel && act.disabled ? act.busyLabel : act.name}</div>
-                    {act.sub && <div style={{ fontSize:'.7rem', color:'var(--muted)', marginTop:'2px' }}>{act.sub}</div>}
+                    <div className="rx-action-name font-medium" style={{ color: act.danger ? 'var(--danger)' : 'var(--text)' }}>{act.busyLabel && act.disabled ? act.busyLabel : act.name}</div>
+                    {act.sub && <div className="mt-0.5 text-very-small text-text-muted">{act.sub}</div>}
                   </div>
                   {act.key ? (
-                    <span style={{ fontFamily:'var(--font-mono)', fontSize:'.67rem', color:'var(--muted)', whiteSpace:'nowrap', flexShrink:0, border:'1px solid var(--border)', borderRadius:'4px', padding:'2px 6px' }}>{act.key}</span>
+                    <span className="shrink-0 whitespace-nowrap rounded border border-divider px-1.5 py-0.5 font-code text-very-small text-text-muted">{act.key}</span>
                   ) : null}
                 </button>
               ))}
-              <div style={{ margin:'12px 10px 4px', borderTop:'1px solid var(--border)', paddingTop:'12px' }}>
-                <div style={{ color:'color-mix(in srgb, var(--muted) 90%, var(--foreground))', fontSize:'.68rem', fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'8px' }}>
+              <div className="mx-2.5 mb-1 mt-3 border-t border-divider pt-3">
+                <div className="mb-2 text-very-small font-bold uppercase tracking-[0.08em] text-text-muted">
                   Details
                 </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                <div className="flex flex-col gap-2">
                   {selectedDetails.map((item) => (
-                    <div key={item.label} style={{ display:'grid', gridTemplateColumns:'76px minmax(0,1fr)', gap:'10px', alignItems:'baseline' }}>
-                      <div style={{ color:'var(--muted)', fontSize:'.68rem', fontFamily:'var(--font-mono)' }}>
+                    <div key={item.label} className="grid grid-cols-[76px_minmax(0,1fr)] items-baseline gap-2.5">
+                      <div className="font-code text-very-small text-text-muted">
                         {item.label}
                       </div>
-                      <div style={{
-                        color:'color-mix(in srgb, var(--foreground) 88%, transparent)',
-                        fontSize:'.76rem',
-                        fontFamily:'var(--font-mono)',
-                        minWidth:0,
+                      <div className="min-w-0 font-code text-very-small text-text" style={{
                         overflow:'hidden',
                         textOverflow: item.multiline ? 'clip' : 'ellipsis',
                         whiteSpace: item.multiline ? 'normal' : 'nowrap',
                         lineHeight: item.multiline ? 1.45 : undefined,
                       }}>
                         {item.status ? (
-                          <span className="rx-status-mark" data-status={item.status} style={{ fontSize:'.68rem' }}>
+                          <span className="rx-status-mark" data-status={item.status}>
                             <span className="rx-status-dot" />
                             <span>{item.value}</span>
                           </span>
@@ -1102,7 +1093,7 @@ export default function SearchWorkbench({
       {totalPages > 1 && (
         <div
           ref={pageBarRef}
-          style={{ flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', gap:'4px', overflowX:'auto', scrollbarWidth:'none', padding:'2px 0' }}
+          className="flex shrink-0 items-center justify-center gap-1 overflow-x-auto py-0.5 [scrollbar-width:none]"
         >
           {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
             const active = page === currentPage
@@ -1116,19 +1107,16 @@ export default function SearchWorkbench({
                   flexShrink: 0,
                   width: '34px', height: '34px',
                   borderRadius: '8px',
-                  border: `1px solid ${active ? 'var(--secondary)' : 'var(--border)'}`,
-                  background: active
-                    ? 'var(--secondary)'
-                    : 'color-mix(in srgb, var(--foreground) 5%, transparent)',
-                  color: active ? 'var(--button-on-secondary)' : 'var(--muted)',
-                  fontSize: '.68rem',
+                  border: `1px solid ${active ? 'var(--control-border)' : 'var(--border)'}`,
+                  background: active ? 'var(--surface-2)' : 'transparent',
+                  color: active ? 'var(--foreground)' : 'var(--muted)',
                   fontWeight: active ? 700 : 400,
                   cursor: 'pointer',
                   transition: 'all .12s ease',
                   display: 'grid',
                   placeItems: 'center',
                 }}
-                className={active ? '' : 'hover:border-secondary/40 hover:text-foreground hover:bg-foreground/[0.07]'}
+                className={`text-very-small ${active ? '' : 'hover:border-secondary/40 hover:text-foreground hover:bg-foreground/[0.07]'}`}
               >
                 {page}
               </button>
@@ -1154,74 +1142,68 @@ export default function SearchWorkbench({
       )}
       {collectionModalPaper && <CollectionAssignModal paper={collectionModalPaper} onClose={() => setCollectionModalPaper(null)} onChanged={() => loadCollections().catch(() => {})} addToast={addToast} />}
       {metadataEditPaper && (
-        <div
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4"
-          onClick={() => !metadataSaving && setMetadataEditPaper(null)}
-        >
-          <form
+          <Modal
+            as="form"
+            open
+            onClose={() => !metadataSaving && setMetadataEditPaper(null)}
             onSubmit={handleSaveMetadata}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl rounded-lg border border-border bg-surface shadow-2xl"
+            className="max-w-2xl"
+            aria-labelledby="edit-paper-details-title"
           >
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-muted">Edit Paper Details</div>
-              <button
-                type="button"
+            <ModalHeader className="flex items-center justify-between">
+              <h2 id="edit-paper-details-title" className="text-small font-semibold text-text">Edit paper details</h2>
+              <Button
+                variant="ghost"
+                size="small"
                 onClick={() => setMetadataEditPaper(null)}
                 disabled={metadataSaving}
-                className="text-sm text-muted hover:text-foreground disabled:opacity-50"
               >
                 Close
-              </button>
-            </div>
-            <div className="space-y-4 p-4">
+              </Button>
+            </ModalHeader>
+            <ModalContent className="space-y-4">
               <label className="block">
-                <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted">Title</span>
-                <input
+                <span className="mb-1 block text-very-small font-medium uppercase tracking-wider text-muted">Title</span>
+                <Input
                   value={metadataDraft.title}
                   onChange={(e) => setMetadataDraft((prev) => ({ ...prev, title: e.target.value }))}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-secondary"
                   autoFocus
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted">Authors</span>
-                <input
+                <span className="mb-1 block text-very-small font-medium uppercase tracking-wider text-muted">Authors</span>
+                <Input
                   value={metadataDraft.authors}
                   onChange={(e) => setMetadataDraft((prev) => ({ ...prev, authors: e.target.value }))}
                   placeholder="Comma-separated names"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-secondary"
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted">Abstract</span>
-                <textarea
+                <span className="mb-1 block text-very-small font-medium uppercase tracking-wider text-muted">Abstract</span>
+                <Textarea
                   value={metadataDraft.abstract}
                   onChange={(e) => setMetadataDraft((prev) => ({ ...prev, abstract: e.target.value }))}
                   rows={9}
-                  className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm leading-6 text-foreground outline-none focus:border-secondary"
+                  className="resize-y"
                 />
               </label>
-            </div>
-            <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
-              <button
-                type="button"
+            </ModalContent>
+            <ModalFooter>
+              <Button
+                variant="secondary"
                 onClick={() => setMetadataEditPaper(null)}
                 disabled={metadataSaving}
-                className="rounded-md border border-border px-3 py-2 text-sm text-muted hover:text-foreground disabled:opacity-50"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
                 disabled={metadataSaving}
-                className="rounded-md bg-secondary px-3 py-2 text-sm font-medium text-button-on-secondary disabled:opacity-50"
               >
                 {metadataSaving ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </form>
-        </div>
+              </Button>
+            </ModalFooter>
+          </Modal>
       )}
     </div>
   )

@@ -1,10 +1,16 @@
 import { cn } from '../../lib/utils';
 
-export function Card({ className, ...props }) {
+const variants = {
+  default: 'rounded-lg border-2 border-divider',
+  error: 'rounded-xl border border-divider shadow-elevation-1',
+}
+
+export function Card({ className, variant = 'default', ...props }) {
   return (
     <div
       className={cn(
-        'rounded-xl border border-border bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.5)]',
+        'bg-surface-1',
+        variants[variant],
         className
       )}
       {...props}
@@ -13,7 +19,7 @@ export function Card({ className, ...props }) {
 }
 
 export function CardHeader({ className, ...props }) {
-  return <div className={cn('px-4 py-3 border-b border-border', className)} {...props} />;
+  return <div className={cn('border-b border-divider px-4 py-3', className)} {...props} />;
 }
 
 export function CardContent({ className, ...props }) {

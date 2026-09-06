@@ -45,18 +45,18 @@ export default class InstrumentationErrorBoundary extends React.Component {
       return (
         <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-8">
           <div className="max-w-xl rounded-lg border border-border bg-surface p-6">
-            <h1 className="text-lg font-semibold mb-2">ReadXiv hit a render error</h1>
-            <p className="text-sm text-muted mb-4">
+            <h1 className="text-large font-semibold mb-2">ReadXiv hit a render error</h1>
+            <p className="text-small text-muted mb-4">
               The error was logged locally. Reload the page to try again.
             </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="mb-4 rounded border border-border bg-background px-3 py-2 text-sm text-foreground"
+              className="mb-4 rounded border border-border bg-background px-3 py-2 text-small text-foreground"
             >
               Reload ReadXiv
             </button>
-            <pre className="max-h-48 overflow-auto rounded bg-background p-3 text-xs text-red-300">
+            <pre className="max-h-48 overflow-auto rounded bg-background p-3 text-very-small text-red-300">
               {this.state.error?.message || String(this.state.error)}
             </pre>
           </div>

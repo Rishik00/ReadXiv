@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import LatexText from '../components/LatexText'
 import EditorialLanding from '../components/EditorialLanding'
+import { Button } from '../components/ui/button'
+import { Modal, ModalContent, ModalFooter, ModalHeader } from '../components/ui/modal'
 import { captureAction, captureAppError, captureTiming, elapsedSince, startTimer } from '../lib/instrumentation'
 
 function isArxivInput(val) {
@@ -795,46 +797,21 @@ export default function Home({
   }
 
   return (
-    <div className="home-container" style={{
-      height: '100dvh',
-      boxSizing: 'border-box',
-      display: 'flex',
-      flexDirection: 'column',
-      position: 'relative',
-      overflow: 'hidden',
-      padding: '2rem',
-      background: 'var(--background)'
-    }}>
+    <div className="home-container relative flex h-[100dvh] flex-col overflow-hidden bg-background p-8 [box-sizing:border-box]">
       <div className="home-gradient-layer" />
       <div className="home-grain" />
       {deskView === 'stats' ? (
-        <div style={{ flex: 1 }} aria-hidden="true" />
+        <div className="flex-1" aria-hidden="true" />
       ) : (
         <div
-          className={`greeting home-greeting-animated ${isFocused ? 'fade' : ''}`}
+          className={`greeting home-greeting-animated relative z-[2] flex flex-1 items-center justify-center transition-[opacity,transform] duration-[600ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${isFocused ? 'fade' : ''}`}
           style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
             opacity: isFocused ? 0 : 1,
             transform: isFocused ? 'scale(0.95)' : 'scale(1)',
             pointerEvents: isFocused ? 'none' : 'auto',
-            position: 'relative',
-            zIndex: 2
           }}
         >
-          <h1 style={{
-            fontSize: '4.5rem',
-            fontWeight: 400,
-            fontFamily: 'var(--font-sans)',
-            textAlign: 'center',
-            width: 'min(24ch, 100%)',
-            lineHeight: 1.05,
-            margin: 0,
-            color: 'var(--foreground)'
-          }}>
+          <h1 className="home-greeting-title m-0 w-[min(24ch,100%)] text-center font-ui font-normal text-text">
             {greeting}
           </h1>
         </div>
@@ -857,22 +834,21 @@ export default function Home({
 
       {isFocused && <div className="home-command-backdrop" aria-hidden="true" />}
 
-      <div style={{ flex: 0.12 }} aria-hidden="true" />
+      <div className="flex-[0.12]" aria-hidden="true" />
 
       <div
-        className={`command-area home-bar-animated ${isFocused ? 'focused' : ''}`}
+        className={`command-area home-bar-animated relative z-[4] h-14 w-[min(720px,100%)] self-center transition-[transform,margin-bottom] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isFocused ? 'focused' : ''}`}
         style={{
-          position: 'relative',
-          zIndex: 4,
-          width: 'min(760px, 100%)',
-          alignSelf: 'center',
-          transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), margin-bottom 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
           transform: isFocused ? 'translateY(-6px)' : 'translateY(0)',
-          height: '66px',
           marginBottom: isFocused ? '0.75rem' : '2rem'
         }}
       >
-        {collectionContext && <div className="mb-3 flex items-center justify-between rounded-md border px-3 py-2 text-sm" style={{ borderColor: collectionContext.color || 'var(--secondary)', background: 'color-mix(in srgb, var(--surface) 88%, transparent)' }}><span>Adding papers to <strong>{collectionContext.name}</strong></span><button type="button" onClick={onClearCollectionContext} className="font-mono text-xs text-muted hover:text-foreground">Clear</button></div>}
+        {collectionContext && (
+          <div className="mb-3 flex items-center justify-between rounded-md border bg-[color-mix(in_srgb,var(--surface-1)_90%,transparent)] px-3 py-2 text-small" style={{ borderColor: collectionContext.color || 'var(--secondary)' }}>
+            <span>Adding papers to <strong>{collectionContext.name}</strong></span>
+            <Button variant="ghost" size="link" onClick={onClearCollectionContext}>Clear</Button>
+          </div>
+        )}
         {liveQuery && (
           <div className="home-editorial-search-results" role="listbox" aria-label="Library results">
             <span className="home-memory-label">Library results</span>
@@ -893,17 +869,8 @@ export default function Home({
             )) : <span className="home-editorial-no-results">No matching papers</span>}
           </div>
         )}
-        <form onSubmit={handleSubmit} style={{ position: 'relative', height: '100%' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            height: '100%',
-            background: 'color-mix(in srgb, var(--surface) 82%, transparent)',
-            border: '1px solid var(--border)',
-            borderRadius: '10px',
-            padding: '0 1.5rem',
-            backdropFilter: 'blur(20px)',
+        <form onSubmit={handleSubmit} className="relative h-full">
+          <div className="flex h-full items-center gap-3 rounded-lg border border-divider bg-[color-mix(in_srgb,var(--surface-1)_80%,transparent)] px-5 backdrop-blur-xl" style={{
             transform: isFocused ? 'translateY(-1px)' : 'translateY(0)',
             boxShadow: isFocused
               ? '0 0 0 1px color-mix(in srgb, var(--secondary) 72%, transparent), 0 22px 54px rgba(0, 0, 0, 0.24)'
@@ -911,21 +878,13 @@ export default function Home({
             transition: 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1), background 0.45s cubic-bezier(0.16, 1, 0.3, 1)'
           }}>
             {modeTag && (
-              <span style={{
-                backgroundColor: 'var(--secondary)',
-                color: 'var(--button-on-secondary)',
-                padding: '0.25rem 0.5rem',
-                borderRadius: '4px',
-                fontSize: '0.75rem',
-                fontFamily: 'var(--font-mono)',
-                fontWeight: 600,
-                letterSpacing: '0.02em'
-              }}>
+              <span className="rounded bg-accent px-2 py-1 font-code text-very-small font-semibold tracking-[0.02em] text-on-accent">
                 {modeTag}
               </span>
             )}
             <input
               ref={inputRef}
+              className="readxiv-focus-delegated min-w-0 flex-1 border-0 bg-transparent p-0 font-code text-medium text-text"
               type="text"
               value={inputValue}
               onChange={inputOnChange}
@@ -992,16 +951,6 @@ export default function Home({
               }}
               placeholder={inputPlaceholder}
               disabled={loading}
-              style={{
-                flex: 1,
-                backgroundColor: 'transparent',
-                border: 'none',
-                outline: 'none',
-                fontSize: '1.06rem',
-                fontFamily: 'var(--font-mono)',
-                color: 'var(--foreground)',
-                padding: 0
-              }}
             />
           </div>
         </form>
@@ -1009,29 +958,12 @@ export default function Home({
         {showSlashMenu && (
           <div
             ref={slashMenuRef}
-            className="commands-panel slash-command-menu"
-            style={{
-              position: 'absolute',
-              bottom: '100%',
-              left: 0,
-              marginBottom: '0.5rem',
-              width: '100%',
-              maxWidth: '320px',
-              background: 'color-mix(in srgb, var(--surface) 72%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--secondary) 18%, var(--border))',
-              borderRadius: '10px',
-              padding: '0.35rem',
-              boxShadow: '0 18px 52px -16px rgba(0,0,0,0.58)',
-              backdropFilter: 'blur(20px)',
-              zIndex: 30,
-              maxHeight: 'min(320px, 50vh)',
-              overflowY: 'auto',
-            }}
+            className="commands-panel slash-command-menu absolute bottom-full left-0 z-30 mb-2 max-h-[min(280px,45vh)] w-full max-w-[280px] overflow-y-auto rounded-lg border border-divider bg-[color-mix(in_srgb,var(--surface-1)_96%,transparent)] p-1 shadow-elevation-2 backdrop-blur-xl"
             role="listbox"
             aria-label="Commands"
           >
             {filteredSlashCommands.length === 0 ? (
-              <div className="px-3 py-2.5 text-sm text-muted">No matching commands</div>
+              <div className="px-3 py-2.5 text-small text-muted">No matching commands</div>
             ) : (
               filteredSlashCommands.map((cmd, i) => (
                 <button
@@ -1043,15 +975,15 @@ export default function Home({
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => applySlashCommand(cmd)}
                   onMouseEnter={() => setSlashSelectedIndex(i)}
-                  className="w-full text-left rounded-md px-2.5 py-2 transition-colors animate-stagger-fade"
+                  className="w-full rounded px-2.5 py-1.5 text-left transition-colors animate-stagger-fade"
                   style={{
                     animationDelay: `${Math.min(i, 7) * 30}ms`,
                     ...(i === slashSelectedIndex
-                      ? { background: 'var(--secondary)', color: 'var(--button-on-secondary)' }
+                      ? { background: 'var(--surface-2)', color: 'var(--foreground)', boxShadow: 'inset 2px 0 0 var(--accent)' }
                       : {}),
                   }}
                 >
-                  <div className="text-sm font-medium leading-tight">{cmd.label}</div>
+                  <div className="text-small font-medium leading-tight">{cmd.label}</div>
                 </button>
               ))
             )}
@@ -1061,49 +993,15 @@ export default function Home({
 
       {currentMode === 'preview' && previewData && isFocused && (
         <div
-          className="preview-modal"
+          className="preview-modal fixed left-1/2 top-1/2 z-20 max-h-[75vh] w-3/4 max-w-[720px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-divider bg-[color-mix(in_srgb,var(--surface-1)_78%,transparent)] px-12 py-11 shadow-elevation-3 backdrop-blur-xl"
           style={{
-            position: 'fixed',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '75%',
-            maxWidth: '720px',
-            maxHeight: '75vh',
-            background: 'color-mix(in srgb, var(--surface) 78%, transparent)',
-            border: '1px solid color-mix(in srgb, var(--secondary) 16%, var(--border))',
-            borderRadius: '16px',
-            padding: '2.75rem 3rem',
-            overflowY: 'auto',
-            backdropFilter: 'blur(22px)',
-            boxShadow: '0 30px 70px -18px rgba(0, 0, 0, 0.56)',
             animation: 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
-            zIndex: 20
           }}
         >
-          <div style={{
-            fontSize: '1.875rem',
-            fontWeight: 600,
-            fontFamily: 'var(--font-sans)',
-            color: 'var(--foreground)',
-            lineHeight: 1.35,
-            letterSpacing: '-0.02em',
-            marginBottom: '1.5rem',
-            paddingBottom: '1.25rem',
-            borderBottom: '2px solid var(--border)'
-          }}>
+          <div className="mb-6 border-b-2 border-divider pb-5 font-ui text-extra-large font-semibold tracking-[-0.02em] text-text">
             <LatexText text={previewData.title} />
           </div>
-          <div
-            className="preview-abstract"
-            style={{
-              fontSize: '1rem',
-              lineHeight: 1.8,
-              color: 'var(--foreground)',
-              fontFamily: 'var(--font-sans)',
-              opacity: 0.92
-            }}
-          >
+          <div className="preview-abstract font-ui text-medium leading-[1.8] text-text opacity-90">
             <LatexText
               text={previewData.abstract || 'No abstract available.'}
               style={{ fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 'inherit' }}
@@ -1119,35 +1017,18 @@ export default function Home({
         multiple
         className="hidden"
         onChange={handlePdfUpload}
-        style={{ display: 'none' }}
       />
 
       {batchImport && (
-        <section
-          aria-live="polite"
-          style={{
-            position: 'fixed',
-            right: '1.25rem',
-            bottom: '1.25rem',
-            zIndex: 1000,
-            width: 'min(31rem, calc(100vw - 2.5rem))',
-            maxHeight: 'min(28rem, calc(100vh - 2.5rem))',
-            overflow: 'auto',
-            padding: '1rem',
-            border: '1px solid var(--border)',
-            borderRadius: '10px',
-            background: 'var(--surface)',
-            boxShadow: '0 18px 54px rgba(0, 0, 0, .4)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '.7rem' }}>
-            <strong style={{ fontSize: '.85rem' }}>Importing papers</strong>
-            <button type="button" onClick={() => setBatchImport(null)} style={{ color: 'var(--muted)', fontSize: '.75rem' }}>Dismiss</button>
+        <section aria-live="polite" className="fixed bottom-5 right-5 z-[1000] max-h-[min(28rem,calc(100vh-2.5rem))] w-[min(31rem,calc(100vw-2.5rem))] overflow-auto rounded-[10px] border border-divider bg-surface-1 p-4 shadow-elevation-3">
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <strong className="text-small">Importing papers</strong>
+            <Button variant="ghost" size="link" onClick={() => setBatchImport(null)}>Dismiss</Button>
           </div>
-          <div style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontSize: '.72rem', marginBottom: '.7rem' }}>
+          <div className="mb-3 font-code text-very-small text-text-muted">
             {batchImport.completed} / {batchImport.total} processed
           </div>
-          <div style={{ display: 'grid', gap: '.38rem' }}>
+          <div className="grid gap-1.5">
             {batchImport.entries.map((entry, index) => {
               const label = entry.title || entry.query
               const detail = entry.status === 'success' ? 'Added'
@@ -1157,9 +1038,9 @@ export default function Home({
               const color = entry.status === 'failed' ? '#f87171'
                 : entry.status === 'success' || entry.status === 'duplicate' ? '#4ade80' : 'var(--muted)'
               return (
-                <div key={`${entry.query}-${index}`} style={{ padding: '.55rem .65rem', border: '1px solid var(--border)', borderRadius: '6px' }}>
-                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '.78rem' }}>{label}</div>
-                  <div style={{ color, fontFamily: 'var(--font-mono)', fontSize: '.67rem', marginTop: '.18rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detail}</div>
+                <div key={`${entry.query}-${index}`} className="rounded-md border border-divider px-2.5 py-2">
+                  <div className="truncate text-small">{label}</div>
+                  <div className="mt-0.5 truncate font-code text-very-small" style={{ color }}>{detail}</div>
                 </div>
               )
             })}
@@ -1168,54 +1049,16 @@ export default function Home({
       )}
 
       {error && (
-        <div style={{
-          position: 'fixed',
-          top: '2rem',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          border: '1px solid rgba(239, 68, 68, 0.2)',
-          borderRadius: '8px',
-          padding: '0.75rem 1.5rem',
-          color: '#ef4444',
-          fontSize: '0.875rem',
-          zIndex: 1000
-        }}>
+        <div className="fixed left-1/2 top-8 z-[1000] -translate-x-1/2 rounded-lg border border-[color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-6 py-3 text-small text-danger">
           {error}
         </div>
       )}
 
-      {showHowtoModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 50,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            backdropFilter: 'blur(10px)',
-            padding: '1rem'
-          }}
-          onClick={() => setShowHowtoModal(false)}
-        >
-          <div
-            style={{
-              background: 'color-mix(in srgb, var(--surface) 80%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--secondary) 16%, var(--border))',
-              borderRadius: '12px',
-              width: 'min(680px, 100%)',
-              maxHeight: '80vh',
-              overflowY: 'auto',
-              padding: '2rem',
-              backdropFilter: 'blur(22px)',
-              boxShadow: '0 28px 70px -20px rgba(0, 0, 0, 0.58)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>Supported inputs</h2>
-            <div style={{ display: 'grid', gap: '0.75rem', fontSize: '0.95rem', lineHeight: 1.7 }}>
+      <Modal open={showHowtoModal} onClose={() => setShowHowtoModal(false)} className="max-h-[80vh] max-w-[680px] overflow-y-auto backdrop-blur-xl" aria-labelledby="supported-inputs-title">
+          <ModalHeader>
+            <h2 id="supported-inputs-title" className="m-0 text-very-large font-semibold">Supported inputs</h2>
+          </ModalHeader>
+          <ModalContent className="grid gap-3 text-medium leading-relaxed">
               <div><code>/library [query]</code> - open the Library</div>
               <div><code>/search [query]</code> - alias for Library</div>
               <div><code>/add [IDs or links]</code> - paste one or more arXiv IDs, URLs, or PDF links</div>
@@ -1223,17 +1066,11 @@ export default function Home({
               <div><code>/help</code> - open keyboard shortcuts</div>
               <div><code>plain text</code> - search your library</div>
               <div><code>arXiv URL, ID, or HTTPS PDF link</code> - add directly from the command bar</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowHowtoModal(false)}
-              className="mt-6 px-4 py-2 rounded-lg bg-secondary text-[var(--button-on-secondary)]"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+          </ModalContent>
+          <ModalFooter>
+            <Button onClick={() => setShowHowtoModal(false)}>Close</Button>
+          </ModalFooter>
+      </Modal>
     </div>
   )
 }

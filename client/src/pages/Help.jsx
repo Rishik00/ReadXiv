@@ -1,3 +1,5 @@
+import { PageHeader, PageShell } from '../components/ui/page-shell'
+
 export default function Help() {
   const sections = [
     {
@@ -64,14 +66,13 @@ export default function Help() {
   ]
 
   return (
-    <div className="mx-auto max-w-[720px] p-8 font-sans">
-      <h1 className="mb-2 text-3xl font-serif text-foreground">Help</h1>
-      <p className="mb-10 text-sm text-muted">Keyboard shortcuts and commands.</p>
+    <PageShell width="small">
+      <PageHeader title="Help" description="Keyboard shortcuts and commands." />
 
       <div className="space-y-10">
         {sections.map((section) => (
           <div key={section.title}>
-            <h2 className="mb-4 text-sm font-semibold text-foreground uppercase tracking-wider">
+            <h2 className="mb-4 text-small font-semibold text-foreground uppercase tracking-wider">
               {section.title}
             </h2>
             <div className="space-y-2">
@@ -80,10 +81,10 @@ export default function Help() {
                   key={key}
                   className="flex items-baseline gap-4 py-2 border-b border-border/50 last:border-0"
                 >
-                  <kbd className="shrink-0 font-mono text-sm px-2.5 py-1 rounded-md bg-surface border border-border min-w-[160px]">
+                  <kbd className="shrink-0 font-mono text-small px-2.5 py-1 rounded-md bg-surface border border-border min-w-[160px]">
                     {key}
                   </kbd>
-                  <span className="text-sm text-muted">{desc}</span>
+                  <span className="text-small text-muted">{desc}</span>
                 </div>
               ))}
             </div>
@@ -92,19 +93,19 @@ export default function Help() {
       </div>
 
       <div className="mt-10">
-        <h2 className="mb-4 text-sm font-semibold text-foreground uppercase tracking-wider">
+        <h2 className="mb-4 text-small font-semibold text-foreground uppercase tracking-wider">
           Todoist
         </h2>
-        <p className="text-sm text-muted mb-3">
+        <p className="text-small text-muted mb-3">
           In Library, Schedule / Edit schedule opens a short dialog to set due date and priority when adding a paper to Todoist, or to update an existing link.
           Complete tasks in Todoist when you are done. The server calls Todoist for you; your API token never goes to the browser.
         </p>
       </div>
 
-      <p className="mt-12 text-sm text-muted">
+      <p className="mt-12 text-small text-muted">
         From Home, Library, and other pages outside the reader, press{' '}
-        <kbd className="px-1.5 py-0.5 rounded bg-border font-mono text-sm">Space p</kbd> to open Help.
+        <kbd className="px-1.5 py-0.5 rounded bg-border font-mono text-small">Space p</kbd> to open Help.
       </p>
-    </div>
+    </PageShell>
   )
 }

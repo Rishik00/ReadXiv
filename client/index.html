@@ -5,25 +5,30 @@
     <link rel="icon" type="image/svg+xml" href="/readxiv-logo-r-monogram.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ReadXiv</title>
-    
-    <!-- Question: What is this? Is this necessary? Do we need try catch everytime? -->
+    <!-- Apply persisted visual settings before React mounts to avoid a theme/font flash. -->
     <script>
       (function() {
+        var settings = {};
         try {
-          var s = localStorage.getItem('papyrus-settings');
-          if (s) {
-            var p = JSON.parse(s);
-            if (p && p.theme) {
-              var th =
-                p.theme === 'default' || p.theme === 'aurora'
-                  ? 'mist'
-                  : p.theme === 'experimental'
-                    ? 'periwinkle'
-                    : p.theme;
-              document.documentElement.setAttribute('data-theme', th);
-            }
-          }
+          settings = JSON.parse(localStorage.getItem('papyrus-settings') || '{}') || {};
         } catch (e) {}
+
+        var themes = ['monochrome', 'olive', 'umber'];
+        var fonts = ['dm-sans', 'fraunces'];
+        var notesFonts = ['current', 'source-sans-3', 'atkinson-hyperlegible'];
+
+        document.documentElement.setAttribute(
+          'data-theme',
+          themes.indexOf(settings.theme) >= 0 ? settings.theme : 'monochrome'
+        );
+        document.documentElement.setAttribute(
+          'data-font',
+          fonts.indexOf(settings.fontFamily) >= 0 ? settings.fontFamily : 'dm-sans'
+        );
+        document.documentElement.setAttribute(
+          'data-notes-font',
+          notesFonts.indexOf(settings.notesFontFamily) >= 0 ? settings.notesFontFamily : 'current'
+        );
       })();
     </script>
   </head>

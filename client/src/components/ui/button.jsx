@@ -1,36 +1,31 @@
-import { cn } from '../../lib/utils';
+import { forwardRef } from 'react'
+import { cn } from '../../lib/utils'
 
 const variants = {
-  default: 'bg-foreground text-background hover:opacity-90 shadow-md hover:shadow-lg transition-shadow',
-  secondary: 'bg-surface text-foreground border-2 border-border hover:bg-background shadow-md hover:shadow-lg transition-shadow',
-  ghost: 'bg-transparent text-muted hover:bg-surface hover:text-foreground',
-  outline: 'bg-transparent text-foreground border-2 border-border hover:bg-surface shadow-md hover:shadow-lg transition-shadow',
-};
+  primary: 'border border-control-border bg-transparent text-text hover:border-accent',
+  secondary: 'border border-divider bg-transparent text-text hover:border-control-border',
+  secondaryStrong: 'border border-control-border bg-transparent text-text hover:border-accent',
+  ghost: 'bg-transparent text-text-muted hover:bg-surface-1 hover:text-text',
+  destructive: 'bg-transparent text-danger hover:underline',
+}
 
 const sizes = {
-  sm: 'h-8 px-3 text-xs',
-  md: 'h-9 px-4 text-sm',
-  icon: 'h-8 w-8',
-};
-
-export function Button({
-  className,
-  variant = 'default',
-  size = 'md',
-  type = 'button',
-  ...props
-}) {
-  return (
-    <button
-      type={type}
-      className={cn(
-        'inline-flex items-center justify-center rounded-md font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none',
-        variants[variant],
-        sizes[size],
-        className
-      )}
-      {...props}
-    />
-  );
+  small: 'min-h-8 px-3 text-very-small',
+  medium: 'min-h-9 px-4 text-small',
+  large: 'min-h-10 px-5 text-small',
+  link: 'min-h-8 px-0 text-very-small',
+  icon: 'h-9 w-9',
 }
+
+export const Button = forwardRef(function Button(
+  { className, variant = 'primary', size = 'medium', type = 'button', ...props },
+  ref
+) {
+  return <button ref={ref} type={type} className={cn(
+    'inline-flex items-center justify-center rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50',
+    variants[variant],
+    sizes[size],
+    className
+  )} {...props} />
+})
 

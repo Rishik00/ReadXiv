@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
 import axios from 'axios'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Modal, ModalContent } from './ui/modal'
+import { Select } from './ui/select'
 
 export function paperHasTodoistTask(paper) {
   return Boolean(paper?.todoist_task_id && String(paper.todoist_task_id).trim())
@@ -19,14 +23,6 @@ export default function TodoistTaskModal({ paper, onClose, onCreated, getStatusC
   const [loadingDefaults, setLoadingDefaults] = useState(false)
   const [saving, setSaving] = useState(false)
   const isEdit = paperHasTodoistTask(paper)
-
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
 
   useEffect(() => {
     if (!isEdit) {
@@ -86,91 +82,85 @@ export default function TodoistTaskModal({ paper, onClose, onCreated, getStatusC
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-backdrop-in"
-      onClick={onClose}
-    >
-      <div
-        className="bg-surface border-2 border-border rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-modal-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-5 space-y-4">
+    <Modal open onClose={onClose} className="max-w-md overflow-hidden animate-modal-in" scrimClassName="animate-backdrop-in" aria-labelledby="todoist-modal-title">
+        <ModalContent className="space-y-4">
           <div className="flex items-start justify-between gap-4">
-            <h3 className="text-sm font-semibold text-foreground">
+            <h3 id="todoist-modal-title" className="text-small font-semibold text-foreground">
               {isEdit ? 'Edit schedule' : 'Schedule'}
             </h3>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={onClose}
-              className="text-muted hover:text-foreground text-xl leading-none -mt-1"
+              className="-mt-1 text-large leading-none"
               aria-label="Close"
             >
               x
-            </button>
+            </Button>
           </div>
           <div>
-            <div className="text-sm font-medium text-foreground line-clamp-2">{paper.title}</div>
+            <div className="text-small font-medium text-foreground line-clamp-2">{paper.title}</div>
             <div className="flex items-center gap-2 mt-2">
               <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${getStatusColor(paper.status)}`}
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-very-small font-medium border ${getStatusColor(paper.status)}`}
               >
                 {paper.status || 'queued'}
               </span>
-              <span className="text-[11px] text-muted font-mono">{paper.id}</span>
+              <span className="text-very-small text-muted font-mono">{paper.id}</span>
             </div>
           </div>
           {loadingDefaults ? (
-            <p className="text-xs text-muted py-2">Loading task...</p>
+            <p className="text-very-small text-muted py-2">Loading task...</p>
           ) : (
             <>
               <div>
-                <label className="text-[10px] text-muted uppercase block mb-1.5">Due date</label>
-                <input
+                <label className="text-very-small text-muted uppercase block mb-1.5">Due date</label>
+                <Input
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full bg-background border-2 border-border rounded-lg px-3 py-2 text-sm"
+                  variant="strong"
                 />
                 {isEdit && (
-                  <p className="text-[10px] text-muted mt-1">Clear the date and save to remove the due date in Todoist.</p>
+                  <p className="text-very-small text-muted mt-1">Clear the date and save to remove the due date in Todoist.</p>
                 )}
               </div>
               <div>
-                <label className="text-[10px] text-muted uppercase block mb-1.5">Priority</label>
-                <select
+                <label className="text-very-small text-muted uppercase block mb-1.5">Priority</label>
+                <Select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
-                  className="w-full bg-background border-2 border-border rounded-lg px-3 py-2 text-sm"
+                  variant="strong"
+                  className="w-full"
                 >
                   {PRIORITY_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             </>
           )}
           <div className="flex gap-3 pt-1">
-            <button
-              type="button"
+            <Button
+              size="large"
               onClick={handleSave}
               disabled={saving || loadingDefaults}
-              className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg bg-secondary text-[var(--button-on-secondary)] hover:opacity-90 disabled:opacity-50"
+              className="flex-1"
             >
               {saving ? 'Saving...' : isEdit ? 'Update schedule' : 'Add to Todoist'}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="ghost"
+              size="large"
               onClick={onClose}
               disabled={saving}
-              className="px-4 py-2.5 text-sm text-muted hover:text-foreground disabled:opacity-50"
             >
               Cancel
-            </button>
+            </Button>
           </div>
-        </div>
-      </div>
-    </div>
+        </ModalContent>
+    </Modal>
   )
 }

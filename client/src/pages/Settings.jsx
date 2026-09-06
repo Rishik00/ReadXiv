@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
+import { Button } from '../components/ui/button'
+import { Card } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { PageHeader, PageShell } from '../components/ui/page-shell'
+import { Select } from '../components/ui/select'
+import { SettingRow } from '../components/ui/setting-row'
 
 function useBackup() {
   const [status, setStatus] = useState(null)
@@ -223,6 +229,11 @@ export default function Settings({ settings, setSettings, setPage, addToast }) {
     { id: 'olive', name: 'Olive' },
   ]
 
+  const fonts = [
+    { id: 'dm-sans', name: 'DM Sans' },
+    { id: 'fraunces', name: 'Fraunces' },
+  ]
+
   const layouts = [
     { id: 'list', name: 'List View' },
     { id: 'split', name: 'Split View' },
@@ -242,159 +253,146 @@ export default function Settings({ settings, setSettings, setPage, addToast }) {
   ]
 
   return (
-    <div className="mx-auto max-w-[800px] p-12 font-sans">
-      <h1 className="mb-2 text-4xl font-serif text-foreground">Settings</h1>
-      <p className="mb-10 text-sm text-muted">Tune your note-taking experience.</p>
+    <PageShell width="medium">
+      <PageHeader title="Settings" description="Tune your note-taking experience." />
 
-      <div className="claude-card p-8 mb-8">
-        <h2 className="text-lg font-semibold text-foreground mb-1">Backup</h2>
-        <p className="text-sm text-muted mb-6">
-          Saves a copy of <code className="text-xs font-mono px-1 rounded bg-surface border border-border">papyrus.db</code> to{' '}
-          <code className="text-xs font-mono px-1 rounded bg-surface border border-border">~/.papyrus/backups/</code>.
+      <Card className="mb-8 p-8">
+        <h2 className="text-large font-semibold text-foreground mb-1">Backup</h2>
+        <p className="text-small text-muted mb-6">
+          Saves a copy of <code className="text-very-small font-mono px-1 rounded bg-surface border border-border">papyrus.db</code> to{' '}
+          <code className="text-very-small font-mono px-1 rounded bg-surface border border-border">~/.papyrus/backups/</code>.
           Up to 20 backups are kept; oldest are rotated out automatically.
         </p>
 
         <div className="space-y-5">
-          <div className="flex items-center justify-between bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all">
-            <div>
-              <div className="text-sm font-semibold text-foreground">Auto-backup interval</div>
-              <div className="text-sm text-muted mt-1">
+          <SettingRow
+            title="Auto-backup interval"
+            description={
+              <>
                 {backup.status?.lastBackupAt
                   ? `Last backup: ${new Date(backup.status.lastBackupAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
                   : 'No backup yet'}
                 {backup.status?.backupCount > 0 && ` · ${backup.status.backupCount} saved`}
-              </div>
-            </div>
-            <select
+              </>
+            }
+          >
+            <Select
               value={backup.status?.intervalDays ?? 7}
               onChange={(e) => backup.saveInterval(e.target.value)}
-              className="w-40 pl-3 pr-8 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer appearance-none shrink-0"
-              style={{
-                backgroundImage: "url(\"data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='292.4' height='292.4'%3E%3Cpath fill='%23737373' d='M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.5-12.8z'/%3E%3C/svg%3E\")",
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'right 0.5rem top 50%',
-                backgroundSize: '0.5rem auto',
-              }}
+              variant="strong"
+              className="w-40 shrink-0"
             >
               <option value={0}>Never</option>
               <option value={3}>Every 3 days</option>
               <option value={7}>Every week</option>
               <option value={14}>Every 2 weeks</option>
               <option value={30}>Every month</option>
-            </select>
-          </div>
+            </Select>
+          </SettingRow>
 
           <div className="flex gap-3 items-center">
-            <button
-              type="button"
+            <Button
+              size="large"
               onClick={backup.runBackup}
               disabled={backup.loading}
-              className="px-5 py-2.5 text-sm font-medium rounded-lg bg-secondary text-[var(--button-on-secondary)] hover:opacity-90 disabled:opacity-60"
             >
               {backup.loading ? 'Backing up…' : 'Back up now'}
-            </button>
+            </Button>
             {backup.status?.backupCount > 0 && (
-              <span className="text-xs text-muted font-mono">{backup.status.backupsDir}</span>
+              <span className="text-very-small text-muted font-mono">{backup.status.backupsDir}</span>
             )}
           </div>
 
-          {backup.msg && <p className="text-sm text-secondary">{backup.msg}</p>}
-          {backup.err && <p className="text-sm text-red-400">{backup.err}</p>}
+          {backup.msg && <p className="text-small text-secondary">{backup.msg}</p>}
+          {backup.err && <p className="text-small text-red-400">{backup.err}</p>}
         </div>
-      </div>
+      </Card>
 
-      <div className="claude-card p-8 mb-8">
-        <h2 className="text-lg font-semibold text-foreground mb-1">Todoist</h2>
-        <p className="text-sm text-muted mb-6">
+      <Card className="mb-8 p-8">
+        <h2 className="text-large font-semibold text-foreground mb-1">Todoist</h2>
+        <p className="text-small text-muted mb-6">
           Add papers from search as tasks. Your API token is stored only in{' '}
-          <code className="text-xs font-mono px-1 rounded bg-surface border border-border">
+          <code className="text-very-small font-mono px-1 rounded bg-surface border border-border">
             ~/.papyrus/config.json
           </code>{' '}
           on this machine (never in the browser profile). Get a token from Todoist → Settings → Integrations.
         </p>
 
         {todoistMeta?.envOverridesToken && (
-          <div className="mb-4 rounded-lg border border-secondary/40 bg-secondary/10 px-4 py-3 text-sm text-foreground">
+          <div className="mb-4 rounded-lg border border-secondary/40 bg-secondary/10 px-4 py-3 text-small text-foreground">
             <span className="font-semibold">Environment variable active:</span>{' '}
-            <code className="font-mono text-xs">TODOIST_API_TOKEN</code> overrides the saved token. Clear it to use the
+            <code className="font-mono text-very-small">TODOIST_API_TOKEN</code> overrides the saved token. Clear it to use the
             token from this form.
           </div>
         )}
         {todoistMeta?.envOverridesProject && (
-          <div className="mb-4 rounded-lg border border-border bg-foreground/[0.03] px-4 py-3 text-sm text-muted">
-            <code className="font-mono text-xs">TODOIST_PROJECT_ID</code> overrides the saved project for new tasks.
+          <div className="mb-4 rounded-lg border border-border bg-foreground/[0.03] px-4 py-3 text-small text-muted">
+            <code className="font-mono text-very-small">TODOIST_PROJECT_ID</code> overrides the saved project for new tasks.
           </div>
         )}
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted uppercase tracking-wide mb-2">
+            <label className="block text-very-small font-medium text-muted uppercase tracking-wide mb-2">
               API token
             </label>
-            <input
+            <Input
               type="password"
               autoComplete="off"
               value={todoistToken}
               onChange={(e) => setTodoistToken(e.target.value)}
               placeholder={todoistMeta?.hasFileToken ? '•••••••• (saved — type to replace)' : 'Paste token once'}
               disabled={!!todoistMeta?.envOverridesToken}
-              className="w-full max-w-xl bg-background border-2 border-border rounded-lg px-3 py-2.5 text-sm font-mono disabled:opacity-60"
+              variant="strong"
+              className="max-w-xl font-code"
             />
             {todoistMeta?.hasFileToken && !todoistMeta?.envOverridesToken && (
-              <button
-                type="button"
+              <Button
+                variant="destructive"
+                size="link"
                 onClick={removeTodoistToken}
                 disabled={todoistLoading}
-                className="mt-2 text-xs text-red-400 hover:text-red-300 disabled:opacity-60"
+                className="mt-2"
               >
                 Remove saved token
-              </button>
+              </Button>
             )}
           </div>
 
           <div className="flex flex-wrap gap-2 items-center">
-            <button
-              type="button"
+            <Button
+              variant="secondaryStrong"
               onClick={previewProjects}
               disabled={todoistLoading || !!todoistMeta?.envOverridesToken || !todoistToken.trim()}
-              className="px-4 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface hover:border-secondary/50 disabled:opacity-50"
             >
               Fetch projects (token field)
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="secondaryStrong"
               onClick={() => refreshTodoist()}
               disabled={todoistLoading || !todoistMeta?.ready}
-              className="px-4 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface hover:border-secondary/50 disabled:opacity-50"
             >
               Reload project list
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="secondaryStrong"
               onClick={ensureReadxivProject}
               disabled={todoistLoading || !todoistMeta?.ready}
-              className="px-4 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface hover:border-secondary/50 disabled:opacity-50"
               title="Creates a project named “ReadXiv Todoist” if needed"
             >
               Create / use “ReadXiv Todoist”
-            </button>
+            </Button>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted uppercase tracking-wide mb-2">
+            <label className="block text-very-small font-medium text-muted uppercase tracking-wide mb-2">
               Default project for new tasks
             </label>
-            <select
+            <Select
               value={todoistProjectId}
               onChange={(e) => setTodoistProjectId(e.target.value)}
-              className="w-full max-w-xl pl-3 pr-8 py-2.5 text-sm rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer appearance-none"
-              style={{
-                backgroundImage:
-                  'url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'292.4\' height=\'292.4\'%3E%3Cpath fill=\'%23737373\' d=\'M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.5-12.8z\'/%3E%3C/svg%3E")',
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'right 0.5rem top 50%',
-                backgroundSize: '0.5rem auto',
-              }}
+              variant="strongComfortable"
+              className="w-full max-w-xl"
             >
               <option value="">Todoist Inbox</option>
               {todoistProjects.map((p) => (
@@ -402,32 +400,31 @@ export default function Settings({ settings, setSettings, setPage, addToast }) {
                   {p.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button
-              type="button"
+            <Button
+              size="large"
               onClick={saveTodoist}
               disabled={todoistLoading}
-              className="px-5 py-2.5 text-sm font-medium rounded-lg bg-secondary text-[var(--button-on-secondary)] hover:opacity-90 disabled:opacity-60"
             >
               Save Todoist settings
-            </button>
+            </Button>
           </div>
 
-          {todoistMsg && <p className="text-sm text-secondary">{todoistMsg}</p>}
-          {todoistErr && <p className="text-sm text-red-400">{todoistErr}</p>}
+          {todoistMsg && <p className="text-small text-secondary">{todoistMsg}</p>}
+          {todoistErr && <p className="text-small text-red-400">{todoistErr}</p>}
         </div>
-      </div>
+      </Card>
 
-      <div className="claude-card p-8 mb-8">
-        <h2 className="text-lg font-semibold text-foreground mb-1">Semantic Scholar</h2>
-        <p className="text-sm text-muted mb-6">
+      <Card className="mb-8 p-8">
+        <h2 className="text-large font-semibold text-foreground mb-1">Semantic Scholar</h2>
+        <p className="text-small text-muted mb-6">
           Optional API key for the Reader → <span className="text-foreground">References</span> tab (higher rate
           limits on Semantic Scholar&apos;s Graph API). Without a key, references may still load, but can hit limits
           faster. The key is stored only in{' '}
-          <code className="text-xs font-mono px-1 rounded bg-surface border border-border">
+          <code className="text-very-small font-mono px-1 rounded bg-surface border border-border">
             ~/.papyrus/config.json
           </code>{' '}
           on this machine. Request a key from{' '}
@@ -443,183 +440,159 @@ export default function Settings({ settings, setSettings, setPage, addToast }) {
         </p>
 
         {s2Meta?.envOverridesKey && (
-          <div className="mb-4 rounded-lg border border-secondary/40 bg-secondary/10 px-4 py-3 text-sm text-foreground">
+          <div className="mb-4 rounded-lg border border-secondary/40 bg-secondary/10 px-4 py-3 text-small text-foreground">
             <span className="font-semibold">Environment variable active:</span>{' '}
-            <code className="font-mono text-xs">SEMANTIC_SCHOLAR_API_KEY</code> overrides the saved key. Unset it to
+            <code className="font-mono text-very-small">SEMANTIC_SCHOLAR_API_KEY</code> overrides the saved key. Unset it to
             use the key from this form.
           </div>
         )}
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted uppercase tracking-wide mb-2">API key</label>
-            <input
+            <label className="block text-very-small font-medium text-muted uppercase tracking-wide mb-2">API key</label>
+            <Input
               type="password"
               autoComplete="off"
               value={s2ApiKey}
               onChange={(e) => setS2ApiKey(e.target.value)}
               placeholder={s2Meta?.hasFileKey ? '•••••••• (saved — type to replace)' : 'Paste key (optional)'}
               disabled={!!s2Meta?.envOverridesKey}
-              className="w-full max-w-xl bg-background border-2 border-border rounded-lg px-3 py-2.5 text-sm font-mono disabled:opacity-60"
+              variant="strong"
+              className="max-w-xl font-code"
             />
             {s2Meta?.hasFileKey && !s2Meta?.envOverridesKey && (
-              <button
-                type="button"
+              <Button
+                variant="destructive"
+                size="link"
                 onClick={removeSemanticScholarKey}
                 disabled={s2Loading}
-                className="mt-2 text-xs text-red-400 hover:text-red-300 disabled:opacity-60"
+                className="mt-2"
               >
                 Remove saved key
-              </button>
+              </Button>
             )}
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button
-              type="button"
+            <Button
+              size="large"
               onClick={saveSemanticScholar}
               disabled={s2Loading || !!s2Meta?.envOverridesKey || !s2ApiKey.trim()}
-              className="px-5 py-2.5 text-sm font-medium rounded-lg bg-secondary text-[var(--button-on-secondary)] hover:opacity-90 disabled:opacity-60"
             >
               Save Semantic Scholar key
-            </button>
+            </Button>
           </div>
 
-          {s2Msg && <p className="text-sm text-secondary">{s2Msg}</p>}
-          {s2Err && <p className="text-sm text-red-400">{s2Err}</p>}
+          {s2Msg && <p className="text-small text-secondary">{s2Msg}</p>}
+          {s2Err && <p className="text-small text-red-400">{s2Err}</p>}
         </div>
-      </div>
+      </Card>
 
-      <div className="claude-card p-8">
+      <Card className="p-8">
         <div className="space-y-8">
           <div className="space-y-4">
-            <div className="flex items-center justify-between bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all">
-              <div>
-                <div className="text-sm font-semibold text-foreground">Color scheme</div>
-                <div className="text-sm text-muted mt-1">Those who use light mode need help</div>
-              </div>
-              <select
+            <SettingRow title="Color scheme" description="Those who use light mode need help">
+              <Select
                 value={settings.theme || 'monochrome'}
                 onChange={(e) => setSettings((prev) => ({ ...prev, theme: e.target.value }))}
-                className="w-40 pl-3 pr-8 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer appearance-none shrink-0"
-                style={{
-                  backgroundImage:
-                    'url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'292.4\' height=\'292.4\'%3E%3Cpath fill=\'%23737373\' d=\'M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.5-12.8z\'/%3E%3C/svg%3E")',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 0.5rem top 50%',
-                  backgroundSize: '0.5rem auto',
-                }}
+                variant="strong"
+                className="w-40 shrink-0"
               >
                 {themes.map((theme) => (
                   <option key={theme.id} value={theme.id}>
                     {theme.name}
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </SettingRow>
 
-            <div className="flex items-center justify-between gap-6 bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all">
-              <div>
-                <div className="text-sm font-semibold text-foreground">Notes font</div>
-                <div className="text-sm text-muted mt-1">Typeface used while writing and reading notes</div>
-              </div>
-              <select
+            <SettingRow title="Global font" description="Typeface used across the application">
+              <Select
+                aria-label="Global font"
+                value={settings.fontFamily || 'dm-sans'}
+                onChange={(event) => {
+                  setSettings((prev) => ({ ...prev, fontFamily: event.target.value }))
+                  addToast?.('Global font changed', 'success')
+                }}
+                variant="strong"
+                className="w-52 shrink-0"
+              >
+                {fonts.map((font) => (
+                  <option key={font.id} value={font.id}>
+                    {font.name}
+                  </option>
+                ))}
+              </Select>
+            </SettingRow>
+
+            <SettingRow title="Notes font" description="Typeface used while writing and reading notes">
+              <Select
                 aria-label="Notes font"
                 value={settings.notesFontFamily || 'current'}
                 onChange={(event) => {
                   setSettings((prev) => ({ ...prev, notesFontFamily: event.target.value }))
                   addToast?.('font changed', 'success')
                 }}
-                className="w-52 pl-3 pr-8 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer shrink-0"
+                variant="strong"
+                className="w-52 shrink-0"
               >
                 <option value="current">Current (default)</option>
                 <option value="source-sans-3">Source Sans 3</option>
                 <option value="atkinson-hyperlegible">Atkinson Hyperlegible</option>
-              </select>
-            </div>
+              </Select>
+            </SettingRow>
 
-            <div className="flex items-center justify-between bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all">
-              <div>
-                <div className="text-sm font-semibold text-foreground">Home page layout</div>
-                <div className="text-sm text-muted mt-1">Choose how search results are displayed</div>
-              </div>
-              <select
+            <SettingRow title="Home page layout" description="Choose how search results are displayed">
+              <Select
                 value={settings.homeLayout || 'list'}
                 onChange={(e) => setSettings((prev) => ({ ...prev, homeLayout: e.target.value }))}
-                className="w-40 pl-3 pr-8 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer appearance-none shrink-0"
-                style={{
-                  backgroundImage:
-                    'url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'292.4\' height=\'292.4\'%3E%3Cpath fill=\'%23737373\' d=\'M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.5-12.8z\'/%3E%3C/svg%3E")',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 0.5rem top 50%',
-                  backgroundSize: '0.5rem auto',
-                }}
+                variant="strong"
+                className="w-40 shrink-0"
               >
                 {layouts.map((layout) => (
                   <option key={layout.id} value={layout.id}>
                     {layout.name}
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </SettingRow>
 
-            <div className="flex items-center justify-between bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all">
-              <div>
-                <div className="text-sm font-semibold text-foreground">Default PDF zoom</div>
-                <div className="text-sm text-muted mt-1">Controls the initial PDF scale and Ctrl+0 reset</div>
-              </div>
-              <select
+            <SettingRow title="Default PDF zoom" description="Controls the initial PDF scale and Ctrl+0 reset">
+              <Select
                 value={settings.defaultPdfZoom || 'actual'}
                 onChange={(e) => setSettings((prev) => ({ ...prev, defaultPdfZoom: e.target.value }))}
-                className="w-44 pl-3 pr-8 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer appearance-none shrink-0"
-                style={{
-                  backgroundImage:
-                    'url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'292.4\' height=\'292.4\'%3E%3Cpath fill=\'%23737373\' d=\'M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.5-12.8z\'/%3E%3C/svg%3E")',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 0.5rem top 50%',
-                  backgroundSize: '0.5rem auto',
-                }}
+                variant="strong"
+                className="w-44 shrink-0"
               >
                 {pdfZoomOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.name}
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </SettingRow>
 
-            <div className="flex items-center justify-between bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all">
-              <div>
-                <div className="text-sm font-semibold text-foreground">Default reader view</div>
-                <div className="text-sm text-muted mt-1">How each paper opens when you enter the reader</div>
-              </div>
-              <select
+            <SettingRow title="Default reader view" description="How each paper opens when you enter the reader">
+              <Select
                 value={settings.defaultReaderView || 'split'}
                 onChange={(e) => setSettings((prev) => ({ ...prev, defaultReaderView: e.target.value }))}
-                className="w-40 pl-3 pr-8 py-2 text-sm font-medium rounded-lg border-2 border-border bg-surface text-foreground focus:border-secondary/50 focus:outline-none cursor-pointer appearance-none shrink-0"
-                style={{
-                  backgroundImage:
-                    'url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'292.4\' height=\'292.4\'%3E%3Cpath fill=\'%23737373\' d=\'M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.5-12.8z\'/%3E%3C/svg%3E")',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 0.5rem top 50%',
-                  backgroundSize: '0.5rem auto',
-                }}
+                variant="strong"
+                className="w-40 shrink-0"
               >
                 {readerViewOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.name}
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </SettingRow>
 
-            <label className="flex items-center justify-between bg-surface/50 rounded-xl px-6 py-5 border border-border hover:border-secondary/30 transition-all cursor-pointer group">
-              <div>
-                <div className="text-sm font-semibold text-foreground group-hover:text-secondary transition-colors">
-                  Continuous PDF scrolling
-                </div>
-                <div className="text-sm text-muted mt-1">Scroll through pages as one document</div>
-              </div>
+            <SettingRow
+              as="label"
+              title="Continuous PDF scrolling"
+              description="Scroll through pages as one document"
+              className="cursor-pointer"
+            >
               <input
                 type="checkbox"
                 className="w-5 h-5 accent-secondary cursor-pointer"
@@ -628,11 +601,11 @@ export default function Settings({ settings, setSettings, setPage, addToast }) {
                   setSettings((prev) => ({ ...prev, continuousScroll: e.target.checked }))
                 }
               />
-            </label>
+            </SettingRow>
 
           </div>
         </div>
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   )
 }

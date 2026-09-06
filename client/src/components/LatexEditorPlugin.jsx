@@ -43,6 +43,7 @@ function LatexEditor({ node, parentEditor }) {
         <span aria-hidden="true">{display ? '$$' : '$'}</span>
         <Input
           ref={inputRef}
+          className="readxiv-focus-delegated"
           value={value}
           rows={display ? 2 : undefined}
           aria-label={display ? 'Edit display equation' : 'Edit inline equation'}

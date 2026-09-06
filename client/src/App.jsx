@@ -128,9 +128,11 @@ function App() {
   const [externalTabs, setExternalTabs] = useState([])
   const [activeExternalTabId, setActiveExternalTabId] = useState(null)
   const DEFAULT_THEME = 'monochrome'
+  const DEFAULT_FONT = 'dm-sans'
   const DEFAULT_PDF_ZOOM = 'actual'
   const DEFAULT_READER_VIEW = 'split'
   const VALID_THEMES = ['monochrome', 'olive', 'umber']
+  const VALID_FONTS = ['dm-sans', 'fraunces']
   const VALID_PDF_ZOOMS = ['actual', 'page-width', 'page-fit', 'auto']
   const VALID_READER_VIEWS = ['split', 'pdf', 'notes']
   const VALID_NOTES_FONTS = ['current', 'source-sans-3', 'atkinson-hyperlegible']
@@ -143,7 +145,7 @@ function App() {
       return {
         continuousScroll: true,
         theme: DEFAULT_THEME,
-        fontFamily: 'brutalist',
+        fontFamily: DEFAULT_FONT,
         notesFontFamily: 'current',
         homeLayout: 'list',
         defaultPdfZoom: DEFAULT_PDF_ZOOM,
@@ -168,12 +170,15 @@ function App() {
       const notesFontFamily = VALID_NOTES_FONTS.includes(currentSettings.notesFontFamily)
         ? currentSettings.notesFontFamily
         : 'current'
+      const fontFamily = VALID_FONTS.includes(currentSettings.fontFamily)
+        ? currentSettings.fontFamily
+        : DEFAULT_FONT
       delete currentSettings['live' + 'MarkdownPreview']
       return {
         continuousScroll: true,
-        fontFamily: 'brutalist',
         ...currentSettings,
         theme,
+        fontFamily,
         defaultPdfZoom,
         defaultReaderView,
         notesFontFamily,
@@ -182,7 +187,7 @@ function App() {
       return {
         continuousScroll: true,
         theme: DEFAULT_THEME,
-        fontFamily: 'brutalist',
+        fontFamily: DEFAULT_FONT,
         notesFontFamily: 'current',
         homeLayout: 'list',
         defaultPdfZoom: DEFAULT_PDF_ZOOM,
@@ -220,7 +225,7 @@ function App() {
     localStorage.setItem('papyrus-settings', JSON.stringify(settings))
     // Apply theme variables to document element
     document.documentElement.setAttribute('data-theme', settings.theme || DEFAULT_THEME)
-    document.documentElement.setAttribute('data-font', settings.fontFamily || 'brutalist')
+    document.documentElement.setAttribute('data-font', settings.fontFamily || DEFAULT_FONT)
     document.documentElement.setAttribute('data-notes-font', settings.notesFontFamily || 'current')
   }, [settings])
 
@@ -740,10 +745,10 @@ function App() {
             style={{ background: 'var(--foreground)', color: 'var(--background)' }}
           >
             <div className="flex items-center gap-2.5 px-4 py-3">
-              <span className="text-sm shrink-0" style={{ opacity: 0.5 }}>
+              <span className="text-small shrink-0" style={{ opacity: 0.5 }}>
                 {toast.type === 'success' ? '✓' : toast.type === 'error' ? '✕' : '·'}
               </span>
-              <span className="text-sm font-medium leading-snug">{toast.message}</span>
+              <span className="text-small font-medium leading-snug">{toast.message}</span>
             </div>
             <div
               className="h-[2px] w-full animate-toast-progress origin-left"
@@ -762,7 +767,7 @@ function App() {
             }}
           >
             <span
-              className="rounded-md border px-2 py-1 text-[11px] font-bold uppercase tracking-[0.08em]"
+              className="rounded-md border px-2 py-1 text-very-small font-bold uppercase tracking-[0.08em]"
               style={{
                 borderColor: 'color-mix(in srgb, var(--secondary) 40%, var(--border))',
                 color: 'var(--foreground)',
@@ -776,7 +781,7 @@ function App() {
               {chordCommands.map(([key, label]) => (
                 <span
                   key={`${key}-${label}`}
-                  className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px]"
+                  className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-very-small"
                   style={{ color:'color-mix(in srgb, var(--foreground) 78%, transparent)' }}
                 >
                   <span
@@ -799,7 +804,7 @@ function App() {
             <button
               type="button"
               onClick={() => setActiveExternalTabId(null)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-small font-medium transition-colors ${
                 activeExternalTabId === null ? 'bg-border text-foreground' : 'text-muted hover:text-foreground hover:bg-foreground/5'
               }`}
             >
@@ -810,7 +815,7 @@ function App() {
                 <button
                   type="button"
                   onClick={() => setActiveExternalTabId(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                  className={`px-3 py-1.5 rounded-lg text-small font-medium transition-colors flex items-center gap-2 ${
                     activeExternalTabId === tab.id ? 'bg-border text-foreground' : 'text-muted hover:text-foreground hover:bg-foreground/5'
                   }`}
                 >
@@ -851,7 +856,7 @@ function App() {
                 <div className="h-2 w-48 rounded-full overflow-hidden bg-surface">
                   <div className="h-full w-1/3 skeleton-shimmer" />
                 </div>
-                <span className="text-sm text-muted uppercase tracking-widest">Loading library...</span>
+                <span className="text-small text-muted uppercase tracking-widest">Loading library...</span>
               </div>
             }>
               <SearchWorkbench
@@ -874,7 +879,7 @@ function App() {
                 <div className="h-2 w-48 rounded-full overflow-hidden bg-surface">
                   <div className="h-full w-1/3 skeleton-shimmer" />
                 </div>
-                <span className="text-sm text-muted uppercase tracking-widest">Loading reader…</span>
+                <span className="text-small text-muted uppercase tracking-widest">Loading reader…</span>
               </div>
             }>
               <Reader

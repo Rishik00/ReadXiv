@@ -163,24 +163,24 @@ export default function ReaderPdfFloatingToolbar({
   const templateLabel = (noteTemplates.find((template) => template.id === selectedNoteTemplate)?.label) || 'Custom';
 
   const toolIconBtn =
-    'flex h-9 w-9 shrink-0 items-center justify-center rounded-[20px] border border-border bg-background text-foreground transition-colors hover:bg-border disabled:opacity-40';
+    'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-border disabled:opacity-40';
 
   const bar = (
     <div
       ref={barRef}
-      className={`reader-pdf-toolbar-m8 pointer-events-auto flex items-center gap-2 sm:gap-3 ${stripOpen ? 'reader-pdf-toolbar-m8-expanded' : ''} ${!stripOpen && !mouseActive ? 'reader-pdf-toolbar-m8-idle' : ''}`}
+      className={`reader-pdf-toolbar-m8 pointer-events-auto flex items-center gap-1.5 ${stripOpen ? 'reader-pdf-toolbar-m8-expanded' : ''} ${!stripOpen && !mouseActive ? 'reader-pdf-toolbar-m8-idle' : ''}`}
       onMouseEnter={() => setMouseActive(true)}
     >
       <button
         type="button"
-        className="reader-pdf-toolbar-m8-toggle flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-foreground shadow-[0_4px_12px_rgba(0,0,0,0.5)] transition-colors hover:bg-surface/90"
+        className="reader-pdf-toolbar-m8-toggle flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-foreground shadow-[0_3px_10px_rgba(0,0,0,0.45)] transition-colors hover:bg-surface/90"
         title={stripOpen ? 'Collapse toolbar' : 'Expand toolbar'}
         aria-expanded={stripOpen}
         onClick={() => setStripOpen((v) => !v)}
       >
         <svg
-          width="20"
-          height="20"
+          width="16"
+          height="16"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -194,23 +194,23 @@ export default function ReaderPdfFloatingToolbar({
         </svg>
       </button>
 
-      <div className="reader-pdf-toolbar-m8-panel flex max-w-[min(100vw-5rem,60rem)] flex-wrap items-center gap-1.5 rounded-[30px] border border-border bg-surface px-2 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.5)] sm:gap-2 sm:px-3">
-        <div className="flex items-center rounded-[20px] border border-border bg-background p-0.5">
+      <div className="reader-pdf-toolbar-m8-panel flex max-w-[min(100vw-4rem,52rem)] flex-wrap items-center gap-1 rounded-[18px] border border-border bg-surface px-1.5 py-1.5 shadow-[0_3px_14px_rgba(0,0,0,0.45)]">
+        <div className="flex items-center rounded-[14px] border border-border bg-background p-0.5">
           <button
             type="button"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-base text-foreground transition-colors hover:bg-border disabled:opacity-40"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-medium text-foreground transition-colors hover:bg-border disabled:opacity-40"
             onClick={run('zoomOut')}
             disabled={!docReady}
             title="Zoom out"
           >
             −
           </button>
-          <span className="w-9 text-center font-mono text-[11px] text-muted tabular-nums sm:w-11 sm:text-[13px]">
+          <span className="w-9 text-center font-mono text-very-small text-muted tabular-nums sm:w-11 sm:text-very-small">
             {scalePct != null ? `${scalePct}%` : '—'}
           </span>
           <button
             type="button"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-base text-foreground transition-colors hover:bg-border disabled:opacity-40"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-medium text-foreground transition-colors hover:bg-border disabled:opacity-40"
             onClick={run('zoomIn')}
             disabled={!docReady}
             title="Zoom in"
@@ -219,12 +219,12 @@ export default function ReaderPdfFloatingToolbar({
           </button>
         </div>
 
-        <div className="h-5 w-px shrink-0 bg-border" aria-hidden />
+        <div className="h-4 w-px shrink-0 bg-border" aria-hidden />
 
         <div className="relative">
           <button
             type="button"
-            className={`flex items-center gap-1 rounded-[20px] border border-border bg-background px-2.5 py-1.5 font-mono text-[11px] text-foreground transition-colors hover:bg-border sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${viewMenuOpen ? 'ring-1 ring-secondary/40' : ''}`}
+            className={`flex items-center gap-1 rounded-[14px] border border-border bg-background px-2 py-1 font-mono text-very-small text-foreground transition-colors hover:bg-border ${viewMenuOpen ? 'ring-1 ring-secondary/40' : ''}`}
             onClick={openViewMenu}
           >
             <span className="max-w-[4.5rem] truncate sm:max-w-none">{viewLabel}</span>
@@ -244,7 +244,7 @@ export default function ReaderPdfFloatingToolbar({
               <button
                 key={opt.id}
                 type="button"
-                className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left font-mono text-xs transition-colors hover:bg-border sm:gap-3 sm:px-3 sm:text-sm ${
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left font-mono text-very-small transition-colors hover:bg-border sm:gap-3 sm:px-3 sm:text-small ${
                   viewMode === opt.id ? 'bg-secondary/10 text-secondary' : 'text-foreground'
                 }`}
                 onClick={() => {
@@ -253,7 +253,7 @@ export default function ReaderPdfFloatingToolbar({
                 }}
               >
                 <span>{opt.label}</span>
-                <span className="text-[10px] text-muted sm:text-[11px]">{opt.hint}</span>
+                <span className="text-very-small text-muted sm:text-very-small">{opt.hint}</span>
               </button>
             ))}
           </div>
@@ -264,7 +264,7 @@ export default function ReaderPdfFloatingToolbar({
             <div className="relative">
               <button
                 type="button"
-                className={`flex items-center gap-1.5 rounded-[20px] border border-border bg-background px-2.5 py-1.5 font-mono text-[11px] text-foreground transition-colors hover:bg-border sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${statusMenuOpen ? 'ring-1 ring-secondary/40' : ''}`}
+                className={`flex items-center gap-1 rounded-[14px] border border-border bg-background px-2 py-1 font-mono text-very-small text-foreground transition-colors hover:bg-border ${statusMenuOpen ? 'ring-1 ring-secondary/40' : ''}`}
                 onClick={openStatusMenu}
                 title="Set status"
               >
@@ -284,7 +284,7 @@ export default function ReaderPdfFloatingToolbar({
                   <button
                     key={opt.id}
                     type="button"
-                    className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left font-mono text-xs transition-colors hover:bg-border sm:gap-3 sm:px-3 sm:text-sm ${
+                    className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left font-mono text-very-small transition-colors hover:bg-border sm:gap-3 sm:px-3 sm:text-small ${
                       status === opt.id ? 'bg-secondary/10 text-secondary' : 'text-foreground'
                     }`}
                     onClick={() => {
@@ -300,18 +300,18 @@ export default function ReaderPdfFloatingToolbar({
                       />
                       {opt.label}
                     </span>
-                    {opt.id === 'done' && <span className="text-[10px] text-muted sm:text-[11px]">& close</span>}
+                    {opt.id === 'done' && <span className="text-very-small text-muted sm:text-very-small">& close</span>}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="h-5 w-px shrink-0 bg-border" aria-hidden />
+            <div className="h-4 w-px shrink-0 bg-border" aria-hidden />
           </>
         )}
 
         <div
-          className="flex cursor-text items-center rounded-[20px] border border-border bg-background font-mono text-[11px] text-foreground sm:text-sm"
+          className="readxiv-focus-within-control flex cursor-text items-center rounded-[14px] border border-border bg-background font-mono text-very-small text-foreground"
           onMouseDown={(event) => {
             if (event.target === pageInputRef.current) return;
             event.preventDefault();
@@ -339,7 +339,7 @@ export default function ReaderPdfFloatingToolbar({
               }
             }}
             onBlur={() => setPageInput(String(currentPage))}
-            className="w-10 rounded-l-[20px] bg-transparent py-1.5 pl-2.5 text-right tabular-nums outline-none disabled:opacity-40 sm:w-12 sm:px-3 sm:py-2"
+            className="readxiv-focus-delegated w-10 rounded-l-[14px] bg-transparent py-1 pl-2 text-right tabular-nums disabled:opacity-40 sm:w-11"
           />
           <span className="pr-2.5 text-muted tabular-nums sm:pr-3">/ {numPages || '—'}</span>
         </div>
@@ -348,7 +348,7 @@ export default function ReaderPdfFloatingToolbar({
           <div className="relative">
             <button
               type="button"
-              className={`flex h-9 items-center gap-1.5 rounded-[20px] border border-border bg-background px-3 font-mono text-[11px] text-foreground transition-colors hover:bg-border sm:text-sm ${outlineOpen ? 'ring-1 ring-secondary/50 text-secondary' : ''}`}
+            className={`flex h-7 items-center gap-1 rounded-[14px] border border-border bg-background px-2 font-mono text-very-small text-foreground transition-colors hover:bg-border ${outlineOpen ? 'ring-1 ring-secondary/50 text-secondary' : ''}`}
               onClick={openOutlineMenu}
               title="Document outline"
               aria-label="Toggle document outline"
@@ -362,7 +362,7 @@ export default function ReaderPdfFloatingToolbar({
                 <button
                   key={`${item.title || 'section'}-${index}`}
                   type="button"
-                  className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-border"
+                  className="w-full rounded-lg px-3 py-2 text-left text-small text-foreground transition-colors hover:bg-border"
                   style={{ paddingLeft: `${12 + item.depth * 16}px` }}
                   onClick={() => {
                     pdfViewerRef.current?.jumpToDestination?.(item.dest);
@@ -380,7 +380,7 @@ export default function ReaderPdfFloatingToolbar({
           <div className="relative">
             <button
               type="button"
-              className={`flex h-9 max-w-40 items-center gap-1.5 rounded-[20px] border border-border bg-background px-3 font-mono text-[11px] text-foreground transition-colors hover:bg-border sm:max-w-48 sm:text-sm ${templateMenuOpen ? 'ring-1 ring-secondary/40' : ''}`}
+              className={`flex h-7 max-w-36 items-center gap-1 rounded-[14px] border border-border bg-background px-2 font-mono text-very-small text-foreground transition-colors hover:bg-border sm:max-w-44 ${templateMenuOpen ? 'ring-1 ring-secondary/40' : ''}`}
               onClick={openTemplateMenu}
               aria-label="Choose note template"
               aria-expanded={templateMenuOpen}
@@ -390,12 +390,12 @@ export default function ReaderPdfFloatingToolbar({
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0"><polyline points="6 9 12 15 18 9" /></svg>
             </button>
             <div className={`${dropdownPanelClass} min-w-[12rem] ${templateMenuOpen ? dropdownOpenClass : dropdownClosedClass}`}>
-              {selectedNoteTemplate === 'custom' && <span className="px-3 py-2 font-mono text-xs text-muted">Custom notes</span>}
+              {selectedNoteTemplate === 'custom' && <span className="px-3 py-2 font-mono text-very-small text-muted">Custom notes</span>}
               {noteTemplates.map((template) => (
                 <button
                   key={template.id}
                   type="button"
-                  className={`w-full rounded-lg px-3 py-2 text-left font-mono text-xs transition-colors hover:bg-border sm:text-sm ${template.id === selectedNoteTemplate ? 'bg-secondary/10 text-secondary' : 'text-foreground'}`}
+                  className={`w-full rounded-lg px-3 py-2 text-left font-mono text-very-small transition-colors hover:bg-border sm:text-small ${template.id === selectedNoteTemplate ? 'bg-secondary/10 text-secondary' : 'text-foreground'}`}
                   onClick={() => {
                     onChangeNoteTemplate(template.id);
                     setTemplateMenuOpen(false);
@@ -408,7 +408,7 @@ export default function ReaderPdfFloatingToolbar({
           </div>
         )}
 
-        <div className="h-5 w-px shrink-0 bg-border" aria-hidden />
+        <div className="h-4 w-px shrink-0 bg-border" aria-hidden />
 
         <button
           type="button"

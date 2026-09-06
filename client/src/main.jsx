@@ -9,6 +9,19 @@ if (typeof window !== 'undefined' && window.electron?.apiUrl) {
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 
+// Bundle application fonts so the Electron app remains typographically stable offline.
+import '@fontsource-variable/dm-sans/wght.css'
+import '@fontsource-variable/dm-sans/wght-italic.css'
+import '@fontsource-variable/fraunces/wght.css'
+import '@fontsource-variable/fraunces/wght-italic.css'
+import '@fontsource-variable/jetbrains-mono/wght.css'
+import '@fontsource/source-sans-3/latin-400.css'
+import '@fontsource/source-sans-3/latin-400-italic.css'
+import '@fontsource/source-sans-3/latin-700.css'
+import '@fontsource/atkinson-hyperlegible/latin-400.css'
+import '@fontsource/atkinson-hyperlegible/latin-400-italic.css'
+import '@fontsource/atkinson-hyperlegible/latin-700.css'
+
 import App from './App.jsx'
 import './index.css'
 

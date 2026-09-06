@@ -1,5 +1,14 @@
 import typography from '@tailwindcss/typography'
 
+const cssVariableColor = (variable) => ({ opacityValue }) => {
+  if (opacityValue === undefined) return `var(${variable})`
+  const numericOpacity = Number(opacityValue)
+  const percentage = Number.isFinite(numericOpacity)
+    ? `${numericOpacity * 100}%`
+    : `calc(${opacityValue} * 100%)`
+  return `color-mix(in srgb, var(${variable}) ${percentage}, transparent)`
+}
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -63,20 +72,77 @@ export default {
         'toast-progress': 'toast-progress 2.6s linear forwards',
       },
       colors: {
-        background: 'var(--background)',
-        surface: 'var(--surface)',
-        border: 'var(--border)',
-        grid: 'var(--surface)',
-        foreground: 'var(--foreground)',
-        muted: 'var(--muted)',
-        accent: 'var(--secondary)',
-        secondary: 'var(--secondary)',
-        primary: 'var(--primary)',
+        canvas: cssVariableColor('--canvas'),
+        'surface-1': cssVariableColor('--surface-1'),
+        'surface-2': cssVariableColor('--surface-2'),
+        text: cssVariableColor('--text'),
+        'text-muted': cssVariableColor('--text-muted'),
+        'text-subtle': cssVariableColor('--text-subtle'),
+        accent: cssVariableColor('--accent'),
+        'on-accent': cssVariableColor('--on-accent'),
+        divider: cssVariableColor('--divider'),
+        'control-border': cssVariableColor('--control-border'),
+        'focus-ring': cssVariableColor('--focus-ring'),
+        success: cssVariableColor('--success'),
+        warning: cssVariableColor('--warning'),
+        danger: cssVariableColor('--danger'),
+        // Compatibility names for incremental migration.
+        background: cssVariableColor('--background'),
+        surface: cssVariableColor('--surface'),
+        border: cssVariableColor('--border'),
+        grid: cssVariableColor('--surface'),
+        foreground: cssVariableColor('--foreground'),
+        muted: cssVariableColor('--muted'),
+        secondary: cssVariableColor('--secondary'),
+        'button-on-secondary': cssVariableColor('--button-on-secondary'),
       },
       fontFamily: {
-        sans: ['var(--font-sans)', 'sans-serif'],
-        serif: ['var(--font-serif)', 'serif'],
-        mono: ['var(--font-mono)', 'monospace'],
+        sans: ['var(--font-ui)'],
+        ui: ['var(--font-ui)'],
+        serif: ['var(--font-display)'],
+        display: ['var(--font-display)'],
+        mono: ['var(--font-code)'],
+        code: ['var(--font-code)'],
+      },
+      fontSize: {
+        'very-small': ['var(--font-size-very-small)', { lineHeight: 'var(--line-height-very-small)' }],
+        small: ['var(--font-size-small)', { lineHeight: 'var(--line-height-small)' }],
+        medium: ['var(--font-size-medium)', { lineHeight: 'var(--line-height-medium)' }],
+        large: ['var(--font-size-large)', { lineHeight: 'var(--line-height-large)' }],
+        'very-large': ['var(--font-size-very-large)', { lineHeight: 'var(--line-height-very-large)' }],
+        'extra-large': ['var(--font-size-extra-large)', { lineHeight: 'var(--line-height-extra-large)' }],
+        display: ['var(--font-size-display)', { lineHeight: 'var(--line-height-display)' }],
+      },
+      spacing: {
+        1: 'var(--space-1)',
+        2: 'var(--space-2)',
+        3: 'var(--space-3)',
+        4: 'var(--space-4)',
+        6: 'var(--space-6)',
+        8: 'var(--space-8)',
+        12: 'var(--space-12)',
+        16: 'var(--space-16)',
+      },
+      borderRadius: {
+        DEFAULT: 'var(--radius-small)',
+        sm: 'var(--radius-small)',
+        md: 'var(--radius-medium)',
+        lg: 'var(--radius-medium)',
+        xl: 'var(--radius-large)',
+        '2xl': 'var(--radius-large)',
+        full: 'var(--radius-full)',
+      },
+      boxShadow: {
+        'elevation-1': 'var(--elevation-1)',
+        'elevation-2': 'var(--elevation-2)',
+        'elevation-3': 'var(--elevation-3)',
+      },
+      maxWidth: {
+        'content-small': 'var(--content-small)',
+        'content-medium': 'var(--content-medium)',
+        'content-large': 'var(--content-large)',
+        'content-extra-large': 'var(--content-extra-large)',
+        reading: 'var(--reading-measure)',
       },
       letterSpacing: {
         brutalist: '-0.06em',

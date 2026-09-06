@@ -982,7 +982,7 @@ const Reader = forwardRef(function Reader(
   if (!paperId) {
     return (
       <div className="p-8 max-w-[980px] mx-auto flex flex-col items-center justify-center min-h-[50vh]">
-        <p className="text-muted text-sm">Select a paper from the Library to begin reading.</p>
+        <p className="text-muted text-small">Select a paper from the Library to begin reading.</p>
       </div>
     );
   }
@@ -1017,8 +1017,8 @@ const Reader = forwardRef(function Reader(
   if (error) {
     return (
       <div className="p-8 max-w-[980px] mx-auto">
-        <Card>
-          <CardContent className="text-red-400">{error}</CardContent>
+        <Card variant="error">
+          <CardContent className="text-danger">{error}</CardContent>
         </Card>
       </div>
     );
@@ -1041,11 +1041,11 @@ const Reader = forwardRef(function Reader(
 
   return (
     <div className={`reader-workspace w-full mx-auto font-sans h-screen flex flex-col overflow-hidden animate-view-fade ${
-      pdfSolo ? 'reader-workspace-pdf-solo max-w-none p-0' : 'max-w-[1800px] p-4 sm:p-5'
+      pdfSolo ? 'reader-workspace-pdf-solo max-w-none p-0' : 'max-w-[1800px] p-[0.85rem] sm:p-[1.0625rem]'
     }`}>
       {backgroundPdfLoading && (
         <div className="mb-4 flex-shrink-0 rounded-lg border border-border/60 bg-background/80 px-4 py-3 backdrop-blur">
-          <div className="mb-2 text-sm font-medium text-secondary">
+          <div className="mb-2 text-small font-medium text-secondary">
             The paper is being chunked and rendered for the panel, please wait
           </div>
           <div className="h-1.5 w-full overflow-hidden bg-foreground/20 rounded-full">
@@ -1060,7 +1060,7 @@ const Reader = forwardRef(function Reader(
             ref={pdfPanelRef}
             tabIndex={0}
             style={{ width: notesCollapsed ? '100%' : `${leftWidth}%` }}
-            className={`reader-panel reader-pdf-panel overflow-hidden relative ${notesCollapsed ? 'reader-pdf-panel--solo' : ''} ${notesCollapsed ? '' : 'rounded-r-none'} h-full min-h-0 transition-all outline-none focus:outline-none ${focusedPanel === 'pdf' ? 'reader-panel-focused' : ''}`}
+            className={`reader-panel reader-pdf-panel overflow-hidden relative ${notesCollapsed ? 'reader-pdf-panel--solo' : ''} ${notesCollapsed ? '' : 'rounded-r-none'} h-full min-h-0 transition-all ${focusedPanel === 'pdf' ? 'reader-panel-focused' : ''}`}
             onClick={(e) => {
               setFocusedPanel('pdf');
               if (e.target.closest('[data-pdf-scroll]')) {
@@ -1089,10 +1089,10 @@ const Reader = forwardRef(function Reader(
               ) : (
                 <div className="h-full w-full flex items-center justify-center bg-[var(--pdf-canvas-bg)] px-6 text-center">
                   <div className="max-w-sm rounded-lg border border-border/70 bg-background/85 px-5 py-4 shadow-xl">
-                    <div className="text-sm font-semibold text-foreground">
+                    <div className="text-small font-semibold text-foreground">
                       {readerPaper?.status === 'error' ? 'PDF unavailable' : 'Preparing PDF'}
                     </div>
-                    <div className="mt-1.5 text-xs leading-5 text-muted">
+                    <div className="mt-1.5 text-very-small leading-5 text-muted">
                       {readerPaper?.status === 'error'
                         ? 'The PDF download failed. You can keep notes here or try adding the paper again later.'
                         : 'ReadXiv is fetching the document. Notes are ready while the PDF is being prepared.'}
@@ -1156,7 +1156,7 @@ const Reader = forwardRef(function Reader(
                     e.stopPropagation();
                     setNoteTab('edit');
                   }}
-                  className={`relative flex items-center gap-1.5 py-1.5 text-sm font-medium transition-colors ${
+                  className={`relative flex items-center gap-1.5 py-1.5 text-small font-medium transition-colors ${
                     noteTab === 'edit'
                       ? 'text-foreground'
                       : 'text-muted hover:text-foreground'
@@ -1171,7 +1171,7 @@ const Reader = forwardRef(function Reader(
                     e.stopPropagation();
                     setNoteTab('references');
                   }}
-                  className={`relative flex items-center gap-1.5 py-1.5 text-sm font-medium transition-colors ${
+                  className={`relative flex items-center gap-1.5 py-1.5 text-small font-medium transition-colors ${
                     noteTab === 'references'
                       ? 'text-foreground'
                       : 'text-muted hover:text-foreground'
@@ -1204,7 +1204,7 @@ const Reader = forwardRef(function Reader(
             </div>
             {showOutline && notesOutline.length > 0 && (
               <div className="border-b border-border/50 bg-surface/30 backdrop-blur-sm p-4 max-h-64 overflow-auto">
-                <div className="flex items-center gap-2 text-xs font-semibold text-muted uppercase tracking-wider mb-3">
+                <div className="flex items-center gap-2 text-very-small font-semibold text-muted uppercase tracking-wider mb-3">
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                   Outline
                 </div>
@@ -1224,7 +1224,7 @@ const Reader = forwardRef(function Reader(
                           scrollToOutlineItem(item.line);
                         }
                       }}
-                      className="block w-full text-left rounded px-2 py-1.5 cursor-pointer hover:bg-surface/50 transition-colors group outline-none focus-visible:ring-2 focus-visible:ring-secondary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                      className="block w-full cursor-pointer rounded px-2 py-1.5 text-left transition-colors hover:bg-surface/50 group"
                       style={{ paddingLeft: `${8 + (item.level - 1) * 14}px` }}
                     >
                       <span
@@ -1240,10 +1240,10 @@ const Reader = forwardRef(function Reader(
             {noteTab === 'references' ? (
               <div
                 tabIndex={0}
-                className="flex-1 min-h-0 overflow-y-auto px-8 sm:px-10 py-6 text-foreground outline-none focus:outline-none select-text"
+                className="flex-1 min-h-0 overflow-y-auto px-8 sm:px-10 py-6 text-foreground select-text"
                 onFocus={() => setFocusedPanel('notes')}
               >
-                <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground mb-5 max-w-[720px] mx-auto">
+                <h2 className="text-very-large sm:text-extra-large font-semibold tracking-tight text-foreground mb-5 max-w-[720px] mx-auto">
                   References
                 </h2>
                 {referencesLoading ? (
@@ -1280,9 +1280,9 @@ const Reader = forwardRef(function Reader(
                         >
                           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm text-foreground leading-snug">{ref.title}</p>
+                              <p className="text-small text-foreground leading-snug">{ref.title}</p>
                               {authorsShort ? (
-                                <p className="text-xs text-muted/70 mt-1">{authorsShort}</p>
+                                <p className="text-very-small text-muted/70 mt-1">{authorsShort}</p>
                               ) : null}
                             </div>
                             <div className="flex flex-wrap items-center gap-2 shrink-0 self-start">
@@ -1291,7 +1291,7 @@ const Reader = forwardRef(function Reader(
                                   href={linkHref}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center justify-center px-1 py-1 text-xs font-medium text-muted hover:text-foreground transition-colors"
+                                  className="inline-flex items-center justify-center px-1 py-1 text-very-small font-medium text-muted hover:text-foreground transition-colors"
                                 >
                                   Link
                                 </a>
@@ -1300,7 +1300,7 @@ const Reader = forwardRef(function Reader(
                                 type="button"
                                 disabled={busy || added}
                                 onClick={() => addShelfReference(ref.arxivId.trim(), rowKey)}
-                                className={`inline-flex items-center justify-center px-1 py-1 text-xs font-medium transition-colors ${
+                                className={`inline-flex items-center justify-center px-1 py-1 text-very-small font-medium transition-colors ${
                                   added
                                     ? 'text-muted cursor-default'
                                     : 'text-secondary hover:text-foreground disabled:opacity-50'
@@ -1326,8 +1326,8 @@ const Reader = forwardRef(function Reader(
                     ref={mdxEditorRef}
                     markdown={notes}
                     plugins={mdxPlugins}
-                    className="readxiv-mdx-editor markdown-editor flex-1 min-h-0 w-full overflow-y-auto bg-transparent px-8 sm:px-12 pt-7 pb-8 text-base text-foreground select-text"
-                    contentEditableClassName="readxiv-mdx-content markdown-preview max-w-[750px] mx-auto min-h-full outline-none"
+                    className="readxiv-mdx-editor markdown-editor flex-1 min-h-0 w-full overflow-y-auto bg-transparent px-8 sm:px-12 pt-7 pb-8 text-medium text-foreground select-text"
+                    contentEditableClassName="readxiv-focus-delegated readxiv-mdx-content markdown-preview max-w-[750px] mx-auto min-h-full"
                     placeholder="Start writing your thoughts..."
                     onChange={(markdown) => {
                       perfLog('MDXEditor onChange', {
@@ -1342,19 +1342,19 @@ const Reader = forwardRef(function Reader(
                   />
                 </Profiler>
                 {foldedSections.size > 0 && (
-                  <div className="absolute top-4 right-4 text-xs text-muted bg-surface/80 px-2 py-1 rounded border border-border">
+                  <div className="absolute top-4 right-4 text-very-small text-muted bg-surface/80 px-2 py-1 rounded border border-border">
                     {foldedSections.size} section(s) folded
                   </div>
                 )}
                 <div className="editor-status-bar shrink-0 flex flex-wrap items-center justify-between gap-2 px-8 sm:px-12 py-2 border-t border-border/20">
-                  <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted/60">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-very-small text-muted/60">
                     <span className="flex items-center gap-1.5">
                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
                       {notesWordCount} words
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`flex items-center gap-1.5 text-xs ${notesStatus === 'saved' ? 'text-muted/60' : notesStatus === 'saving' ? 'text-secondary/80' : 'text-red-400/80'}`}>
+                    <span className={`flex items-center gap-1.5 text-very-small ${notesStatus === 'saved' ? 'text-muted/60' : notesStatus === 'saving' ? 'text-secondary/80' : 'text-red-400/80'}`}>
                       {notesStatus === 'saved' && (
                         <>
                           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
