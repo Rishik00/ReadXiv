@@ -1979,6 +1979,7 @@ mjx-container[display="true"] {
 
 /* header + Now/Stats switch — sit OUTSIDE the padded card */
 .editorial-deskhead { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 .2rem .85rem; }
+.editorial-deskhead--reading { justify-content: flex-end; }
 .editorial-marq { display: inline-flex; align-items: center; gap: .55rem; color: color-mix(in srgb, var(--foreground) 82%, var(--muted)); font-family: var(--font-mono); font-size: var(--font-size-small); letter-spacing: .13em; text-transform: uppercase; }
 .editorial-marq-dot { width: .55rem; height: .55rem; border-radius: 50%; background: var(--status-reading); box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-reading) 16%, transparent); }
 .editorial-switch { display: inline-flex; padding: 3px; border: 1px solid color-mix(in srgb, var(--border) 90%, var(--foreground)); border-radius: 999px; background: color-mix(in srgb, var(--background) 40%, transparent); }

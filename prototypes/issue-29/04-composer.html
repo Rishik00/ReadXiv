@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>04 Paper composer · ReadXiv</title><link rel="stylesheet" href="style.css" /></head>
+<body data-variant="composer">
+  <header class="topbar"><a class="brand" href="index.html">ReadXiv<span class="brand-dot">.</span></a><nav class="study-nav" aria-label="Study navigation"><a href="01-direct.html">01</a><a href="02-workspace.html">02</a><a href="03-palette.html">03</a><a aria-current="page" href="04-composer.html">04</a></nav><span class="top-note">Paper composer</span></header>
+  <main class="composer-main"><div class="composer-head"><p class="kicker">Home</p><h1>Bring a paper in.</h1><p>Paste one link or a list. Review what you have before adding it.</p></div>
+    <section class="composer-card" aria-label="Add papers"><div class="composer-tabs" role="tablist" aria-label="Paper action"><button type="button" role="tab" aria-selected="true" data-composer-tab="add">Add papers</button><button type="button" role="tab" aria-selected="false" data-composer-tab="search">Search library</button></div><form data-composer-form><label class="sr-only" for="composer-input">Paper links or search</label><textarea id="composer-input" data-main-input rows="4" placeholder="Paste arXiv IDs or HTTPS PDF links, one per line…"></textarea><div class="composer-bottom"><span data-composer-hint>arXiv links, IDs, and PDF URLs</span><div><button type="button" class="plain-button" data-upload>Upload PDF</button><button type="submit" class="solid-button" data-composer-submit>Review papers <span>↗</span></button></div></div></form><div class="result-panel composer-results" data-results hidden></div></section>
+    <div class="composer-examples"><span>Try an example</span><button type="button" data-example="2408.08423">2408.08423</button><button type="button" data-example="https://arxiv.org/abs/2501.01234">arxiv.org/abs/2501.01234</button></div>
+  </main>
+  <input type="file" accept=".pdf,application/pdf" data-file hidden><div class="toast" role="status" aria-live="polite"></div><script src="app.js"></script>
+</body></html>

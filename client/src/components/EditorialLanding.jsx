@@ -164,11 +164,8 @@ export default function EditorialLanding({
 
   return (
     <section className={`editorial-desk ${dimmed ? 'is-dimmed' : ''}`} aria-label="Reading desk">
-      <div className="editorial-deskhead">
-        <span className="editorial-marq">
-          {view === 'now' && <span className="editorial-marq-dot" aria-hidden="true" />}
-          {view === 'now' ? 'Continue reading' : 'Your library, in numbers'}
-        </span>
+      <div className={`editorial-deskhead ${view === 'now' ? 'editorial-deskhead--reading' : ''}`}>
+        {view === 'stats' && <span className="editorial-marq">Your library, in numbers</span>}
         <div className="editorial-switch" role="tablist" aria-label="Desk view">
           <button type="button" role="tab" aria-selected={view === 'now'} data-on={view === 'now'} onClick={() => onViewChange?.('now')}>Reading</button>
           <button type="button" role="tab" aria-selected={view === 'stats'} data-on={view === 'stats'} onClick={() => onViewChange?.('stats')}>Stats</button>

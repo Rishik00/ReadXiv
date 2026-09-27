@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>02 Task workspace · ReadXiv</title><link rel="stylesheet" href="style.css" /></head>
+<body data-variant="workspace">
+  <header class="topbar"><a class="brand" href="index.html">ReadXiv<span class="brand-dot">.</span></a><nav class="study-nav" aria-label="Study navigation"><a href="01-direct.html">01</a><a aria-current="page" href="02-workspace.html">02</a><a href="03-palette.html">03</a><a href="04-composer.html">04</a></nav><span class="top-note">Task workspace</span></header>
+  <main class="workspace-main">
+    <div class="workspace-intro"><p class="kicker">Home</p><h1>What are you here to do?</h1></div>
+    <div class="workspace-grid">
+      <nav class="task-rail" aria-label="Home tasks"><button type="button" data-task="search" class="active"><span>⌕</span><strong>Search</strong><small>Find a paper already here</small></button><button type="button" data-task="open"><span>↗</span><strong>Open</strong><small>Jump to a paper</small></button><button type="button" data-task="add"><span>＋</span><strong>Add</strong><small>Save a link or arXiv ID</small></button><button type="button" data-task="upload"><span>⇧</span><strong>Upload</strong><small>Import a PDF from disk</small></button></nav>
+      <section class="task-content"><p class="task-overline" data-task-label>Search your library</p><h2 data-task-title>Find the paper you need.</h2><p class="task-description" data-task-description>Search titles, authors, and arXiv IDs. Select a result to open it.</p><form class="field-form task-form" data-action="search"><label class="sr-only" for="task-input">Search library</label><input id="task-input" data-main-input autocomplete="off" placeholder="Title, author, or arXiv ID" /><button type="submit">Search <span>↗</span></button></form><div class="result-panel" data-results hidden></div><div class="task-prompt" data-task-prompt><span>Try</span><button type="button" data-example="attention">attention</button><button type="button" data-example="transformer">transformer</button></div></section>
+    </div>
+    <p class="workspace-foot">Tasks are explicit here. Search never adds a paper by accident.</p>
+  </main>
+  <input type="file" accept=".pdf,application/pdf" data-file hidden><div class="toast" role="status" aria-live="polite"></div><script src="app.js"></script>
+</body></html>

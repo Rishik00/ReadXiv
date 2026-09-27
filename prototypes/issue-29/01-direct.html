@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>01 Direct field · ReadXiv</title><link rel="stylesheet" href="style.css" /></head>
+<body data-variant="direct">
+  <header class="topbar"><a class="brand" href="index.html">ReadXiv<span class="brand-dot">.</span></a><nav class="study-nav" aria-label="Study navigation"><a aria-current="page" href="01-direct.html">01</a><a href="02-workspace.html">02</a><a href="03-palette.html">03</a><a href="04-composer.html">04</a></nav><span class="top-note">Direct field</span></header>
+  <main class="direct-main">
+    <div class="direct-hero"><p class="kicker">Your research starts here</p><h1>Find it. Add it.<br><em>Keep going.</em></h1></div>
+    <section class="direct-box" aria-label="Home command bar">
+      <form class="field-form" data-action="smart"><label class="sr-only" for="direct-input">Search papers or paste a paper link</label><span class="field-icon" aria-hidden="true">⌕</span><input id="direct-input" data-main-input autocomplete="off" placeholder="Search papers or paste an arXiv link…" /><button class="keycap action-submit" type="submit" aria-label="Run command">↵</button></form>
+      <div class="result-panel" data-results hidden></div>
+      <div class="direct-actions"><button type="button" data-mode="search">Search library</button><button type="button" data-mode="open">Open a paper</button><button type="button" data-mode="add">Add paper</button><button type="button" data-upload>Upload PDF <span>↗</span></button></div>
+    </section>
+    <div class="direct-foot"><span>Start typing to search your library.</span><span>Press <kbd>/</kbd> to focus · <kbd>Esc</kbd> to clear</span></div>
+  </main>
+  <input type="file" accept=".pdf,application/pdf" data-file hidden><div class="toast" role="status" aria-live="polite"></div><script src="app.js"></script>
+</body></html>
